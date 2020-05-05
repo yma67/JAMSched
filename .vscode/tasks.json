@@ -1,0 +1,30 @@
+{
+    "tasks": [
+        {
+            "label": "generate cmake",
+            "type": "shell",
+            "command": "cmake",
+            "options": {
+				"cwd": "./build"
+			},
+            "args": [ "../" ]
+        },
+        {
+            "label": "compile project",
+            "type": "shell",
+            "command": "make",
+            "options": {
+				"cwd": "./build"
+			},
+            "args": []
+        },
+        {
+            "label": "build project",
+            "dependsOn": [
+                "generate cmake",
+                "compile project"
+            ]
+        }
+    ],
+    "version": "2.0.0"
+}
