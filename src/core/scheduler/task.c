@@ -37,12 +37,7 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, void (*task_
 	/* can avoid this with __MAKECONTEXT_V2_SOURCE but only on SunOS 5.9 */
     task_bytes->context.uc_stack.ss_sp = (char*)task_bytes->context.uc_stack.ss_sp + task_bytes->context.uc_stack.ss_size;
 #endif
-	/*
-	 * All this magic is because you have to pass makecontext a
-	 * function that takes some number of word-sized variables,
-	 * and on 64-bit machines pointers are bigger than words.
-	 */
-	makecontext(&task_bytes->context, (void(*)())start_task, 2, (unsigned int)((unsigned long)task_bytes), (unsigned int)((unsigned long)task_bytes >> 32));
+    makecontext(&task_bytes->context, (void(*)())start_task, 2, (unsigned int)((unsigned long)task_bytes), (unsigned int)((unsigned long)task_bytes >> 32));
     task_bytes->task_status = TASK_READY;
     return SUCCESS_TASK;
 }
