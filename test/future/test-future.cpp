@@ -55,7 +55,7 @@ void test_listener() {
     while (remain) {
         pthread_barrier_wait(&barrier);
         auto r = reinterpret_cast<std::chrono::time_point<std::chrono::high_resolution_clock> *>(future.data);
-        // this_thread::sleep_for(chrono::nanoseconds(rand() % 50));
+        this_thread::sleep_for(chrono::nanoseconds(rand() % 50));
         REQUIRE((future.lock_word & 0x80000000) == 0);
         *r = std::chrono::high_resolution_clock::now();
         notify_future(&future);
@@ -64,8 +64,8 @@ void test_listener() {
     }
 }
 
-void test_future() {
-    //this_thread::sleep_for(chrono::nanoseconds(1));
+void test_future_idle() {
+    this_thread::sleep_for(chrono::nanoseconds(1));
 }
 
 TEST_CASE("Performance", "[future]") {
