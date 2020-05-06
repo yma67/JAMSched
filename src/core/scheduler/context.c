@@ -104,7 +104,7 @@ makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
 	long *sp;
 	va_list va;
 
-	memset(&ucp->uc_mcontext, 0, sizeof ucp->uc_mcontext);
+	// memset(&ucp->uc_mcontext, 0, sizeof ucp->uc_mcontext);
 	if(argc != 2)
 		*(int*)0 = 0;
 	va_start(va, argc);

@@ -1,8 +1,11 @@
 #include "scheduler/task.h"
 
-
 #define TASK_STACK_MIN 256
 #define NULL ((void *)0)
+
+
+void empty_func_next_idle() {}
+void empty_func_before_after(task_t* self) {}
 
 void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 	task_t *task = (task_t*)(task_addr_lower | (((unsigned long)task_addr_upper << 16) << 16));
@@ -10,23 +13,22 @@ void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 	task->task_status = TASK_FINISHED;
 }
 
-task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, void (*task_function)(task_t*, void*), void* (*task_memset)(void*, int, size_t), void* task_args, void* user_data, unsigned int stack_size) {
+task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, void (*task_function)(task_t*, void*), void* (*task_memset)(void*, int, size_t), void* task_args, void* user_data, unsigned int stack_size, unsigned char* stack) {
     // init task injected
     if (stack_size < TASK_STACK_MIN) {
         return ERROR_STACK_WRONGSIZE;
     }
-    task_memset(task_bytes, 0, sizeof(task_t) + stack_size);
     task_bytes->task_memset = task_memset;
     task_bytes->stack_size = stack_size;
     task_bytes->task_id = scheduler->task_id_counter;
     task_bytes->task_function = task_function;
     task_bytes->task_args = task_args;
     task_bytes->scheduler = scheduler;
-    task_bytes->stack = (unsigned char*)(task_bytes + 1);
+    task_bytes->stack = stack;
     scheduler->task_id_counter = scheduler->task_id_counter + 1;
     task_bytes->user_data = user_data;
     // init context
-    task_bytes->task_memset(&(task_bytes->context), 0, sizeof(ucontext_t));
+    // task_bytes->task_memset(&(task_bytes->context), 0, sizeof(ucontext_t));
     if (getcontext(&(task_bytes->context)) < 0)
 		return ERROR_CONTEXT_INIT;
     task_bytes->context.uc_stack.ss_sp = &(task_bytes->stack[0]) + 8;
@@ -69,8 +71,7 @@ task_return_t finish_task(task_t* task, int return_value) {
     return switch_task(task);
 }
 
-task_return_t make_scheduler(scheduler_t* scheduler_bytes, task_t* (*next_task)(), void (*idle_task)(), void (*before_each)(), void (*after_each)(), void* (*scheduler_memset)(void*, int, size_t)) {
-    scheduler_memset(scheduler_bytes, 0, sizeof(scheduler_t));
+task_return_t make_scheduler(scheduler_t* scheduler_bytes, task_t* (*next_task)(), void (*idle_task)(), void (*before_each)(task_t*), void (*after_each)(task_t*), void* (*scheduler_memset)(void*, int, size_t)) {
     scheduler_bytes->task_id_counter = 0;
     scheduler_bytes->next_task = next_task;
     scheduler_bytes->idle_task = idle_task;
@@ -89,10 +90,10 @@ task_return_t shutdown_scheduler(scheduler_t* scheduler) {
 void scheduler_mainloop(scheduler_t* scheduler) {
     while (scheduler->cont) {
         task_t* to_run = scheduler->next_task();
-        if (to_run != NULL) {
-            scheduler->before_each();
+        if (to_run != NULL && to_run->task_status == TASK_READY) {
+            scheduler->before_each(to_run);
             context_switch(&scheduler->scheduler_context, &to_run->context);
-            scheduler->after_each();
+            scheduler->after_each(to_run);
         } else {
             scheduler->idle_task();
         }

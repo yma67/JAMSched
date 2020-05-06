@@ -9,16 +9,16 @@
 struct timespec diff(struct timespec start, struct timespec end);
 
 scheduler_t sched;
-char the_only_task_[sizeof(task_t) + 256 * 1024];
-task_t* the_only_task = (task_t*)the_only_task_;
+unsigned char the_only_task_stack[256 * 1024];
+task_t the_only_task;
 int tick = 0;
 unsigned long long int time_count_ctx_switch = 0;
 struct timespec time1, time2;
 
 task_t* next_task() {
-    if (the_only_task->task_status == TASK_READY) {
+    if (the_only_task.task_status == TASK_READY) {
         clock_gettime(CLOCK_MONOTONIC, &time1);
-        return the_only_task;
+        return &the_only_task;
     }
     return NULL;
 }
@@ -28,11 +28,11 @@ void idle_task() {
     // sleep(2);
 }
 
-void before_each() {
+void before_each(task_t* self) {
 
 }
 
-void after_each() {
+void after_each(task_t* self) {
 
 }
 
@@ -52,7 +52,7 @@ void only_task_f(task_t* self, void* args) {
 int main() {
     printf("tick is initially %d\n", tick);
     make_scheduler(&sched, next_task, idle_task, before_each, after_each, memset);
-    make_task(the_only_task, &sched, only_task_f, memset, &tick, NULL, 1024 * 256);
+    make_task(&the_only_task, &sched, only_task_f, memset, &tick, NULL, 1024 * 256, the_only_task_stack);
     scheduler_mainloop(&sched);
     printf("tick is finally %d, avg ctx switch time is %lld ns\n", tick, time_count_ctx_switch / 10000);
     return 0;

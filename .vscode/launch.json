@@ -42,6 +42,27 @@
             ],
             "preLaunchTask": "build project",
             "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "gcc-7 - test-debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/test/test-main",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/test/",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "format gdb print",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build project",
+            "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
 }

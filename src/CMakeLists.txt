@@ -1,1 +1,12 @@
-add_subdirectory(core)
+set(JAMSCHED_LIBS "")
+file(GLOB JAMCOMPONENTS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*)
+foreach(JAMCOMPONENT ${JAMCOMPONENTS})
+    if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${JAMCOMPONENT})
+        add_subdirectory(${JAMCOMPONENT})
+        list(APPEND JAMSCHED_LIBS "libjam${JAMCOMPONENT}")
+    endif()
+endforeach(JAMCOMPONENT ${JAMCOMPONENTS})
+add_library(libjamsched INTERFACE)
+
+target_link_libraries(libjamsched INTERFACE ${JAMSCHED_LIBS})
+target_include_directories(libjamsched INTERFACE "${PROJECT_SOURCE_DIR}/include/")

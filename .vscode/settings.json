@@ -2,7 +2,16 @@
     "cmake.configureOnOpen": true,
     "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
     "files.associations": {
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "array": "c",
+        "chrono": "c",
+        "functional": "c",
+        "istream": "c",
+        "ratio": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "variant": "c"
     },
     
 }
