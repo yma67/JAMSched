@@ -88,7 +88,7 @@ task_return_t shutdown_scheduler(scheduler_t* scheduler) {
 }
 
 void scheduler_mainloop(scheduler_t* scheduler) {
-    if (scheduler == NULL) return ERROR_TASK_INVALID_ARGUMENT;
+    if (scheduler == NULL) return;
     while (scheduler->cont) {
         task_t* to_run = scheduler->next_task();
         if (to_run != NULL && to_run->task_status == TASK_READY) {

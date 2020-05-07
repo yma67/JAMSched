@@ -70,8 +70,8 @@ void test_future_idle() {
 
 TEST_CASE("Performance", "[future]") {
     pthread_barrier_init(&barrier, NULL, 2);
-    make_scheduler(&scheduler_future, schedule_next_future, empty_func_next_idle, before_each_future, empty_func_before_after, memset);
-    make_task(&listener, &scheduler_future, test_future_task, memset, NULL, NULL, 256 * 1024, listener_stack);
+    make_scheduler(&scheduler_future, schedule_next_future, empty_func_next_idle, before_each_future, empty_func_before_after);
+    make_task(&listener, &scheduler_future, test_future_task, NULL, NULL, 256 * 1024, listener_stack);
     thread lstn(test_listener);
     placeholder = &listener;
     scheduler_mainloop(&scheduler_future);

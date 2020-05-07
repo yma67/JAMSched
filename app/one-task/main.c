@@ -51,8 +51,8 @@ void only_task_f(task_t* self, void* args) {
 
 int main() {
     printf("tick is initially %d\n", tick);
-    make_scheduler(&sched, next_task, idle_task, before_each, after_each, memset);
-    make_task(&the_only_task, &sched, only_task_f, memset, &tick, NULL, 1024 * 256, the_only_task_stack);
+    make_scheduler(&sched, next_task, idle_task, before_each, after_each);
+    make_task(&the_only_task, &sched, only_task_f, &tick, NULL, 1024 * 256, the_only_task_stack);
     scheduler_mainloop(&sched);
     printf("tick is finally %d, avg ctx switch time is %lld ns\n", tick, time_count_ctx_switch / 10000);
     return 0;
