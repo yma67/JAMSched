@@ -1,12 +1,12 @@
 
-typedef struct mcontext mcontext_t;
-typedef struct ucontext ucontext_t;
+typedef struct jam_mcontext jam_mcontext_t;
+typedef struct jam_ucontext jam_ucontext_t;
 
 
-extern	int		swapcontext(ucontext_t*, const ucontext_t*);
-extern	void		makecontext(ucontext_t*, void(*)(), int, ...);
-extern	int		getmcontext(mcontext_t*);
-extern	void		setmcontext(const mcontext_t*);
+extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
+extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
+extern	int		getmcontext(jam_mcontext_t*);
+extern	void		setmcontext(const jam_mcontext_t*);
 
 
 /*-
@@ -71,7 +71,7 @@ extern	void		setmcontext(const mcontext_t*);
  * $FreeBSD: src/sys/i386/include/ucontext.h,v 1.4 1999/10/11 20:33:09 luoqi Exp $
  */
 
-struct mcontext {
+struct jam_mcontext {
 	/*
 	 * The first 20 fields must match the definition of
 	 * sigcontext. So that we can support sigcontext
@@ -123,13 +123,13 @@ typedef struct sigaltstack {
 	void *ss_sp;
 	int ss_flags;
 	size_t ss_size;
-} stack_t;
+} jam_stack_t;
 #define _SIGSET_NWORDS (1024 / (8 * sizeof (unsigned long int)))
 typedef struct {
   unsigned long int __val[_SIGSET_NWORDS];
 } ___sigset_t;
 
-struct ucontext {
+struct jam_ucontext {
 	/*
 	 * Keep the order of the first two fields. Also,
 	 * keep them the first two fields in the structure.
@@ -140,10 +140,10 @@ struct ucontext {
 	 */
 	
 	___sigset_t	uc_sigmask;
-	mcontext_t	uc_mcontext;
+	jam_mcontext_t	uc_mcontext;
 
 	struct __ucontext *uc_link;
-	stack_t		uc_stack;
+	jam_stack_t		uc_stack;
 	int		__spare__[8];
 };
 

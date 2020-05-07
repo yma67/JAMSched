@@ -65,7 +65,7 @@ typedef long long vlong;
 
 #ifdef NEEDPOWERMAKECONTEXT
 void
-makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
+makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
 {
 	ulong *sp, *tos;
 	va_list arg;
@@ -82,7 +82,7 @@ makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
 
 #ifdef NEEDX86MAKECONTEXT
 void
-makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
+makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
 {
 	int *sp;
 
@@ -99,7 +99,7 @@ makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
 
 #ifdef NEEDAMD64MAKECONTEXT
 void
-makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
+makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
 {
 	long *sp;
 	va_list va;
@@ -122,7 +122,7 @@ makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
 
 #ifdef NEEDARMMAKECONTEXT
 void
-makecontext(ucontext_t *uc, void (*fn)(void), int argc, ...)
+makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
 {
 	int i, *sp;
 	va_list arg;
@@ -139,7 +139,7 @@ makecontext(ucontext_t *uc, void (*fn)(void), int argc, ...)
 
 #ifdef NEEDMIPSMAKECONTEXT
 void
-makecontext(ucontext_t *uc, void (*fn)(void), int argc, ...)
+makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
 {
 	int i, *sp;
 	va_list arg;
@@ -155,7 +155,7 @@ makecontext(ucontext_t *uc, void (*fn)(void), int argc, ...)
 #endif
 #if defined(NEEDSWAPCONTEXT)
 int
-swapcontext(ucontext_t *oucp, const ucontext_t *ucp)
+swapcontext(jam_ucontext_t *oucp, const jam_ucontext_t *ucp)
 {
 	if(getcontext(oucp) == 0)
 		setcontext(ucp);

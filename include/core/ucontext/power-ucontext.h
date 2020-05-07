@@ -1,9 +1,9 @@
 #include <signal.h>
 #define	setcontext(u)	_setmcontext(&(u)->mc)
 #define	getcontext(u)	_getmcontext(&(u)->mc)
-typedef struct mcontext mcontext_t;
-typedef struct ucontext ucontext_t;
-struct mcontext
+typedef struct jam_mcontext jam_mcontext_t;
+typedef struct jam_ucontext jam_ucontext_t;
+struct jam_mcontext
 {
 	unsigned long	pc;		/* lr */
 	unsigned long	cr;		/* mfcr */
@@ -21,18 +21,18 @@ struct mcontext
 */
 };
 
-struct ucontext
+struct jam_ucontext
 {
 	struct {
 		void *ss_sp;
 		unsigned int ss_size;
 	} uc_stack;
 	sigset_t uc_sigmask;
-	mcontext_t mc;
+	jam_mcontext_t mc;
 };
 
-void makecontext(ucontext_t*, void(*)(void), int, ...);
-int swapcontext(ucontext_t*, const ucontext_t*);
-int _getmcontext(mcontext_t*);
-void _setmcontext(const mcontext_t*);
+void makecontext(jam_ucontext_t*, void(*)(void), int, ...);
+int swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
+int _getmcontext(jam_mcontext_t*);
+void _setmcontext(const jam_mcontext_t*);
 

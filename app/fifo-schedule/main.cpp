@@ -5,6 +5,7 @@
 #include <thread>
 #include <cstdlib>
 #include <cstring>
+#include <csignal>
 
 using namespace std;
 
@@ -73,6 +74,7 @@ void after_each(task_t* self) {
 }
 
 int main() {
+    cout << SIG_BLOCK << endl;
     make_scheduler(&scheduler, schedule_next, idle_task, before_each, after_each, memset);
     flame = reinterpret_cast<task_t*>(calloc(1, sizeof(task_t) + 256 * 1024));
     make_task(flame, &scheduler, capture, memset, &capsleep, NULL, 256 * 1024, reinterpret_cast<unsigned char*>(flame + 1));

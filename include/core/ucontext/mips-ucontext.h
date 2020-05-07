@@ -1,9 +1,9 @@
 #include <signal.h>
-typedef struct mcontext mcontext_t;
-typedef struct ucontext ucontext_t;
+typedef struct jam_mcontext jam_mcontext_t;
+typedef struct jam_ucontext jam_ucontext_t;
 
-extern	int		swapcontext(ucontext_t*, const ucontext_t*);
-extern	void	makecontext(ucontext_t*, void(*)(), int, ...);
+extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
+extern	void	makecontext(jam_ucontext_t*, void(*)(), int, ...);
 
 /*
  * Copyright (c) 1992, 1993
@@ -41,7 +41,7 @@ extern	void	makecontext(ucontext_t*, void(*)(), int, ...);
  * $FreeBSD: src/sys/mips/include/ucontext.h,v 1.2 2010/01/10 19:50:24 imp Exp $
  */
 
-struct	mcontext {
+struct	jam_mcontext {
 	/*
 	 * These fields must match the corresponding fields in struct 
 	 * sigcontext which follow 'sc_mask'. That way we can support
@@ -59,7 +59,7 @@ struct	mcontext {
 	int	__spare__[8];		/* XXX reserved */ 
 };
 
-struct ucontext {
+struct jam_ucontext {
 	/*
 	 * Keep the order of the first two fields. Also,
 	 * keep them the first two fields in the structure.
@@ -69,7 +69,7 @@ struct ucontext {
 	 * note: the union is not defined, though.
 	 */
 	sigset_t	uc_sigmask;
-	mcontext_t	uc_mcontext;
+	jam_mcontext_t	uc_mcontext;
 
 	struct __ucontext *uc_link;
 	stack_t		uc_stack;

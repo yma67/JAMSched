@@ -26,22 +26,24 @@
 
 #if USE_UCONTEXT
 #include <ucontext.h>
+typedef mcontext_t jam_mcontext_t ;
+typedef ucontext_t jam_ucontext_t ;
 #endif
 
 #if defined(__FreeBSD__) && __FreeBSD__ < 5
-extern	int		getmcontext(mcontext_t*);
-extern	void		setmcontext(const mcontext_t*);
+extern	int		getmcontext(jam_mcontext_t*);
+extern	void		setmcontext(const jam_mcontext_t*);
 #define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
 #define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
-extern	int		swapcontext(ucontext_t*, const ucontext_t*);
-extern	void		makecontext(ucontext_t*, void(*)(), int, ...);
+extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
+extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
 #endif
 
 #if defined(__APPLE__)
-#	define mcontext libthread_mcontext
-#	define mcontext_t libthread_mcontext_t
-#	define ucontext libthread_ucontext
-#	define ucontext_t libthread_ucontext_t
+#	define jam_mcontext libthread_mcontext
+#	define jam_mcontext_t libthread_mcontext_t
+#	define jam_ucontext libthread_ucontext
+#	define jam_ucontext_t libthread_ucontext_t
 #	if defined(__i386__)
 #		include "386-ucontext.h"
 #	elif defined(__x86_64__)
@@ -52,10 +54,10 @@ extern	void		makecontext(ucontext_t*, void(*)(), int, ...);
 #endif
 
 #if defined(__OpenBSD__)
-#	define mcontext libthread_mcontext
-#	define mcontext_t libthread_mcontext_t
-#	define ucontext libthread_ucontext
-#	define ucontext_t libthread_ucontext_t
+#	define jam_mcontext libthread_mcontext
+#	define jam_mcontext_t libthread_mcontext_t
+#	define jam_ucontext libthread_ucontext
+#	define jam_ucontext_t libthread_ucontext_t
 #	if defined __i386__
 #		include "386-ucontext.h"
 #	else
@@ -65,24 +67,24 @@ extern pid_t rfork_thread(int, void*, int(*)(void*), void*);
 #endif
 
 #if 0 &&  defined(__sun__)
-#	define mcontext libthread_mcontext
-#	define mcontext_t libthread_mcontext_t
-#	define ucontext libthread_ucontext
-#	define ucontext_t libthread_ucontext_t
+#	define jam_mcontext libthread_mcontext
+#	define jam_mcontext_t libthread_mcontext_t
+#	define jam_ucontext libthread_ucontext
+#	define jam_ucontext_t libthread_ucontext_t
 #	include "sparc-ucontext.h"
 #endif
 
 #if defined(__arm__)
-int getmcontext(mcontext_t*);
-void setmcontext(const mcontext_t*);
+int getmcontext(jam_mcontext_t*);
+void setmcontext(const jam_mcontext_t*);
 #define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
 #define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
 #endif
 
 #if defined(__mips__)
 #include "mips-ucontext.h"
-int getmcontext(mcontext_t*);
-void setmcontext(const mcontext_t*);
+int getmcontext(jam_mcontext_t*);
+void setmcontext(const jam_mcontext_t*);
 #define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
 #define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
 #endif
@@ -90,8 +92,8 @@ void setmcontext(const mcontext_t*);
 
 #if defined(__x86_64__)
 #include "../ucontext/amd64-ucontext.h"
-int getmcontext(mcontext_t*);
-void setmcontext(const mcontext_t*);
+int getmcontext(jam_mcontext_t*);
+void setmcontext(const jam_mcontext_t*);
 #define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
 #define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
 #endif
