@@ -42,7 +42,7 @@ void only_task_f(task_t* self, void* args) {
         clock_gettime(CLOCK_MONOTONIC, &time2);
         time_count_ctx_switch += diff(time1, time2).tv_nsec;
         *tickk = *tickk + 1;
-        yield_task(self, TASK_READY);
+        yield_task(self);
     }
     self->scheduler->cont = 0;
     finish_task(self, 0);

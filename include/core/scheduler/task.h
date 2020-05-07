@@ -1,3 +1,10 @@
+/**
+ * @file JAMScript Task Scheduling Nano Kernel 
+ * @remark Please include this Header ONLY, do NOT include context.c or anything
+ *         under /ucontext/ directory
+ * @author Yuxiang Ma, Muthucumaru Maheswaran
+ * @copyright see COPYRIGHT
+ */
 #ifndef TASK_H
 #define TASK_H
 
@@ -6,6 +13,7 @@ extern "C" {
 #endif
 
 #include "context.h"
+#include <stdarg.h>
 
 typedef struct _scheduler_t scheduler_t;
 typedef struct _task_t task_t;
@@ -18,8 +26,6 @@ typedef struct _task_t task_t;
  * @warning a PENDING task will not be executed, even if it is dispatched by scheduler
  * @details a task is finished when it declares it finishes, finished tasks will not 
  *          be executed
- *  
- * 
  */
 typedef enum _task_status_t {
     TASK_READY = 0, 
@@ -27,6 +33,10 @@ typedef enum _task_status_t {
     TASK_FINISHED
 } task_status_t;
 
+/**
+ * @enum task_return_t
+ * @brief Exceptions for Task
+ */
 typedef enum _task_return_t {
     SUCCESS_TASK,
     ERROR_TASK_CONTEXT_INIT, 
@@ -36,29 +46,37 @@ typedef enum _task_return_t {
     ERROR_TASK_WRONG_TYPE
 } task_return_t;
 
+/**
+ * @struct task_t
+ * @brief  Definition of Task
+ */
 struct _task_t {
-    task_status_t task_status;
-    scheduler_t* scheduler;
-    jam_ucontext_t context;
-    unsigned int task_id;
-    void (*task_function)(task_t*, void*);
-    void* (*task_memset)(void *, int, size_t);
-    void *task_args;
-    void *user_data;
-    int return_value; // undefined until call finish_task
-    unsigned char *stack;
-    unsigned int stack_size;
+    task_status_t task_status;              /// state machine of a task
+    scheduler_t* scheduler;                 /// scheduler of the task
+    jam_ucontext_t context;                 /// context store for this task, could be use to restore its execution
+    unsigned int task_id;                   /// id of the task, auto incremented
+    void (*task_function)(task_t*, void*);  /// function to be executed as the task
+    void *task_args;                        /// argument that WILL be passed into task function along with task itself
+    void *user_data;                        /// argument that WILLNOT be passed into task function along with task itself
+    int return_value;                       /// undefined until call finish_task
+    unsigned char *stack;                   /// stack pointer to an allocated stack for this task, may NOT be null
+    unsigned int stack_size;                /// size of stack, used for check
+    void (*resume_task)(task_t*);
+    void (*yield_task)(task_t*);
 };
 
+/**
+ * @struct scheduler_t
+ * @brief  Definition of Scheduler
+ */
 struct _scheduler_t {
-    unsigned int task_id_counter;
-    jam_ucontext_t scheduler_context;
-    task_t* (*next_task)();
-    void (*idle_task)();
-    void (*before_each)(task_t*);
-    void (*after_each)(task_t*);
-    void* (*scheduler_memset)(void *, int, size_t);
-    int cont;
+    unsigned int task_id_counter;           /// auto-incremented task id generator
+    jam_ucontext_t scheduler_context;       /// context store for scheduler, used to switch back to scheduler
+    task_t* (*next_task)();                 /// feed scheduler the next task to run
+    void (*idle_task)();                    /// activities to do if there is no task to run
+    void (*before_each)(task_t*);           /// activities to do before executing ANY task
+    void (*after_each)(task_t*);            /// activities to do after executing ANY task
+    int cont;                               /// flag, used to determine whether scheduler continues to run
 };
 
 /**
@@ -67,13 +85,13 @@ struct _scheduler_t {
  * @param scheduler: scheduler of the task
  * @param task_function: function to be executed as the task
  * @param task_args: argument that WILL be passed into task function along with task itself
- * @param user_data: argument that WILLNOT be passed into task function along with task itself, 
+ * @param user_data: argument that WILLNOT be passed into task function along with task itself
  * @param stack_size: size of coroutine/task stack
  * @param stack: pointer to stack allocated for coroutine/task
  * @warning due to the dependency injection nature of the framework, caller is responsible for 
  *          allocating and initializing memory with proper size and content, it is suggested to 
- *          be set to 0 using memset. this is valid on, but not limited to task_bytes and stack
- * @warning task_bytes, scheduler, task_function, stack should NOT be NULL
+ *          be set to 0 using memset. this is valid on, but not limited to task_bytes
+ * @warning task_bytes, scheduler, task_function, should NOT be NULL
  * @warning not thread safe
  * @remark  user is responsible of parsing user_data and task_args
  * @remark  task_function is not executed atomically/transactionally
@@ -124,7 +142,7 @@ extern task_return_t shutdown_scheduler(scheduler_t* scheduler);
  * @param to: where next context is
  * @warning from, to may not be null, or memory corrupted
  * @warning hardware dependent, only tested for AMD64 and Linux
- * @return return value has no meaning
+ * @return SUCCESS_TASK if success, else ERROR_TASK_CONTEXT_SWITCH
  */
 extern task_return_t context_switch(jam_ucontext_t* from, jam_ucontext_t* to);
 
@@ -133,9 +151,12 @@ extern task_return_t context_switch(jam_ucontext_t* from, jam_ucontext_t* to);
  * @param task: task to give up its context
  * @param status: state of the task after context switching, could be READY or PENDING
  * @warning this is NOT an atomic operation, and it is subject to DATA RACE
- * @return not meaningful
+ * @warning will fail if stack overflow detected
+ * @return ERROR_TASK_STACK_OVERFLOW if error otherwise depends on context switching
  */
-extern task_return_t yield_task(task_t* task, task_status_t status);
+extern void yield_task(task_t* task);
+
+extern void resume_task(task_t* task);
 
 /**
  * Finish Task
