@@ -86,7 +86,7 @@ TEST_CASE("JAMCore", "[core]") {
         make_scheduler(&scheduler, schedule_next, idle_task, before_each, after_each);
         for (int i = 0; i < task_niter; i++) {
             xs[i] = i;
-            make_task(flames[i], &scheduler, test_task_core, &xs[i], NULL, 256 * 1024, reinterpret_cast<unsigned char*>(flames[i] + 1));
+            make_task(flames[i], &scheduler, test_task_core, &xs[i], 256 * 1024, reinterpret_cast<unsigned char*>(flames[i] + 1));
         }
         scheduler_mainloop(&scheduler);
         return;

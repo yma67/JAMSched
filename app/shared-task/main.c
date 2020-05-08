@@ -33,7 +33,7 @@ task_t* nortask_app_sched(scheduler_t* self) {
         return NULL;
     }
     coro_count += 1;
-    make_task(t, &xsched, share_fact_wrapper, NULL, NULL, 256 * 1024, fxs);
+    make_task(t, &xsched, share_fact_wrapper, NULL, 256 * 1024, fxs);
     return t;
 }
 

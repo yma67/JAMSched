@@ -79,6 +79,7 @@ struct _scheduler_t {
     void (*after_each)(task_t*);            /// activities to do after executing ANY task
     int cont;                               /// flag, used to determine whether scheduler continues to run
     void* scheduler_data;
+    void*(*get_scheduler_data)(scheduler_t*);
 };
 
 /**
@@ -103,8 +104,8 @@ struct _scheduler_t {
  */
 extern task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, 
                                void (*task_function)(task_t*, void*), 
-                               void* task_args, void* user_data, 
-                               unsigned int stack_size, unsigned char* stack);
+                               void* task_args, unsigned int stack_size, 
+                               unsigned char* stack);
 
 /**
  * Scheduler Initializer

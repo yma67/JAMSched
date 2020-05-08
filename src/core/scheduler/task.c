@@ -8,6 +8,7 @@
 void empty_func_next_idle(scheduler_t* self) {}
 void empty_func_before_after(task_t* self) {}
 void* get_user_data(task_t* t) { return t->user_data; }
+void* get_scheduler_data(scheduler_t* s) { return s->scheduler_data; }
 
 void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 	task_t *task = (task_t*)(task_addr_lower | 
@@ -18,8 +19,7 @@ void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 
 task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, 
                         void (*task_function)(task_t*, void*), void* task_args,
-                        void* user_data, unsigned int stack_size, 
-                        unsigned char* stack) {
+                        unsigned int stack_size, unsigned char* stack) {
     // init task injected
     if (task_bytes == NULL || scheduler == NULL || task_function == NULL) {
         return ERROR_TASK_INVALID_ARGUMENT;
@@ -31,7 +31,6 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     task_bytes->scheduler = scheduler;
     task_bytes->stack = stack;
     scheduler->task_id_counter = scheduler->task_id_counter + 1;
-    task_bytes->user_data = user_data;
     task_bytes->resume_task = resume_task;
     task_bytes->yield_task = yield_task;
     task_bytes->get_user_data = get_user_data;
@@ -93,6 +92,7 @@ task_return_t make_scheduler(scheduler_t* scheduler_bytes,
     scheduler_bytes->before_each = before_each;
     scheduler_bytes->after_each = after_each;
     scheduler_bytes->cont = 1;
+    scheduler_bytes->get_scheduler_data = get_scheduler_data;
     return SUCCESS_TASK;
 }
 

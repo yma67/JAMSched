@@ -74,7 +74,7 @@ void test_future_idle(scheduler_t* self) {
 TEST_CASE("Performance Future", "[future]") {
     pthread_barrier_init(&barrier, NULL, 2);
     make_scheduler(&scheduler_future, schedule_next_future, empty_func_next_idle, before_each_future, empty_func_before_after);
-    make_task(&listener, &scheduler_future, test_future_task, NULL, NULL, 256 * 1024, listener_stack);
+    make_task(&listener, &scheduler_future, test_future_task, NULL, 256 * 1024, listener_stack);
     thread lstn(test_listener);
     placeholder = &listener;
     scheduler_mainloop(&scheduler_future);
@@ -137,7 +137,8 @@ TEST_CASE("Interlock 10x", "[future]") {
         if (i % 2 == 0) {
             ntask = reinterpret_cast<task_t*>(malloc(sizeof(task_t)));
             unsigned char* nstack = reinterpret_cast<unsigned char*>(malloc(1024 * 64));
-            make_task(ntask, &scheduler_future, secret_completer, &chx[i], &px[i], 1024 * 64, nstack);
+            make_task(ntask, &scheduler_future, secret_completer, &chx[i], 1024 * 64, nstack);
+            ntask->user_data = &px[i];
             sched_queue.push_back(ntask);
         } else {
             ntask = make_shared_stack_task(&scheduler_future, secret_completer, &chx[i], &px[i], sstack);

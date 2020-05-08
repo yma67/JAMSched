@@ -93,9 +93,10 @@ task_t* make_shared_stack_task(scheduler_t* scheduler,
         xstack->shared_stack_free(task_bytes);
         return NULL;
     }
-    make_task(task_bytes, scheduler, task_function, task_args, new_xdata,
+    make_task(task_bytes, scheduler, task_function, task_args,
               new_xdata->shared_stack->shared_stack_size, 
               new_xdata->shared_stack->shared_stack_ptr);
+    task_bytes->user_data = new_xdata;
     task_bytes->resume_task = shared_stack_task_resume;
     task_bytes->yield_task = shared_stack_task_yield;
     task_bytes->get_user_data = get_shared_stack_task_user_data;
