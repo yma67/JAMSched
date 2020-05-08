@@ -4,6 +4,12 @@
 
 #define jamxstask_nullassert(x) if (x == NULL) return x;
 
+static void* get_shared_stack_task_user_data(task_t* task) {
+    return ((xuser_data_t*)(task->user_data))->user_data;
+}
+
+// DO NOT USE SHARED STACK IF YOU WOULD LIKE TO USE PASS BY POINTER
+// ON A STACK VARIABLE WHILE CALLING A FUNCTION THAT CONTEXT SWITCHES
 shared_stack_t* make_shared_stack(uint32_t xstack_size, 
                                   void *(*xstack_malloc)(size_t), 
                                   void  (*xstack_free)(void *), 
@@ -92,19 +98,20 @@ task_t* make_shared_stack_task(scheduler_t* scheduler,
               new_xdata->shared_stack->shared_stack_ptr);
     task_bytes->resume_task = shared_stack_task_resume;
     task_bytes->yield_task = shared_stack_task_yield;
+    task_bytes->get_user_data = get_shared_stack_task_user_data;
     return task_bytes;
 }
 
 // should not be destroyed before scheduler destroyed
 // does not take care of user_data, same level of memory mgmt as core
-extern void destroy_shared_stack_task(task_t* task) {
+void destroy_shared_stack_task(task_t* task) {
     xuser_data_t* xdata = task->user_data;
     xdata->shared_stack->shared_stack_free(xdata->private_stack);
     xdata->shared_stack->shared_stack_free(xdata);
     xdata->shared_stack->shared_stack_free(task);
 }
 
-extern void destroy_shared_stack(shared_stack_t* stack) {
+void destroy_shared_stack(shared_stack_t* stack) {
     void (*free_fn)(void *) = stack->shared_stack_free;
     free_fn(stack->shared_stack_ptr);
     free_fn(stack);

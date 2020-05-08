@@ -63,6 +63,7 @@ struct _task_t {
     unsigned int stack_size;                /// size of stack, used for check
     void (*resume_task)(task_t*);
     void (*yield_task)(task_t*);
+    void*(*get_user_data)(task_t*);
 };
 
 /**

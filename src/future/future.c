@@ -4,6 +4,7 @@
 
 void empty_func_post_future_callback(jamfuture_t* self) {}
 
+// do not defer future using local stack variable as data entry if using xtask
 void make_future(jamfuture_t* self, task_t* owner, void* data, void (*post_future_callback)(jamfuture_t*)) {
     self->data = data;
     self->owner_task = owner;

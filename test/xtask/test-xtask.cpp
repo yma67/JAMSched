@@ -1,10 +1,18 @@
+#include <catch2/catch.hpp>
 #include <core/scheduler/task.h>
 #include <xtask/shared-stack-task.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <sys/resource.h>
+#include <vector>
+#include <queue>
 
+using namespace std;
+
+deque<task_t*> shared_task_queue;
+
+vector<task_t*> to_free;
 shared_stack_t* xstack_app;
 scheduler_t xsched;
 int coro_count = 0;
@@ -20,47 +28,33 @@ void share_fact_wrapper(task_t* self, void* args) {
 
 task_t* xstask_app_sched() {
     coro_count += 1;
-    printf("%d\n", coro_count);
-    return make_shared_stack_task(&xsched, share_fact_wrapper, NULL, NULL, xstack_app);
-}
-//unsigned char fxs[256 * 1024];
-task_t* nortask_app_sched() {
-    task_t* t = malloc(sizeof(task_t*));
-    if (t == NULL) return t;
-    unsigned char* fxs = malloc(256 * 1024 * sizeof(char));
-    if (fxs == NULL) {
-        free(t);
-        return NULL;
-    }
-    coro_count += 1;
-    make_task(t, &xsched, share_fact_wrapper, NULL, NULL, 256 * 1024, fxs);
+    task_t* t = make_shared_stack_task(&xsched, share_fact_wrapper, NULL, NULL, xstack_app);
+    to_free.push_back(t);
     return t;
 }
 
 void common_xtask_idle() {
     shutdown_scheduler(&xsched);
-    printf("%d\n", coro_count);
 }
 
-int main() {
+TEST_CASE("Performance XTask", "[xtask]") {
     struct rlimit hlmt;
     if (getrlimit(RLIMIT_AS, &hlmt)) {
-        printf("fail to get limit heap, exit\n");
-        return 0;
+        REQUIRE(false);
     }
-    printf("succsss to get limit heap, exit\n");
+    struct rlimit prev = hlmt;
     hlmt.rlim_cur = 1024 * 128;
-    hlmt.rlim_max = 1024 * 128;
     if (setrlimit(RLIMIT_AS, &hlmt)) {
-        printf("fail to set limit heap, exit\n");
-        return 0;
+        REQUIRE(false);
     }
-    printf("succsss to set limit heap, exit\n");
     xstack_app = make_shared_stack(1024 * 32, malloc, free, memcpy);
-    printf("succsss to set limit heap, exit\n");
     make_scheduler(&xsched, xstask_app_sched, common_xtask_idle, 
                    empty_func_before_after, empty_func_before_after);
     scheduler_mainloop(&xsched);
+    for (auto& t: to_free) if (t != NULL) destroy_shared_stack_task(t);
     destroy_shared_stack(xstack_app);
-    return 0;
+    REQUIRE(coro_count > 30);
+    if (setrlimit(RLIMIT_AS, &prev)) {
+        REQUIRE(false);
+    }
 }

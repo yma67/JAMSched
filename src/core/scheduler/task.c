@@ -7,6 +7,7 @@
 
 void empty_func_next_idle() {}
 void empty_func_before_after(task_t* self) {}
+void* get_user_data(task_t* t) { return t->user_data; }
 
 void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 	task_t *task = (task_t*)(task_addr_lower | 
@@ -33,6 +34,7 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     task_bytes->user_data = user_data;
     task_bytes->resume_task = resume_task;
     task_bytes->yield_task = yield_task;
+    task_bytes->get_user_data = get_user_data;
     // init context
     if (getcontext(&(task_bytes->context)) < 0)
 		return ERROR_TASK_CONTEXT_INIT;
