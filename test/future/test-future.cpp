@@ -26,7 +26,7 @@ unsigned long long int total_elapse = 0, remain = niter;
 pthread_barrier_t barrier;
 
 
-task_t* schedule_next_future() {
+task_t* schedule_next_future(scheduler_t* self) {
     return __atomic_exchange_n(&placeholder, NULL, __ATOMIC_ACQ_REL);
 }
 
@@ -67,7 +67,7 @@ void test_listener() {
     }
 }
 
-void test_future_idle() {
+void test_future_idle(scheduler_t* self) {
     this_thread::sleep_for(chrono::nanoseconds(1));
 }
 
@@ -111,7 +111,7 @@ void secret_completer(task_t* self, void* arg) {
     finish_task(self, 0);
 }
 
-task_t* secret_scheduler_next() {
+task_t* secret_scheduler_next(scheduler_t* self) {
     if (sched_queue.size() > 0) {
         task_t* to_run = sched_queue.front();
         sched_queue.pop_front();

@@ -15,7 +15,7 @@ int tick = 0;
 unsigned long long int time_count_ctx_switch = 0;
 struct timespec time1, time2;
 
-task_t* next_task() {
+task_t* next_task(scheduler_t* self) {
     if (the_only_task.task_status == TASK_READY) {
         clock_gettime(CLOCK_MONOTONIC, &time1);
         return &the_only_task;
@@ -23,7 +23,7 @@ task_t* next_task() {
     return NULL;
 }
 
-void idle_task() {
+void idle_task(scheduler_t* self) {
     // printf("executing idle task\n");
     // sleep(2);
 }

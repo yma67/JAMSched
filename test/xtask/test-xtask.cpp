@@ -26,14 +26,14 @@ void share_fact_wrapper(task_t* self, void* args) {
     self->yield_task(self);
 }
 
-task_t* xstask_app_sched() {
+task_t* xstask_app_sched(scheduler_t* self) {
     coro_count += 1;
     task_t* t = make_shared_stack_task(&xsched, share_fact_wrapper, NULL, NULL, xstack_app);
     to_free.push_back(t);
     return t;
 }
 
-void common_xtask_idle() {
+void common_xtask_idle(scheduler_t* self) {
     shutdown_scheduler(&xsched);
 }
 

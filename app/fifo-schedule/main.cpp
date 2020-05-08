@@ -51,13 +51,13 @@ void capture(task_t* self, void* args) {
     finish_task(self, 0);
 }
 
-task_t* schedule_next() {
+task_t* schedule_next(scheduler_t* self) {
     task_t* nxt = fifo.front();
     fifo.pop();
     return nxt;
 }
 
-void idle_task() {
+void idle_task(scheduler_t* self) {
     
 }
 

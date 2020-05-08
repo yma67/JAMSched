@@ -73,11 +73,12 @@ struct _task_t {
 struct _scheduler_t {
     unsigned int task_id_counter;           /// auto-incremented task id generator
     jam_ucontext_t scheduler_context;       /// context store for scheduler, used to switch back to scheduler
-    task_t* (*next_task)();                 /// feed scheduler the next task to run
-    void (*idle_task)();                    /// activities to do if there is no task to run
+    task_t* (*next_task)(scheduler_t*);     /// feed scheduler the next task to run
+    void (*idle_task)(scheduler_t*);        /// activities to do if there is no task to run
     void (*before_each)(task_t*);           /// activities to do before executing ANY task
     void (*after_each)(task_t*);            /// activities to do after executing ANY task
     int cont;                               /// flag, used to determine whether scheduler continues to run
+    void* scheduler_data;
 };
 
 /**
@@ -121,8 +122,8 @@ extern task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
  * @return  SUCCESS_TASK if success, otherwise ERROR_TASK_INVALID_ARGUMENT
  */
 extern task_return_t make_scheduler(scheduler_t* scheduler_bytes, 
-                                    task_t* (*next_task)(), 
-                                    void (*idle_task)(), 
+                                    task_t* (*next_task)(scheduler_t* self), 
+                                    void (*idle_task)(scheduler_t* self), 
                                     void (*before_each)(task_t*), 
                                     void (*after_each)(task_t*));
 
@@ -192,7 +193,7 @@ extern void scheduler_mainloop(scheduler_t* scheduler);
  * @details this function does nothing and returns nothing
  * @return  void
  */
-extern void empty_func_next_idle();
+extern void empty_func_next_idle(scheduler_t* self);
 
 /**
  * function placeholder for before_each and after_each

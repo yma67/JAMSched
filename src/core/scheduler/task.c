@@ -5,7 +5,7 @@
 #define NULL ((void *)0)
 
 
-void empty_func_next_idle() {}
+void empty_func_next_idle(scheduler_t* self) {}
 void empty_func_before_after(task_t* self) {}
 void* get_user_data(task_t* t) { return t->user_data; }
 
@@ -80,7 +80,8 @@ task_return_t finish_task(task_t* task, int return_value) {
 }
 
 task_return_t make_scheduler(scheduler_t* scheduler_bytes, 
-                             task_t* (*next_task)(), void (*idle_task)(), 
+                             task_t* (*next_task)(scheduler_t* self), 
+                             void (*idle_task)(scheduler_t* self), 
                              void (*before_each)(task_t*), 
                              void (*after_each)(task_t*)) {
     if (scheduler_bytes == NULL || next_task == NULL || idle_task == NULL || 
@@ -104,13 +105,13 @@ task_return_t shutdown_scheduler(scheduler_t* scheduler) {
 void scheduler_mainloop(scheduler_t* scheduler) {
     if (scheduler == NULL) return;
     while (scheduler->cont) {
-        task_t* to_run = scheduler->next_task();
+        task_t* to_run = scheduler->next_task(scheduler);
         if (to_run != NULL && to_run->task_status == TASK_READY) {
             scheduler->before_each(to_run);
             to_run->resume_task(to_run);
             scheduler->after_each(to_run);
         } else {
-            scheduler->idle_task();
+            scheduler->idle_task(scheduler);
         }
     }
 }

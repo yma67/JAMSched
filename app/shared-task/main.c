@@ -18,13 +18,13 @@ void share_fact_wrapper(task_t* self, void* args) {
     self->yield_task(self);
 }
 
-task_t* xstask_app_sched() {
+task_t* xstask_app_sched(scheduler_t* self) {
     coro_count += 1;
     printf("%d\n", coro_count);
     return make_shared_stack_task(&xsched, share_fact_wrapper, NULL, NULL, xstack_app);
 }
 //unsigned char fxs[256 * 1024];
-task_t* nortask_app_sched() {
+task_t* nortask_app_sched(scheduler_t* self) {
     task_t* t = malloc(sizeof(task_t*));
     if (t == NULL) return t;
     unsigned char* fxs = malloc(256 * 1024 * sizeof(char));
@@ -37,7 +37,7 @@ task_t* nortask_app_sched() {
     return t;
 }
 
-void common_xtask_idle() {
+void common_xtask_idle(scheduler_t* self) {
     shutdown_scheduler(&xsched);
     printf("%d\n", coro_count);
 }

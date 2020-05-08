@@ -12,11 +12,11 @@ scheduler_t scheduler;
 task_t* flames[task_niter];
 
 
-task_t* schedule_next() {
+task_t* schedule_next(scheduler_t* self) {
     return flames[sched_tick++];
 }
 
-void idle_task() {
+void idle_task(scheduler_t* self) {
     
 }
 
