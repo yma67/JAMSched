@@ -16,7 +16,7 @@
 - please read https://github.com/catchorg/Catch2, as we are using Catch2 for testing
 - VSCode users, please review [Debug Your App](#debug-your-app) for an option of debugging your test cases
 - **DO NOT** compile your tests into LIBRARIES
-## ANRL Coding Style (draft)
+## CiteLab Coding Style (draft)
 - 80 characters per line
 - 4 space alignment
 - avoid unnecessary blank lines
