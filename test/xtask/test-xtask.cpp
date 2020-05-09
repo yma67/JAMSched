@@ -28,7 +28,8 @@ void share_fact_wrapper(task_t* self, void* args) {
 
 task_t* xstask_app_sched(scheduler_t* self) {
     coro_count += 1;
-    task_t* t = make_shared_stack_task(&xsched, share_fact_wrapper, NULL, xstack_app);
+    task_t* t = make_shared_stack_task(&xsched, share_fact_wrapper, NULL,
+                                       xstack_app);
     to_free.push_back(t);
     return t;
 }

@@ -69,13 +69,18 @@ TEST_CASE("C++ Thread", "[core]") {
 
 TEST_CASE("JAMCore", "[core]") {
     int xs[task_niter];
-    for (int i = 0; i < task_niter; i++) flames[i] = reinterpret_cast<task_t*>(calloc(1, sizeof(task_t) + 256 * 1024));
+    for (int i = 0; i < task_niter; i++) 
+        flames[i] = reinterpret_cast<task_t*>(calloc(1, 
+                    sizeof(task_t) + 256 * 1024));
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
     BENCHMARK("JAMCore initialization ONLY") {
-        make_scheduler(&scheduler, schedule_next, idle_task, before_each, after_each);
+        make_scheduler(&scheduler, schedule_next, 
+                       idle_task, before_each, after_each);
         for (int i = 0; i < task_niter; i++) {
             xs[i] = i;
-            make_task(flames[i], &scheduler, test_task_core, &xs[i], NULL, 256 * 1024, reinterpret_cast<unsigned char*>(flames[i] + 1));
+            make_task(flames[i], &scheduler, test_task_core, 
+                      &xs[i], NULL, 256 * 1024, 
+                      reinterpret_cast<unsigned char*>(flames[i] + 1));
         }
         return;
     };
@@ -83,10 +88,13 @@ TEST_CASE("JAMCore", "[core]") {
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
     BENCHMARK("JAMCore init AND run schedule " TEST_TASK_NAME) {
 #endif
-        make_scheduler(&scheduler, schedule_next, idle_task, before_each, after_each);
+        make_scheduler(&scheduler, schedule_next, idle_task, before_each, 
+                       after_each);
         for (int i = 0; i < task_niter; i++) {
             xs[i] = i;
-            make_task(flames[i], &scheduler, test_task_core, &xs[i], 256 * 1024, reinterpret_cast<unsigned char*>(flames[i] + 1));
+            make_task(flames[i], &scheduler, test_task_core, &xs[i], 
+                      256 * 1024, 
+                      reinterpret_cast<unsigned char*>(flames[i] + 1));
         }
         scheduler_mainloop(&scheduler);
         return;

@@ -45,7 +45,8 @@ void test_future_task(task_t* self, void* args) {
         pthread_barrier_wait(&barrier);
         get_future(&future);
         endt = std::chrono::high_resolution_clock::now();
-        auto elps = std::chrono::duration_cast<std::chrono::nanoseconds>(endt - startt);
+        auto elps = std::chrono::duration_cast<std::chrono::nanoseconds>
+                    (endt - startt);
         REQUIRE(elps.count() > -1);
         total_elapse += elps.count();
         pthread_barrier_wait(&barrier);
@@ -57,7 +58,8 @@ void test_future_task(task_t* self, void* args) {
 void test_listener() {
     while (remain) {
         pthread_barrier_wait(&barrier);
-        auto r = reinterpret_cast<std::chrono::time_point<std::chrono::high_resolution_clock> *>(future.data);
+        auto r = reinterpret_cast<std::chrono::time_point
+                <std::chrono::high_resolution_clock> *>(future.data);
         this_thread::sleep_for(chrono::nanoseconds(rand() % 50));
         REQUIRE((future.lock_word & 0x80000000) == 0);
         *r = std::chrono::high_resolution_clock::now();
@@ -73,13 +75,17 @@ void test_future_idle(scheduler_t* self) {
 
 TEST_CASE("Performance Future", "[future]") {
     pthread_barrier_init(&barrier, NULL, 2);
-    make_scheduler(&scheduler_future, schedule_next_future, empty_func_next_idle, before_each_future, empty_func_before_after);
-    make_task(&listener, &scheduler_future, test_future_task, NULL, 256 * 1024, listener_stack);
+    make_scheduler(&scheduler_future, schedule_next_future, 
+                   empty_func_next_idle, before_each_future, 
+                   empty_func_before_after);
+    make_task(&listener, &scheduler_future, test_future_task, 
+              NULL, 256 * 1024, listener_stack);
     thread lstn(test_listener);
     placeholder = &listener;
     scheduler_mainloop(&scheduler_future);
     lstn.join();
-    WARN("total elapse " << total_elapse << " ns, average elapse " << total_elapse / niter << " ns");
+    WARN("total elapse " << total_elapse << " ns, average elapse " 
+         << total_elapse / niter << " ns");
 }
 
 /**
@@ -89,7 +95,8 @@ TEST_CASE("Performance Future", "[future]") {
  */
 
 deque<task_t*> sched_queue;
-string secret("Java is the best programming language in the world which has not yet been contaminated by the business\n");
+string secret("Java is the best programming language in the world" 
+              "which has not yet been contaminated by the business\n");
 string push_back_builder("");
 
 void renablr(jamfuture_t* self) {
@@ -98,12 +105,17 @@ void renablr(jamfuture_t* self) {
 
 void secret_completer(task_t* self, void* arg) {
     char ch = *reinterpret_cast<char*>(arg);
-    pair<jamfuture_t*, jamfuture_t*> secret_getter = *reinterpret_cast<pair<jamfuture_t*, jamfuture_t*>*>(self->get_user_data(self));
+    auto secret_getter = *reinterpret_cast<pair<jamfuture_t*, 
+                            jamfuture_t*>*>(self->get_user_data(self));
     string push_back_builder_snapshot = push_back_builder + ch;
     push_back_builder = push_back_builder_snapshot;
     get_future(secret_getter.second);
-    REQUIRE((push_back_builder_snapshot + *reinterpret_cast<string*>(secret_getter.second->data)) == secret);
-    *reinterpret_cast<string*>(secret_getter.second->data) = ch + *reinterpret_cast<string*>(secret_getter.second->data);
+    REQUIRE((push_back_builder_snapshot + 
+             *reinterpret_cast<string*>(secret_getter.second->data)) == 
+             secret);
+    *reinterpret_cast<string*>(secret_getter.second->data) = ch + 
+                               *reinterpret_cast<string*>
+                               (secret_getter.second->data);
     if (secret_getter.first != NULL) {
         secret_getter.first->data = secret_getter.second->data;
         notify_future(secret_getter.first);
@@ -127,21 +139,28 @@ TEST_CASE("Interlock 10x", "[future]") {
     char chx[secret.size()];
     pair<jamfuture_t*, jamfuture_t*> px[secret.size()];
     jamfuture_t* prev_future = NULL;
-    shared_stack_t* sstack = make_shared_stack(1024 * 128, malloc, free, memcpy);
-    make_scheduler(&scheduler_future, secret_scheduler_next, empty_func_next_idle, empty_func_before_after, empty_func_before_after);
+    shared_stack_t* sstack = make_shared_stack(1024 * 128, 
+                                               malloc, free, memcpy);
+    make_scheduler(&scheduler_future, secret_scheduler_next, 
+                   empty_func_next_idle, empty_func_before_after, 
+                   empty_func_before_after);
     for (int i = 0; i < secret.size(); i++) {
-        jamfuture_t* ptrf = reinterpret_cast<jamfuture_t*>(malloc(sizeof(jamfuture_t)));
+        jamfuture_t* ptrf = reinterpret_cast<jamfuture_t*>
+                            (malloc(sizeof(jamfuture_t)));
         chx[i] = secret[i];
         px[i] = make_pair(prev_future, ptrf);
         task_t* ntask;
         if (i % 2 == 0) {
             ntask = reinterpret_cast<task_t*>(malloc(sizeof(task_t)));
-            unsigned char* nstack = reinterpret_cast<unsigned char*>(malloc(1024 * 64));
-            make_task(ntask, &scheduler_future, secret_completer, &chx[i], 1024 * 64, nstack);
+            unsigned char* nstack = reinterpret_cast<unsigned char*>
+                                    (malloc(1024 * 64));
+            make_task(ntask, &scheduler_future, secret_completer, &chx[i], 
+                      1024 * 64, nstack);
             ntask->set_user_data(ntask, &px[i]);
             sched_queue.push_back(ntask);
         } else {
-            ntask = make_shared_stack_task(&scheduler_future, secret_completer, &chx[i], sstack);
+            ntask = make_shared_stack_task(&scheduler_future, secret_completer,
+                                           &chx[i], sstack);
             ntask->set_user_data(ntask, &px[i]);
         }
         make_future(ptrf, ntask, NULL, renablr);

@@ -85,7 +85,8 @@ void shared_stack_task_yield(task_t* xself) {
             if (xdata->private_stack == NULL) {
                 xself->task_status = TASK_FINISHED;
                 xself->return_value = ERROR_TASK_STACK_OVERFLOW;
-                context_switch(&xself->context, &xself->scheduler->scheduler_context);
+                context_switch(&xself->context, 
+                               &xself->scheduler->scheduler_context);
             }
         }
         xdata->private_stack_size = xstack->shared_stack_ptr + 
