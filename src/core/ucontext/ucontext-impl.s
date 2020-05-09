@@ -28,7 +28,7 @@
 #endif
 #endif
 
-#if defined(__x86_64__)
+#if defined(__linux__) && defined(__x86_64__)
 #define NEEDAMD64CONTEXT 1
 #define SET setmcontext
 #define GET getmcontext

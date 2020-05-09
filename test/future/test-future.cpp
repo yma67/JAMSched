@@ -12,7 +12,6 @@
 #include <vector>
 
 #define niter 10000
-
 using namespace std;
 
 jamfuture_t future;
@@ -23,8 +22,8 @@ unsigned char listener_stack[1024 * 256];
 task_t* placeholder = NULL;
 std::chrono::time_point<std::chrono::high_resolution_clock> startt, endt;
 unsigned long long int total_elapse = 0, remain = niter;
+#if defined(__linux__)
 pthread_barrier_t barrier;
-
 
 task_t* schedule_next_future(scheduler_t* self) {
     return __atomic_exchange_n(&placeholder, NULL, __ATOMIC_ACQ_REL);
@@ -87,7 +86,7 @@ TEST_CASE("Performance Future", "[future]") {
     WARN("total elapse " << total_elapse << " ns, average elapse " 
          << total_elapse / niter << " ns");
 }
-
+#endif
 /**
  * @test test chaining sleep/wakeup of 104 coroutines
  * @details 50% of them are regular tasks

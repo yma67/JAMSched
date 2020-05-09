@@ -45,11 +45,11 @@ extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
 #	define jam_ucontext libthread_ucontext
 #	define jam_ucontext_t libthread_ucontext_t
 #	if defined(__i386__)
-#		include "386-ucontext.h"
+#		include "core/ucontext/386-ucontext.h"
 #	elif defined(__x86_64__)
-#		include "amd64-ucontext.h"
+#		include "core/ucontext/amd64-ucontext.h"
 #	else
-#		include "power-ucontext.h"
+#		include "core/ucontext/power-ucontext.h"
 #	endif	
 #endif
 
@@ -90,8 +90,8 @@ void setmcontext(const jam_mcontext_t*);
 #endif
 #endif
 
-#if defined(__x86_64__)
-#include "../ucontext/amd64-ucontext.h"
+#if defined(__linux__) && defined(__x86_64__)
+#include "core/ucontext/amd64-ucontext.h"
 int getmcontext(jam_mcontext_t*);
 void setmcontext(const jam_mcontext_t*);
 #define	setcontext(u)	setmcontext(&(u)->uc_mcontext)

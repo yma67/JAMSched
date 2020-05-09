@@ -28,6 +28,9 @@ void share_fact_wrapper(task_t* self, void* args) {
 
 task_t* xstask_app_sched(scheduler_t* self) {
     coro_count += 1;
+#ifdef __APPLE__
+    if (coro_count == 50) return NULL;
+#endif
     task_t* t = make_shared_stack_task(&xsched, share_fact_wrapper, NULL,
                                        xstack_app);
     to_free.push_back(t);
@@ -38,12 +41,14 @@ void common_xtask_idle(scheduler_t* self) {
     shutdown_scheduler(&xsched);
 }
 
+#ifdef __linux__
 TEST_CASE("Performance XTask", "[xtask]") {
     struct rlimit hlmt;
     if (getrlimit(RLIMIT_AS, &hlmt)) {
         REQUIRE(false);
     }
     struct rlimit prev = hlmt;
+    hlmt.rlim_cur = 1024 * 128;
     hlmt.rlim_cur = 1024 * 128;
     if (setrlimit(RLIMIT_AS, &hlmt)) {
         REQUIRE(false);
@@ -59,3 +64,14 @@ TEST_CASE("Performance XTask", "[xtask]") {
         REQUIRE(false);
     }
 }
+#else
+TEST_CASE("Performance XTask", "[xtask]") {
+    xstack_app = make_shared_stack(1024 * 32, malloc, free, memcpy);
+    make_scheduler(&xsched, xstask_app_sched, common_xtask_idle, 
+                   empty_func_before_after, empty_func_before_after);
+    scheduler_mainloop(&xsched);
+    for (auto& t: to_free) if (t != NULL) destroy_shared_stack_task(t);
+    destroy_shared_stack(xstack_app);
+    REQUIRE(coro_count > 30);
+}
+#endif
