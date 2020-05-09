@@ -1,37 +1,47 @@
-#include "shared-stack-task.h"
+#include "xtask/shared-stack-task.h"
 #include <stdint.h>
 #include <stdarg.h>
 
-#define jamxstask_nullassert(x) if (x == NULL) return x;
-
-static void* get_shared_stack_task_user_data(task_t* task) {
+void* get_shared_stack_task_user_data(task_t* task) {
     return ((xuser_data_t*)(task->user_data))->user_data;
 }
 
-// DO NOT USE SHARED STACK IF YOU WOULD LIKE TO USE PASS BY POINTER
-// ON A STACK VARIABLE WHILE CALLING A FUNCTION THAT CONTEXT SWITCHES
+void  set_shared_stack_task_user_data(task_t* task, void* pudata) {
+    ((xuser_data_t*)(task->user_data))->user_data = pudata;
+}
+
 shared_stack_t* make_shared_stack(uint32_t xstack_size, 
                                   void *(*xstack_malloc)(size_t), 
                                   void  (*xstack_free)(void *), 
                                   void *(*xstack_memcpy)(void *, 
                                                          const void *, 
                                                          size_t)) {
+    if (xstack_malloc == NULL || xstack_free == NULL || xstack_memcpy == NULL)
+        return NULL;
     shared_stack_t* new_xstack = xstack_malloc(sizeof(shared_stack_t));
-    jamxstask_nullassert(new_xstack);
+    if (new_xstack == NULL) return NULL;
     new_xstack->shared_stack_free = xstack_free;
     new_xstack->shared_stack_malloc = xstack_malloc;
     new_xstack->shared_stack_memcpy = xstack_memcpy;
     new_xstack->shared_stack_size = xstack_size;
     new_xstack->shared_stack_ptr = xstack_malloc(xstack_size);
+    if (new_xstack->shared_stack_ptr == NULL) {
+        xstack_free(new_xstack);
+        return NULL;
+    }
+    new_xstack->is_allocatable = 1;
     return new_xstack;
 }
 
 xuser_data_t* make_xuser_data(void* original_udata, 
                               shared_stack_t* shared_stack) {
     xuser_data_t* user_data = shared_stack->shared_stack_malloc(
-                                    sizeof(xuser_data_t)
+                                sizeof(xuser_data_t)
                               );
-    jamxstask_nullassert(user_data);
+    if (user_data == NULL) {
+        shared_stack->is_allocatable = 0;
+        return NULL;
+    }
     user_data->user_data = original_udata;
     user_data->private_stack = 0;
     user_data->private_stack_size = 0;
@@ -72,6 +82,11 @@ void shared_stack_task_yield(task_t* xself) {
             xdata->private_stack = xstack->shared_stack_malloc(
                                                 xdata->__private_stack_size
                                            );
+            if (xdata->private_stack == NULL) {
+                xself->task_status = TASK_FINISHED;
+                xself->return_value = ERROR_TASK_STACK_OVERFLOW;
+                context_switch(&xself->context, &xself->scheduler->scheduler_context);
+            }
         }
         xdata->private_stack_size = xstack->shared_stack_ptr + 
                                     xstack->shared_stack_size - 
@@ -84,13 +99,18 @@ void shared_stack_task_yield(task_t* xself) {
 
 task_t* make_shared_stack_task(scheduler_t* scheduler, 
                                void (*task_function)(task_t*, void*), 
-                               void* task_args, void* user_data, 
-                               shared_stack_t* xstack) {
+                               void* task_args, shared_stack_t* xstack) {
+    if (xstack->is_allocatable == 0 || scheduler == NULL || 
+        task_function == NULL) return NULL;
     task_t* task_bytes = xstack->shared_stack_malloc(sizeof(task_t));
-    jamxstask_nullassert(task_bytes);
-    xuser_data_t* new_xdata = make_xuser_data(user_data, xstack);
+    if (task_bytes == NULL) {
+        xstack->is_allocatable = 0;
+        return NULL;
+    }
+    xuser_data_t* new_xdata = make_xuser_data(NULL, xstack);
     if (new_xdata == NULL) {
         xstack->shared_stack_free(task_bytes);
+        xstack->is_allocatable = 0;
         return NULL;
     }
     make_task(task_bytes, scheduler, task_function, task_args,
@@ -100,11 +120,10 @@ task_t* make_shared_stack_task(scheduler_t* scheduler,
     task_bytes->resume_task = shared_stack_task_resume;
     task_bytes->yield_task = shared_stack_task_yield;
     task_bytes->get_user_data = get_shared_stack_task_user_data;
+    task_bytes->set_user_data = set_shared_stack_task_user_data;
     return task_bytes;
 }
 
-// should not be destroyed before scheduler destroyed
-// does not take care of user_data, same level of memory mgmt as core
 void destroy_shared_stack_task(task_t* task) {
     xuser_data_t* xdata = task->user_data;
     xdata->shared_stack->shared_stack_free(xdata->private_stack);

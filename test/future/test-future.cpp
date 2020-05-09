@@ -138,10 +138,11 @@ TEST_CASE("Interlock 10x", "[future]") {
             ntask = reinterpret_cast<task_t*>(malloc(sizeof(task_t)));
             unsigned char* nstack = reinterpret_cast<unsigned char*>(malloc(1024 * 64));
             make_task(ntask, &scheduler_future, secret_completer, &chx[i], 1024 * 64, nstack);
-            ntask->user_data = &px[i];
+            ntask->set_user_data(ntask, &px[i]);
             sched_queue.push_back(ntask);
         } else {
-            ntask = make_shared_stack_task(&scheduler_future, secret_completer, &chx[i], &px[i], sstack);
+            ntask = make_shared_stack_task(&scheduler_future, secret_completer, &chx[i], sstack);
+            ntask->set_user_data(ntask, &px[i]);
         }
         make_future(ptrf, ntask, NULL, renablr);
         sched_queue.push_back(ntask);

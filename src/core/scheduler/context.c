@@ -1,6 +1,6 @@
 /* Copyright (c) 2005-2006 Russ Cox, MIT; see COPYRIGHT */
 
-#include "scheduler/context.h"
+#include "core/scheduler/context.h"
 #include <inttypes.h>
 #include <string.h>
 #include <stdarg.h> 

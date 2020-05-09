@@ -1,14 +1,17 @@
-#include "scheduler/task.h"
+#include "core/scheduler/task.h"
 #include <stdint.h>
 
 #define TASK_STACK_MIN 256
 #define NULL ((void *)0)
 
-
 void empty_func_next_idle(scheduler_t* self) {}
 void empty_func_before_after(task_t* self) {}
 void* get_user_data(task_t* t) { return t->user_data; }
+void  set_user_data(task_t* t, void* pudata) { t->user_data = pudata; }
 void* get_scheduler_data(scheduler_t* s) { return s->scheduler_data; }
+void  set_scheduler_data(scheduler_t* s, void* psdata) { 
+    s->scheduler_data = psdata;
+}
 
 void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 	task_t *task = (task_t*)(task_addr_lower | 
@@ -34,6 +37,7 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     task_bytes->resume_task = resume_task;
     task_bytes->yield_task = yield_task;
     task_bytes->get_user_data = get_user_data;
+    task_bytes->set_user_data = set_user_data;
     // init context
     if (getcontext(&(task_bytes->context)) < 0)
 		return ERROR_TASK_CONTEXT_INIT;
@@ -93,6 +97,7 @@ task_return_t make_scheduler(scheduler_t* scheduler_bytes,
     scheduler_bytes->after_each = after_each;
     scheduler_bytes->cont = 1;
     scheduler_bytes->get_scheduler_data = get_scheduler_data;
+    scheduler_bytes->set_scheduler_data = set_scheduler_data;
     return SUCCESS_TASK;
 }
 

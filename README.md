@@ -14,7 +14,7 @@
 - make sure your include your folder in src/CMakeLists.txt
 ### Testing
 - please read https://github.com/catchorg/Catch2, as we are using Catch2 for testing
-- VSCode users, please review (#debug-your-app) for an option of debugging your test cases
+- VSCode users, please review [Debug Your App](#debug-your-app) for an option of debugging your test cases
 - **DO NOT** compile your tests into LIBRARIES
 ## Note to VSCode Users
 ### Reasons to use
@@ -26,7 +26,7 @@
 ### Debug
 - Goto ```Run``` tab, and choose which app you would like to add/debug
 - To debug testcases, run VSCode task ```"gcc-7 - test-debug"```
-### Debug Your App
+### <a name="debug-your-app"></a> Debug Your App
 - Add the following "chunk" in ```launch.json```
 - ```<name>```: name of your app folder
 - ```<exec>```: name of your app executable
