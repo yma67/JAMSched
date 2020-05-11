@@ -6,7 +6,20 @@
  * @remark Please include this Header ONLY, do NOT include context.c or anything
  *         under include/ucontext directory
  * @author Yuxiang Ma, Muthucumaru Maheswaran
- * @copyright see COPYRIGHT
+ * @copyright 
+ *          Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+ * 
+ *          Licensed under the Apache License, Version 2.0 (the "License");
+ *          you may not use this file except in compliance with the License.
+ *          You may obtain a copy of the License at
+ * 
+ *              http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ *          Unless required by applicable law or agreed to in writing, software
+ *          distributed under the License is distributed on an "AS IS" BASIS,
+ *          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *          See the License for the specific language governing permissions and
+ *          limitations under the License.
  */
 #ifndef TASK_H
 #define TASK_H
@@ -69,7 +82,10 @@ struct task_t {
     void (*resume_task)(task_t*);                               /// function for resuming a task, switch from scheduler to task
     void (*yield_task)(task_t*);                                /// function for ending a task, switch from task to scheduler
     void*(*get_user_data)(task_t*);                             /// getter for user_data, useful when writing extension component based on task_t
-    void (*set_user_data)(task_t*, void*);
+    void (*set_user_data)(task_t*, void*);                      /// setter for user_data, useful when writing extension component based on task_t
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+    unsigned long v_stack_id;
+#endif
 };
 
 struct scheduler_t {
@@ -81,7 +97,7 @@ struct scheduler_t {
     void (*after_each)(task_t*);                                /// activities to do after executing ANY task
     void*(*get_scheduler_data)(scheduler_t*);                   /// getter for scheduler_data, useful when writing extension component based on scheduler_t
     void (*set_scheduler_data)(scheduler_t*, void*);            /// getter for scheduler_data, useful when writing extension component based on scheduler_t
-    int cont;                                                   /// flag, used to determine whether scheduler continues to run
+    volatile int cont;                                          /// flag, used to determine whether scheduler continues to run
     void* scheduler_data;                                       /// user defined data for scheduler, useful when building an extension of the scheduler
 };
 
@@ -143,16 +159,6 @@ extern task_return_t make_scheduler(scheduler_t* scheduler_bytes,
 extern task_return_t shutdown_scheduler(scheduler_t* scheduler);
 
 /**
- * Context Switcher
- * @param from: where current context to be saved
- * @param to: where next context is
- * @warning from, to may not be null, or memory corrupted
- * @warning hardware dependent, only tested for AMD64 and Linux
- * @return SUCCESS_TASK if success, else ERROR_TASK_CONTEXT_SWITCH
- */
-extern task_return_t context_switch(jam_ucontext_t* from, jam_ucontext_t* to);
-
-/**
  * Yield Task
  * @param task: task to give up its context
  * @warning this is NOT an atomic operation, and it is subject to DATA RACE
@@ -172,14 +178,17 @@ extern void resume_task(task_t* task);
 
 /**
  * Finish Task
- * @param task: task to declare a finish of task, and a task MUST declare a finish 
- * @param return_value: return value of the task function, could be retrieved later on
+ * @param finishing_task: task to declare a finish of task, and a task MUST declare a finish 
+ * @param finishing_task_return_value: return value of the task function, could be retrieved later on
  * @warning: this write is NOT atomic, and may not be propergated to other cores in a 
  *           multiprocessor program
  * @warning: a finished task could not be restored
  * @return not meaningful
  */
-extern task_return_t finish_task(task_t* task, int return_value);
+#define finish_task(finishing_task, finishing_task_return_value) \
+    finishing_task->task_status = TASK_FINISHED;\
+    finishing_task->return_value = finishing_task_return_value;\
+    finishing_task->yield_task(finishing_task);
 
 /**
  * Scheduler Mainloop

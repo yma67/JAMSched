@@ -26,8 +26,8 @@
 
 #if USE_UCONTEXT
 #include <ucontext.h>
-typedef mcontext_t jam_mcontext_t ;
-typedef ucontext_t jam_ucontext_t ;
+typedef mcontext_t jam_mcontext_t;
+typedef ucontext_t jam_ucontext_t;
 #endif
 
 #if defined(__FreeBSD__) && __FreeBSD__ < 5

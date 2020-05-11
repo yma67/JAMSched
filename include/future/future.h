@@ -13,6 +13,20 @@
  * @remark  mechanism of avoiding a task to not being scheduled is simple 
  *          by just marking the task as TASK_PENDING, but user may define other
  *          actions in post_future_callback, but this function is not atomic
+ * @copyright 
+ *          Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+ * 
+ *          Licensed under the Apache License, Version 2.0 (the "License");
+ *          you may not use this file except in compliance with the License.
+ *          You may obtain a copy of the License at
+ * 
+ *              http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ *          Unless required by applicable law or agreed to in writing, software
+ *          distributed under the License is distributed on an "AS IS" BASIS,
+ *          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *          See the License for the specific language governing permissions and
+ *          limitations under the License.
  */
 #ifndef AWAIT_H
 #define AWAIT_H
@@ -30,6 +44,7 @@ typedef struct jamfuture_t jamfuture_t;
  * @struct jamfuture_t
  * @brief  await semantic for jamscript scheduler
  * @remarks used along with task_t, compatible with xtask 
+ * @details spin wait, then sleep
  * @warning DO NOT USE STACK LOCAL VARIABLE AS jamfuture_t OR data
  *          since get_future involves context switching
  * @warning please avoid access to jamfuture_t::lock_word and task_t::task_status 
@@ -37,10 +52,11 @@ typedef struct jamfuture_t jamfuture_t;
  *          otherwise, regular wakeup or sleep is not guaranteed
  */
 struct jamfuture_t {
-    uint32_t lock_word;
-    void* data;
-    task_t* owner_task;
-    void (*post_future_callback)(jamfuture_t*);
+    uint32_t lock_word;                             /// spin lock for spin+sleep
+    void* data;                                     /// future data
+    task_t* owner_task;                             /// task that sleeps/wakeups
+    uint32_t spin_rounds;                           /// number of spin rounds
+    void (*post_future_callback)(jamfuture_t*);     /// cleanup after value prepared (make schedulable)
 };
 
 /**

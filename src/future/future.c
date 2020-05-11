@@ -1,3 +1,16 @@
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+///     http://www.apache.org/licenses/LICENSE-2.0
+///
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
 #include "future/future.h"
 
 #define NUM_SPIN_ROUNDS 1000U
@@ -13,6 +26,7 @@ void make_future(jamfuture_t* self, task_t* owner, void* data,
     self->data = data;
     self->owner_task = owner;
     self->lock_word = TASK_READY;
+    self->spin_rounds = NUM_SPIN_ROUNDS;
     self->post_future_callback = post_future_callback;
 }
 
@@ -21,7 +35,7 @@ void get_future(jamfuture_t* self) {
                                     &(self->lock_word), TASK_PENDING, 
                                     0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
         while (__atomic_fetch_add(&(self->lock_word), 1, 
-                                    __ATOMIC_RELAXED) < NUM_SPIN_ROUNDS);
+                                    __ATOMIC_RELAXED) < self->spin_rounds);
         if (__atomic_load_n(&(self->lock_word), 
                             __ATOMIC_ACQUIRE) < 0x80000000) {
             self->owner_task->yield_task(self->owner_task);

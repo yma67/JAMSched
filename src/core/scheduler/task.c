@@ -1,9 +1,23 @@
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+///     http://www.apache.org/licenses/LICENSE-2.0
+///
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
 #include "core/scheduler/task.h"
 #include <stdint.h>
 
 #define TASK_STACK_MIN 256
+#ifndef NULL
 #define NULL ((void *)0)
-
+#endif
 void empty_func_next_idle(scheduler_t* self) {}
 void empty_func_before_after(task_t* self) {}
 void* get_user_data(task_t* t) { return t->user_data; }
@@ -18,6 +32,7 @@ void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
                    (((unsigned long)task_addr_upper << 16) << 16));
 	task->task_function(task, task->task_args);
 	task->task_status = TASK_FINISHED;
+    task->yield_task(task);
 }
 
 task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, 
@@ -38,11 +53,8 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     task_bytes->yield_task = yield_task;
     task_bytes->get_user_data = get_user_data;
     task_bytes->set_user_data = set_user_data;
-    // init context
-    if (getcontext(&(task_bytes->context)) < 0)
-		return ERROR_TASK_CONTEXT_INIT;
-    task_bytes->context.uc_stack.ss_sp = task_bytes->stack + 8;
-    task_bytes->context.uc_stack.ss_size = task_bytes->stack_size - 64;
+    task_bytes->context.uc_stack.ss_sp = task_bytes->stack;
+    task_bytes->context.uc_stack.ss_size = task_bytes->stack_size;
     makecontext(&task_bytes->context, (void(*)())start_task, 2, 
                 (uint32_t)((uint64_t)task_bytes), 
                 (uint32_t)((uint64_t)task_bytes >> 32));
@@ -50,36 +62,13 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     return SUCCESS_TASK;
 }
 
-task_return_t context_switch(jam_ucontext_t* from, jam_ucontext_t* to) {
-	if (swapcontext(from, to) < 0) 
-		return ERROR_TASK_CONTEXT_SWITCH;
-    return SUCCESS_TASK;
-}
-
 void resume_task(task_t* self) {
-    context_switch(&self->scheduler->scheduler_context, &self->context);
-}
-
-task_return_t switch_task(task_t* task) {
-    char tos = 0;
-    if ((uintptr_t)(&tos) < (uintptr_t)(task->stack) || 
-        (uintptr_t)(&tos) > (uintptr_t)(task->stack + task->stack_size)) {
-        return ERROR_TASK_STACK_OVERFLOW;
-    }
-	return context_switch(&task->context, &task->scheduler->scheduler_context);
+    swapcontext(&self->scheduler->scheduler_context, &self->context);
 }
 
 void yield_task(task_t* task) {
     if (task == NULL) return;
-    switch_task(task);
-}
-
-task_return_t finish_task(task_t* task, int return_value) {
-    if (task == NULL) return ERROR_TASK_INVALID_ARGUMENT;
-    task->task_status = TASK_FINISHED;
-    task->return_value = return_value;
-    task->yield_task(task);
-    return SUCCESS_TASK;
+    swapcontext(&task->context, &task->scheduler->scheduler_context);
 }
 
 task_return_t make_scheduler(scheduler_t* scheduler_bytes, 

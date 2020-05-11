@@ -11,8 +11,21 @@
  * @warning Please use set_user_data() and get_user_data() to set and
  *          get user_data, since shared_stack takes a different layout
  * @see     task.h
- * @author Yuxiang Ma, Muthucumaru Maheswaran
- * @copyright see COPYRIGHT
+ * @author  Yuxiang Ma, Muthucumaru Maheswaran
+ * @copyright 
+ *          Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+ * 
+ *          Licensed under the Apache License, Version 2.0 (the "License");
+ *          you may not use this file except in compliance with the License.
+ *          You may obtain a copy of the License at
+ * 
+ *              http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ *          Unless required by applicable law or agreed to in writing, software
+ *          distributed under the License is distributed on an "AS IS" BASIS,
+ *          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *          See the License for the specific language governing permissions and
+ *          limitations under the License.
  */
 #ifndef SHARED_STACK_TASK_H
 #define SHARED_STACK_TASK_H
@@ -21,18 +34,26 @@ extern "C" {
 #endif
 #include "core/scheduler/task.h"
 #include <stdint.h>
-
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+    #include <valgrind/valgrind.h>
+#endif
 /**
  * @struct shared_stack_t 
  * @brief  shared stack
  */
 typedef struct shared_stack_t {
     uint8_t* shared_stack_ptr;                                      /// pointer to the BEGINNING of shared stack
-    uint32_t shared_stack_size;                                     /// shared stack size limit
+    uint8_t* __shared_stack_ptr;                                    /// pointer to the aligned beginning of shared stack
+    uint8_t* shared_stack_ptr_high_addr;                            /// pointer to the high address value end of shared stack
+    uint32_t shared_stack_size;                                     /// shared stack aligned size limit
+    uint32_t __shared_stack_size;                                   /// shared stack actual size limit
     int is_allocatable;                                             /// whether the allocator would still be able to allocate using malloc
     void *(*shared_stack_malloc)(size_t);                           /// malloc function of the allocator
     void  (*shared_stack_free)(void *);                             /// free function of the allocator
     void *(*shared_stack_memcpy)(void *, const void *, size_t);     /// memcpy function, could be memcpy or user implemented
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+    unsigned long v_stack_id;
+#endif
 } shared_stack_t;
 
 /**

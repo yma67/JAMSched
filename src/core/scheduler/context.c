@@ -1,5 +1,17 @@
 /* Copyright (c) 2005-2006 Russ Cox, MIT; see COPYRIGHT */
-
+// Copyright 2018 Sen Han <00hnes@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 #include "core/scheduler/context.h"
 #include <inttypes.h>
 #include <string.h>
@@ -101,22 +113,20 @@ makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
 void
 makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
 {
-	long *sp;
-	va_list va;
 
-	// memset(&ucp->uc_mcontext, 0, sizeof ucp->uc_mcontext);
-	if(argc != 2)
-		*(int*)0 = 0;
+	va_list va;
+	memset(ucp->registers, 0, 15 * 8);
+	if(argc != 2) *(int*)0 = 0;
 	va_start(va, argc);
-	ucp->uc_mcontext.mc_rdi = va_arg(va, int);
-	ucp->uc_mcontext.mc_rsi = va_arg(va, int);
+	ucp->registers[14] = va_arg(va, int);
+	ucp->registers[15] = va_arg(va, int);
 	va_end(va);
-	sp = (long*)ucp->uc_stack.ss_sp+ucp->uc_stack.ss_size/sizeof(long);
-	sp -= argc;
-	sp = (void*)((uintptr_t)sp - (uintptr_t)sp%16);	/* 16-align for OS X */
-	*--sp = 0;	/* return address */
-	ucp->uc_mcontext.mc_rip = (long)func;
-	ucp->uc_mcontext.mc_rsp = (long)sp;
+    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - (sizeof(void*) << 1) + 
+                    (uintptr_t)ucp->uc_stack.ss_sp);
+    u_p = (u_p >> 4) << 4;
+    ucp->registers[4] = (uintptr_t)(func);
+    ucp->registers[5] = (uintptr_t)(u_p - sizeof(void*));
+    *((void**)(ucp->registers[5])) = (void*)(NULL);
 }
 #endif
 
@@ -154,6 +164,45 @@ makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
 }
 #endif
 #if defined(NEEDSWAPCONTEXT)
+#ifdef __x86_64__
+/**
+ * reference: libaco 
+ */
+asm(".text\n\t"
+    ".p2align 5\n\t"
+    ".globl " ASM_SYMBOL(swapcontext) "\n\t"
+    ".intel_syntax noprefix\n\t"
+    ASM_SYMBOL(swapcontext) ":\n\t"
+    "mov     rdx,QWORD PTR [rsp]\n\t"      // retaddr
+    "lea     rcx,[rsp+0x8]\n\t"            // rsp
+    "mov     QWORD PTR [rdi+0x0], r12\n\t"
+    "mov     QWORD PTR [rdi+0x8], r13\n\t"
+    "mov     QWORD PTR [rdi+0x10],r14\n\t"
+    "mov     QWORD PTR [rdi+0x18],r15\n\t"
+    "mov     QWORD PTR [rdi+0x20],rdx\n\t" // retaddr
+    "mov     QWORD PTR [rdi+0x28],rcx\n\t" // rsp
+    "mov     QWORD PTR [rdi+0x30],rbx\n\t"
+    "mov     QWORD PTR [rdi+0x38],rbp\n\t"
+    "mov     QWORD PTR [rdi+112],rdi\n\t"
+    "mov     QWORD PTR [rdi+120],rsi\n\t"
+    "fnstcw  WORD PTR  [rdi+0x40]\n\t"
+    "stmxcsr DWORD PTR [rdi+0x44]\n\t"
+    
+    "mov     r12,QWORD PTR [rsi+0x0]\n\t"
+    "mov     r13,QWORD PTR [rsi+0x8]\n\t"
+    "mov     r14,QWORD PTR [rsi+0x10]\n\t"
+    "mov     r15,QWORD PTR [rsi+0x18]\n\t"
+    "mov     rax,QWORD PTR [rsi+0x20]\n\t" // retaddr
+    "mov     rcx,QWORD PTR [rsi+0x28]\n\t" // rsp
+    "mov     rbx,QWORD PTR [rsi+0x30]\n\t"
+    "mov     rbp,QWORD PTR [rsi+0x38]\n\t"
+    "fldcw   WORD PTR      [rsi+0x40]\n\t"
+    "ldmxcsr DWORD PTR     [rsi+0x44]\n\t"
+    "mov     rdi, QWORD PTR [rsi+112]\n\t"
+    "mov     rsi, QWORD PTR [rsi+120]\n\t"
+    "mov     rsp,rcx\n\t"
+    "jmp rax\n\t");
+#else
 int
 swapcontext(jam_ucontext_t *oucp, const jam_ucontext_t *ucp)
 {
@@ -161,4 +210,5 @@ swapcontext(jam_ucontext_t *oucp, const jam_ucontext_t *ucp)
 		setcontext(ucp);
 	return 0;
 }
+#endif
 #endif

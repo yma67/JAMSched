@@ -18,20 +18,11 @@
 #define SET _setmcontext
 #define GET _getmcontext
 #elif defined(__x86_64__)
-#define NEEDAMD64CONTEXT 1
-#define SET _setmcontext
-#define GET _getmcontext
 #else
 #define NEEDPOWERCONTEXT 1
 #define SET __setmcontext
 #define GET __getmcontext
 #endif
-#endif
-
-#if defined(__linux__) && defined(__x86_64__)
-#define NEEDAMD64CONTEXT 1
-#define SET setmcontext
-#define GET getmcontext
 #endif
 
 #if defined(__linux__) && defined(__arm__)
