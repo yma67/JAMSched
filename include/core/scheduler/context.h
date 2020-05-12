@@ -24,6 +24,11 @@
 #endif
 #endif
 
+#if defined(__arm__)
+#undef USE_UCONTEXT
+#define USE_UCONTEXT 0
+#endif
+
 #if USE_UCONTEXT
 #include <ucontext.h>
 typedef mcontext_t jam_mcontext_t;
@@ -75,10 +80,11 @@ extern pid_t rfork_thread(int, void*, int(*)(void*), void*);
 #endif
 
 #if defined(__arm__)
-int getmcontext(jam_mcontext_t*);
-void setmcontext(const jam_mcontext_t*);
-#define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
-#define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
+#include "core/ucontext/aarch32-ucontext.h"
+extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
+extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
+extern	int		getcontext(jam_ucontext_t*);
+extern	void		setcontext(const jam_ucontext_t*);
 #endif
 
 #if defined(__mips__)

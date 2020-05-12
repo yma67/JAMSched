@@ -65,7 +65,7 @@ typedef long long vlong;
 #define NEEDSWAPCONTEXT
 #endif
 
-#if defined(__linux__) && defined(__arm__)
+#if defined(__arm__)
 #define NEEDSWAPCONTEXT
 #define NEEDARMMAKECONTEXT
 #endif
@@ -140,10 +140,10 @@ makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
 	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
 	va_start(arg, argc);
 	for(i=0; i<4 && i<argc; i++)
-		uc->uc_mcontext.gregs[i] = va_arg(arg, uint);
+		uc->registers[i] = va_arg(arg, uint);
 	va_end(arg);
-	uc->uc_mcontext.gregs[13] = (uint)sp;
-	uc->uc_mcontext.gregs[14] = (uint)fn;
+	uc->registers[13] = (uint)sp;
+	uc->registers[14] = (uint)fn;
 }
 #endif
 
@@ -203,6 +203,53 @@ asm(".text\n\t"
     "mov     rsp,rcx\n\t"
     "jmp rax\n\t");
 #else
+#if defined(__arm__)
+asm(".text\n\t"
+    ".p2align 5\n\t"
+    ".globl " ASM_SYMBOL(getcontext) "\n\t"
+    ASM_SYMBOL(getcontext) ":\n\t"
+    "str	r1, [r0,#4]\n\t"
+	"str	r2, [r0,#8]\n\t"
+	"str	r3, [r0,#12]\n\t"
+	"str	r4, [r0,#16]\n\t"
+	"str	r5, [r0,#20]\n\t"
+	"str	r6, [r0,#24]\n\t"
+	"str	r7, [r0,#28]\n\t"
+	"str	r8, [r0,#32]\n\t"
+	"str	r9, [r0,#36]\n\t"
+	"str	r10, [r0,#40]\n\t"
+	"str	r11, [r0,#44]\n\t"
+	"str	r12, [r0,#48]\n\t"
+	"str	r13, [r0,#52]\n\t"
+	"str	r14, [r0,#56]\n\t"
+	/* store 1 as r0-to-restore */
+	"mov	r1, #1\n\t"
+	"str	r1, [r0]\n\t"
+	/* return 0 */
+	"mov	r0, #0\n\t"
+	"mov	pc, lr\n\t"
+);
+asm(".text\n\t"
+    ".p2align 5\n\t"
+    ".globl " ASM_SYMBOL(setcontext) "\n\t"
+    ASM_SYMBOL(setcontext) ":\n\t"
+    "ldr	r1, [r0,#4]\n\t"
+	"ldr	r2, [r0,#8]\n\t"
+	"ldr	r3, [r0,#12]\n\t"
+	"ldr	r4, [r0,#16]\n\t"
+	"ldr	r5, [r0,#20]\n\t"
+	"ldr	r6, [r0,#24]\n\t"
+	"ldr	r7, [r0,#28]\n\t"
+	"ldr	r8, [r0,#32]\n\t"
+	"ldr	r9, [r0,#36]\n\t"
+	"ldr	r10, [r0,#40]\n\t"
+	"ldr	r11, [r0,#44]\n\t"
+	"ldr	r12, [r0,#48]\n\t"
+	"ldr	r13, [r0,#52]\n\t"
+	"ldr	r14, [r0,#56]\n\t"
+	"ldr	r0, [r0]\n\t"
+	"mov	pc, lr\n\t");
+#endif
 int
 swapcontext(jam_ucontext_t *oucp, const jam_ucontext_t *ucp)
 {
