@@ -10,6 +10,7 @@
 #include <string>
 #include <cstring>
 #include <mutex>
+
 using namespace std;
 
 scheduler_t sched_edf;
@@ -67,13 +68,15 @@ void mqtt_func() {
         this_thread::sleep_for(std::chrono::milliseconds(1000));
         mqf->data = &mqttsec;
         notify_future(mqf);
-        write(fd[1], "os will be taught in java next year\n", strlen("os will be taught in java next year\n"));
+        if (write(fd[1], "os will be taught in java next year\n", 
+            strlen("os will be taught in java next year\n")) < 0)
+            exit(1);
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     struct epoll_event ev = { .events = EPOLLIN };
-    pipe(fd);
+    if (pipe(fd) < 0) return 1;
     epfd = epoll_create1(0);
     fcntl(fd[0], F_SETFL, O_NONBLOCK);
     ev.data.fd = fd[0];

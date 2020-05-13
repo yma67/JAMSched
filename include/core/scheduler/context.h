@@ -1,110 +1,41 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
-#if defined(__sun__)
-#	define __EXTENSIONS__ 1 /* SunOS */
-#	if defined(__SunOS5_6__) || defined(__SunOS5_7__) || defined(__SunOS5_8__)
-		/* NOT USING #define __MAKECONTEXT_V2_SOURCE 1 / * SunOS */
-#	else
-#		define __MAKECONTEXT_V2_SOURCE 1
-#	endif
-#endif
 
-#define USE_UCONTEXT 1
+#include <stdint.h>
+#include <stddef.h>
 
-#if defined(__OpenBSD__) || defined(__mips__) || defined(__x86_64__)
-#undef USE_UCONTEXT
-#define USE_UCONTEXT 0
-#endif
+typedef struct sigaltstack {
+	void *ss_sp;
+	int ss_flags;
+	size_t ss_size;
+} jam_stack_t;
 
-#if defined(__APPLE__)
-#include <AvailabilityMacros.h>
-#if defined(MAC_OS_X_VERSION_10_5)
-#undef USE_UCONTEXT
-#define USE_UCONTEXT 0
+struct jam_ucontext{
+#if defined(__x86_64__)
+    uintptr_t registers[16];
+#elif defined(__aarch64__)
+#error "platform not supported"
+    uint32_t registers[24];
+#elif defined(__arm__)
+    uint32_t registers[16];
+#elif defined(__mips__)
+#error "platform not supported"
+    uint32_t registers[32];
+#else
+#error "platform not supported"
 #endif
-#endif
-
-#if defined(__arm__)
-#undef USE_UCONTEXT
-#define USE_UCONTEXT 0
-#endif
-
-#if USE_UCONTEXT
-#include <ucontext.h>
-typedef mcontext_t jam_mcontext_t;
-typedef ucontext_t jam_ucontext_t;
-#endif
-
-#if defined(__FreeBSD__) && __FreeBSD__ < 5
-extern	int		getmcontext(jam_mcontext_t*);
-extern	void		setmcontext(const jam_mcontext_t*);
-#define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
-#define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
-extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
-extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
-#endif
+    jam_stack_t	uc_stack;
+};
 
 #if defined(__APPLE__)
-#	define jam_mcontext libthread_mcontext
-#	define jam_mcontext_t libthread_mcontext_t
-#	define jam_ucontext libthread_ucontext
-#	define jam_ucontext_t libthread_ucontext_t
-#	if defined(__i386__)
-#		include "core/ucontext/386-ucontext.h"
-#	elif defined(__x86_64__)
-#		include "core/ucontext/amd64-ucontext.h"
-#	else
-#		include "core/ucontext/power-ucontext.h"
-#	endif	
+#define jam_mcontext libthread_mcontext
+#define jam_mcontext_t libthread_mcontext_t
+#define jam_ucontext libthread_ucontext
+#define jam_ucontext_t libthread_ucontext_t
 #endif
 
-#if defined(__OpenBSD__)
-#	define jam_mcontext libthread_mcontext
-#	define jam_mcontext_t libthread_mcontext_t
-#	define jam_ucontext libthread_ucontext
-#	define jam_ucontext_t libthread_ucontext_t
-#	if defined __i386__
-#		include "386-ucontext.h"
-#	else
-#		include "power-ucontext.h"
-#	endif
-extern pid_t rfork_thread(int, void*, int(*)(void*), void*);
-#endif
+typedef struct jam_ucontext jam_ucontext_t;
+int	swapcontext(jam_ucontext_t*, jam_ucontext_t*);
+void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...);
 
-#if 0 &&  defined(__sun__)
-#	define jam_mcontext libthread_mcontext
-#	define jam_mcontext_t libthread_mcontext_t
-#	define jam_ucontext libthread_ucontext
-#	define jam_ucontext_t libthread_ucontext_t
-#	include "sparc-ucontext.h"
-#endif
-
-#if defined(__arm__) && !defined(__aarch64__)
-#include "core/ucontext/aarch32-ucontext.h"
-extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
-extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
-extern	int		getcontext(jam_ucontext_t*);
-extern	void		setcontext(const jam_ucontext_t*);
-#endif
-
-#if defined(__arm__) && defined(__aarch64__)
-#include "core/ucontext/aarch64-ucontext.h"
-extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
-extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
-extern	int		getcontext(jam_ucontext_t*);
-extern	void		setcontext(const jam_ucontext_t*);
-#endif
-
-#if defined(__mips__)
-#include "mips-ucontext.h"
-int getmcontext(jam_mcontext_t*);
-void setmcontext(const jam_mcontext_t*);
-#define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
-#define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
-#endif
-#endif
-
-#if defined(__linux__) && defined(__x86_64__)
-#include "core/ucontext/amd64-ucontext.h"
-extern	int		swapcontext(jam_ucontext_t*, jam_ucontext_t*);
 #endif
