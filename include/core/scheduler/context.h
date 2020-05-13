@@ -106,8 +106,5 @@ void setmcontext(const jam_mcontext_t*);
 
 #if defined(__linux__) && defined(__x86_64__)
 #include "core/ucontext/amd64-ucontext.h"
-int getmcontext(jam_mcontext_t*);
-void setmcontext(const jam_mcontext_t*);
-#define	setcontext(u)	setmcontext(&(u)->uc_mcontext)
-#define	getcontext(u)	getmcontext(&(u)->uc_mcontext)
+extern	int		swapcontext(jam_ucontext_t*, jam_ucontext_t*);
 #endif

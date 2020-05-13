@@ -2,13 +2,6 @@
 typedef struct jam_mcontext jam_mcontext_t;
 typedef struct jam_ucontext jam_ucontext_t;
 
-
-extern	int		swapcontext(jam_ucontext_t*, jam_ucontext_t*);
-extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
-extern	int		getmcontext(jam_mcontext_t*);
-extern	void		setmcontext(const jam_mcontext_t*);
-
-
 /*-
  * Copyright (c) 1999 Marcel Moolenaar
  * All rights reserved.
