@@ -14,7 +14,7 @@
 // limitations under the License.
 #include "core/scheduler/context.h"
 #include <string.h>
-#include <stdarg.h> 
+#include <stdarg.h>
 
 #if defined(__APPLE__)
 #define ASM_SYMBOL(name_) "_" #name_
