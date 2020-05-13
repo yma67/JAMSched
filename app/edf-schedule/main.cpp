@@ -10,6 +10,7 @@
 #include <string>
 #include <cstring>
 #include <mutex>
+#include <condition_variable>
 
 using namespace std;
 
@@ -19,6 +20,7 @@ priority_queue<pair<int, task_t*>, vector<pair<int, task_t*>>,
                greater<pair<int, task_t*>>> edf_pq;
 deque<jamfuture_t*> io_requeue;
 mutex m_io_requeue;
+condition_variable cv_io_requeue;
 
 int epfd, fd[2];
 struct epoll_event events[1];
@@ -41,6 +43,7 @@ void deadline_task(task_t* self, void* args) {
             {
                 unique_lock<mutex> lc(m_io_requeue);
                 io_requeue.push_back(&mqttval);
+                cv_io_requeue.notify_all();
             }
             get_future(&mqttval);
             cout << "mqtt reply is: " << *reinterpret_cast<string*>(mqttval.data) << endl;
@@ -60,18 +63,19 @@ void edf_postawait(jamfuture_t* self) {
 }
 
 void mqtt_func() {
-    this_thread::sleep_for(std::chrono::milliseconds(2000));
+    jamfuture_t* mqf;
     {
         unique_lock<mutex> lc(m_io_requeue);
-        jamfuture_t* mqf = io_requeue.back();
-        cout << "message to send is: " << *reinterpret_cast<string*>(mqf->data) << endl;
-        this_thread::sleep_for(std::chrono::milliseconds(1000));
-        mqf->data = &mqttsec;
-        notify_future(mqf);
-        if (write(fd[1], "os will be taught in java next year\n", 
-            strlen("os will be taught in java next year\n")) < 0)
-            exit(1);
+        while (io_requeue.size() < 1) cv_io_requeue.wait(lc);
+        mqf = io_requeue.back();
     }
+    cout << "message to send is: " << *reinterpret_cast<string*>(mqf->data) << endl;
+    this_thread::sleep_for(std::chrono::milliseconds(2000));
+    mqf->data = &mqttsec;
+    notify_future(mqf);
+    if (write(fd[1], "os will be taught in java next year\n", 
+        strlen("os will be taught in java next year\n")) < 0)
+        exit(1);
 }
 
 int main(int argc, char* argv[]) {

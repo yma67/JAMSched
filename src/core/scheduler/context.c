@@ -26,7 +26,7 @@
 void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 
 	va_list va;
-	memset(ucp->registers, 0, 15 * 8);
+	memset(ucp->registers, 0, 16 * 8);
 	if(argc != 2) *(int*)0 = 0;
 	va_start(va, argc);
 	ucp->registers[14] = va_arg(va, int);
