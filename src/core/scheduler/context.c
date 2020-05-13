@@ -13,23 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "core/scheduler/context.h"
-#include <inttypes.h>
 #include <string.h>
 #include <stdarg.h> 
-
-#define ulong task_ulong
-#define uint task_uint
-#define uchar task_uchar
-#define ushort task_ushort
-#define uvlong task_uvlong
-#define vlong task_vlong
-
-typedef unsigned long ulong;
-typedef unsigned int uint;
-typedef unsigned char uchar;
-typedef unsigned short ushort;
-typedef unsigned long long uvlong;
-typedef long long vlong;
 
 #if defined(__APPLE__)
 #define ASM_SYMBOL(name_) "_" #name_
@@ -37,82 +22,8 @@ typedef long long vlong;
 #define ASM_SYMBOL(name_) #name_
 #endif
 
-#if defined(__APPLE__)
-#if defined(__i386__)
-#define NEEDX86MAKECONTEXT
-#define NEEDSWAPCONTEXT
-#elif defined(__x86_64__)
-#define NEEDAMD64MAKECONTEXT
-#define NEEDSWAPCONTEXT
-#else
-#define NEEDPOWERMAKECONTEXT
-#define NEEDSWAPCONTEXT
-#endif
-#endif
-
 #if defined(__x86_64__)
-#define NEEDAMD64MAKECONTEXT
-#define NEEDSWAPCONTEXT
-#endif
-
-#if defined(__FreeBSD__) && defined(__i386__) && __FreeBSD__ < 5
-#define NEEDX86MAKECONTEXT
-#define NEEDSWAPCONTEXT
-#endif
-
-#if defined(__OpenBSD__) && defined(__i386__)
-#define NEEDX86MAKECONTEXT
-#define NEEDSWAPCONTEXT
-#endif
-
-#if defined(__arm__)
-#define NEEDSWAPCONTEXT
-#define NEEDARMMAKECONTEXT
-#endif
-
-#if defined(__linux__) && defined(__mips__)
-#define	NEEDSWAPCONTEXT
-#define	NEEDMIPSMAKECONTEXT
-#endif
-
-#ifdef NEEDPOWERMAKECONTEXT
-void
-makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
-{
-	ulong *sp, *tos;
-	va_list arg;
-
-	tos = (ulong*)ucp->uc_stack.ss_sp+ucp->uc_stack.ss_size/sizeof(ulong);
-	sp = tos - 16;	
-	ucp->mc.pc = (long)func;
-	ucp->mc.sp = (long)sp;
-	va_start(arg, argc);
-	ucp->mc.r3 = va_arg(arg, long);
-	va_end(arg);
-}
-#endif
-
-#ifdef NEEDX86MAKECONTEXT
-void
-makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
-{
-	int *sp;
-
-	sp = (int*)ucp->uc_stack.ss_sp+ucp->uc_stack.ss_size/4;
-	sp -= argc;
-	sp = (void*)((uintptr_t)sp - (uintptr_t)sp%16);	/* 16-align for OS X */
-	memmove(sp, &argc+1, argc*sizeof(int));
-
-	*--sp = 0;		/* return address */
-	ucp->uc_mcontext.mc_eip = (long)func;
-	ucp->uc_mcontext.mc_esp = (int)sp;
-}
-#endif
-
-#ifdef NEEDAMD64MAKECONTEXT
-void
-makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
-{
+void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 
 	va_list va;
 	memset(ucp->registers, 0, 15 * 8);
@@ -121,19 +32,50 @@ makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...)
 	ucp->registers[14] = va_arg(va, int);
 	ucp->registers[15] = va_arg(va, int);
 	va_end(va);
-    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - (sizeof(void*) << 1) + 
+    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
+                    (sizeof(void*) << 1) + 
                     (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
     ucp->registers[4] = (uintptr_t)(func);
     ucp->registers[5] = (uintptr_t)(u_p - sizeof(void*));
     *((void**)(ucp->registers[5])) = (void*)(NULL);
 }
-#endif
-
-#ifdef NEEDARMMAKECONTEXT
-void
-makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
-{
+asm(".text\n\t"
+    ".p2align 5\n\t"
+    ".globl "ASM_SYMBOL(swapcontext)"\n\t"
+    ASM_SYMBOL(swapcontext) ":  \n\t"
+    "movq       (%rsp), %rdx    \n\t"
+    "leaq       0x8(%rsp), %rcx \n\t"
+    "movq       %r12, (%rdi)    \n\t"
+    "movq       %r13, 0x8(%rdi)\n\t"
+    "movq       %r14, 0x10(%rdi)\n\t"
+    "movq       %r15, 0x18(%rdi)\n\t"
+    "movq       %rdx, 0x20(%rdi)\n\t"
+    "movq       %rcx, 0x28(%rdi)\n\t"
+    "movq       %rbx, 0x30(%rdi)\n\t"
+    "movq       %rbp, 0x38(%rdi)\n\t"
+    "movq       %rdi, 0x70(%rdi)\n\t"
+    "movq       %rsi, 0x78(%rdi)\n\t"
+    "fnstcw     0x40(%rdi)      \n\t"
+    "stmxcsr    0x44(%rdi)      \n\t"
+    "movq       0x0(%rsi),  %r12\n\t"
+    "movq       0x8(%rsi),  %r13\n\t"
+    "movq       0x10(%rsi), %r14\n\t"
+    "movq       0x18(%rsi), %r15\n\t"
+    "movq       0x20(%rsi), %rax\n\t"
+    "movq       0x28(%rsi), %rcx\n\t"
+    "movq       0x30(%rsi), %rbx\n\t"
+    "movq       0x38(%rsi), %rbp\n\t"
+    "fldcw      0x40(%rsi)      \n\t"
+    "ldmxcsr    0x44(%rsi)      \n\t"
+    "movq       0x70(%rsi), %rdi\n\t"
+    "movq       0x78(%rsi), %rsi\n\t"
+    "movq       %rcx, %rsp      \n\t"
+    "jmp        *%rax           \n\t");
+#elif defined(__aarch64__)
+#error "not implemented yet"
+#elif defined(__arm__)
+void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 	int i, *sp;
 	va_list arg;
 	
@@ -145,12 +87,20 @@ makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
 	uc->registers[13] = (uint)sp;
 	uc->registers[14] = (uint)fn;
 }
-#endif
-
-#ifdef NEEDMIPSMAKECONTEXT
-void
-makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
-{
+asm(".text\n\t"
+    ".p2align 5\n\t"
+    ".globl swapcontext \n\t"
+    "swapcontext:       \n\t"
+    "stmia  r0, {r0-r14}\n\t"
+    "ldr    r0, [r1]    \n\t"
+    "add    r1, r1, #8  \n\t"
+    "ldmia  r1, {r2-r14}\n\t"
+    "sub    r1, r1, #8  \n\t"
+    "ldr    r1, [r1, #4]\n\t"
+    "bx     lr          \n\t");
+#elif defined(__mips__)
+#error "not implemented yet"
+void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 	int i, *sp;
 	va_list arg;
 	
@@ -162,64 +112,4 @@ makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...)
 	uc->uc_mcontext.mc_regs[29] = (int)sp;
 	uc->uc_mcontext.mc_regs[31] = (int)fn;
 }
-#endif
-#if defined(NEEDSWAPCONTEXT)
-#ifdef __x86_64__
-/**
- * reference: libaco 
- */
-asm(".text\n\t"
-    ".p2align 5\n\t"
-    ".globl " ASM_SYMBOL(swapcontext) "\n\t"
-    ".intel_syntax noprefix\n\t"
-    ASM_SYMBOL(swapcontext) ":\n\t"
-    "mov     rdx,QWORD PTR [rsp]\n\t"      // retaddr
-    "lea     rcx,[rsp+0x8]\n\t"            // rsp
-    "mov     QWORD PTR [rdi+0x0], r12\n\t"
-    "mov     QWORD PTR [rdi+0x8], r13\n\t"
-    "mov     QWORD PTR [rdi+0x10],r14\n\t"
-    "mov     QWORD PTR [rdi+0x18],r15\n\t"
-    "mov     QWORD PTR [rdi+0x20],rdx\n\t" // retaddr
-    "mov     QWORD PTR [rdi+0x28],rcx\n\t" // rsp
-    "mov     QWORD PTR [rdi+0x30],rbx\n\t"
-    "mov     QWORD PTR [rdi+0x38],rbp\n\t"
-    "mov     QWORD PTR [rdi+112],rdi\n\t"
-    "mov     QWORD PTR [rdi+120],rsi\n\t"
-    "fnstcw  WORD PTR  [rdi+0x40]\n\t"
-    "stmxcsr DWORD PTR [rdi+0x44]\n\t"
-    
-    "mov     r12,QWORD PTR [rsi+0x0]\n\t"
-    "mov     r13,QWORD PTR [rsi+0x8]\n\t"
-    "mov     r14,QWORD PTR [rsi+0x10]\n\t"
-    "mov     r15,QWORD PTR [rsi+0x18]\n\t"
-    "mov     rax,QWORD PTR [rsi+0x20]\n\t" // retaddr
-    "mov     rcx,QWORD PTR [rsi+0x28]\n\t" // rsp
-    "mov     rbx,QWORD PTR [rsi+0x30]\n\t"
-    "mov     rbp,QWORD PTR [rsi+0x38]\n\t"
-    "fldcw   WORD PTR      [rsi+0x40]\n\t"
-    "ldmxcsr DWORD PTR     [rsi+0x44]\n\t"
-    "mov     rdi, QWORD PTR [rsi+112]\n\t"
-    "mov     rsi, QWORD PTR [rsi+120]\n\t"
-    "mov     rsp,rcx\n\t"
-    "jmp rax\n\t");
-#elif defined(__arm__)
-asm(".text\n\t"
-    ".p2align 5\n\t"
-    ".globl " ASM_SYMBOL(swapcontext) "\n\t"
-    ASM_SYMBOL(swapcontext) ":\n\t"
-    "stmia r0, {r0-r14}\n\t"
-    "ldr r0, [r1]\n\t"
-    "add r1, r1, #8\n\t"
-    "ldmia r1, {r2-r14}\n\t"
-    "sub r1, r1, #8\n\t"
-    "ldr r1, [r1, #4]\n\t"
-    "bx lr\n\t");
-#else
-int
-swapcontext(jam_ucontext_t *oucp, const jam_ucontext_t *ucp)
-{
-	getcontext(oucp);
-	setcontext(ucp);
-}
-#endif
 #endif

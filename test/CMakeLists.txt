@@ -9,6 +9,6 @@ foreach(jamtest_source ${JAMTEST_SOURCES})
     list(APPEND JAMTEST_SOURCES_LIST ${jamtest_source})
 endforeach(jamtest_source ${JAMTEST_SOURCES})
 
-find_package (Threads)
+find_package(Threads)
 add_executable(test-main ${JAMTEST_SOURCES_LIST})
 target_link_libraries(test-main PRIVATE libjamsched Catch2::Catch2 ${CMAKE_THREAD_LIBS_INIT})
