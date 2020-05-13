@@ -79,8 +79,16 @@ extern pid_t rfork_thread(int, void*, int(*)(void*), void*);
 #	include "sparc-ucontext.h"
 #endif
 
-#if defined(__arm__)
+#if defined(__arm__) && !defined(__aarch64__)
 #include "core/ucontext/aarch32-ucontext.h"
+extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
+extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
+extern	int		getcontext(jam_ucontext_t*);
+extern	void		setcontext(const jam_ucontext_t*);
+#endif
+
+#if defined(__arm__) && defined(__aarch64__)
+#include "core/ucontext/aarch64-ucontext.h"
 extern	int		swapcontext(jam_ucontext_t*, const jam_ucontext_t*);
 extern	void		makecontext(jam_ucontext_t*, void(*)(), int, ...);
 extern	int		getcontext(jam_ucontext_t*);

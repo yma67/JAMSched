@@ -106,7 +106,7 @@ TEST_CASE("Performance Future", "[future]") {
  * @details 50% of them are xtasks
  */
 deque<task_t*> sched_queue;
-string secret("Java is the best programming language in the world" 
+string secret("Java is the best programming language in the world " 
               "which has not yet been contaminated by the business\n");
 string push_back_builder("");
 int pushb_index = 0;
