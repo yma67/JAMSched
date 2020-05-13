@@ -1,32 +1,32 @@
 /**
- * @file future.h 
- * @brief   async await protocol in JAMScript
- * @warning DO NOT USE STACK LOCAL VARIABLE AS jamfuture_t OR data
- *          since get_future involves context switching
- * @warning this implementation is abstract and minimal, but guarantees that 
- *          a waiting task WILL NOT BE SCHEDULED, please avoid deadlock
- * @warning althouth we chages task status and lock words atomically, 
- *          notify_future is not considered atomic because invocation of 
- *          post_future_callback is neither atomic nor synchronized
- * @warning please avoid access of jamfuture_t::lock_word and task_t::task_status 
- *          by thread other than wakers and sleeper, otherwise, regular wakeup or sleep is not guaranteed
- * @remark  mechanism of avoiding a task to not being scheduled is simple 
- *          by just marking the task as TASK_PENDING, but user may define other
- *          actions in post_future_callback, but this function is not atomic
+ * @file        future.h 
+ * @brief       async await protocol in JAMScript
+ * @warning     DO NOT USE STACK LOCAL VARIABLE AS jamfuture_t OR data
+ *              since get_future involves context switching
+ * @warning     this implementation is abstract and minimal, but guarantees that 
+ *              a waiting task WILL NOT BE SCHEDULED, please avoid deadlock
+ * @warning     althouth we chages task status and lock words atomically, 
+ *              notify_future is not considered atomic because invocation of 
+ *              post_future_callback is neither atomic nor synchronized
+ * @warning     please avoid access of jamfuture_t::lock_word and task_t::task_status 
+ *              by thread other than wakers and sleeper, otherwise, regular wakeup or sleep is not guaranteed
+ * @remark      mechanism of avoiding a task to not being scheduled is simple 
+ *              by just marking the task as TASK_PENDING, but user may define other
+ *              actions in post_future_callback, but this function is not atomic
  * @copyright 
- *          Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+ *              Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
  * 
- *          Licensed under the Apache License, Version 2.0 (the "License");
- *          you may not use this file except in compliance with the License.
- *          You may obtain a copy of the License at
+ *              Licensed under the Apache License, Version 2.0 (the "License");
+ *              you may not use this file except in compliance with the License.
+ *              You may obtain a copy of the License at
  * 
- *              http://www.apache.org/licenses/LICENSE-2.0
+ *                  http://www.apache.org/licenses/LICENSE-2.0
  * 
- *          Unless required by applicable law or agreed to in writing, software
- *          distributed under the License is distributed on an "AS IS" BASIS,
- *          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *          See the License for the specific language governing permissions and
- *          limitations under the License.
+ *              Unless required by applicable law or agreed to in writing, software
+ *              distributed under the License is distributed on an "AS IS" BASIS,
+ *              WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *              See the License for the specific language governing permissions and
+ *              limitations under the License.
  */
 #ifndef AWAIT_H
 #define AWAIT_H
