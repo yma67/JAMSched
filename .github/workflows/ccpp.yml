@@ -2,7 +2,7 @@ name: JAMSched C/C++ CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, arm-rasp-dev-1 ]
   pull_request:
     branches: [ master ]
 
