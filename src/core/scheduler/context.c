@@ -81,8 +81,8 @@ void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 	
 	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
 	va_start(arg, argc);
-	for(i=0; i<4 && i<argc; i++)
-		uc->registers[i] = va_arg(arg, uint);
+	uc->registers[0] = va_arg(arg, int);
+	uc->registers[1] = va_arg(arg, int);
 	va_end(arg);
 	uc->registers[13] = (uint)sp;
 	uc->registers[14] = (uint)fn;

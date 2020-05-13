@@ -56,8 +56,8 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     task_bytes->context.uc_stack.ss_sp = task_bytes->stack;
     task_bytes->context.uc_stack.ss_size = task_bytes->stack_size;
     makecontext(&task_bytes->context, (void(*)())start_task, 2, 
-                (uint32_t)((uint64_t)task_bytes), 
-                (uint32_t)((uint64_t)task_bytes >> 32));
+                (uint32_t)((uintptr_t)task_bytes), 
+                (uint32_t)(((uintptr_t)task_bytes >> 16) >> 16));
     task_bytes->task_status = TASK_READY;
     return SUCCESS_TASK;
 }
