@@ -196,6 +196,7 @@ TEST_CASE("Interlock-10x", "[future]") {
     REQUIRE(secret == completed_secret);
     for (int i = 0; i < secret.size(); i++) {
         task_t* to_free = px[i].second->owner_task;
+        free(px[i].second);
         if (i % 2 == 0) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     VALGRIND_STACK_DEREGISTER(to_free->v_stack_id);
@@ -205,9 +206,6 @@ TEST_CASE("Interlock-10x", "[future]") {
         } else {
             destroy_shared_stack_task(to_free);
         }
-        free(px[i].second);
     }
-    
     destroy_shared_stack(sstack);
-    
 }
