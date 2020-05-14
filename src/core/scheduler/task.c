@@ -18,6 +18,7 @@
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
+
 void empty_func_next_idle(scheduler_t* self) {}
 void empty_func_before_after(task_t* self) {}
 void* get_user_data(task_t* t) { return t->user_data; }
@@ -32,8 +33,24 @@ void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
                    (((unsigned long)task_addr_upper << 16) << 16));
 	task->task_function(task, task->task_args);
 	task->task_status = TASK_FINISHED;
-    task->yield_task(task);
+    yield_task(task);
 }
+
+void resume_regular_task(task_t* self) {
+    swapcontext(&self->scheduler->scheduler_context, &self->context);
+}
+
+void yield_regular_task(task_t* task) {
+    if (task == NULL) return;
+    swapcontext(&task->context, &task->scheduler->scheduler_context);
+}
+
+task_fvt regular_task_fv = {
+    .resume_task   = resume_regular_task,
+    .yield_task_   = yield_regular_task, 
+    .get_user_data = get_user_data,
+    .set_user_data = set_user_data
+};
 
 task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, 
                         void (*task_function)(task_t*, void*), void* task_args,
@@ -49,10 +66,7 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
     task_bytes->scheduler = scheduler;
     task_bytes->stack = stack;
     scheduler->task_id_counter = scheduler->task_id_counter + 1;
-    task_bytes->resume_task = resume_task;
-    task_bytes->yield_task = yield_task;
-    task_bytes->get_user_data = get_user_data;
-    task_bytes->set_user_data = set_user_data;
+    task_bytes->task_fv = &regular_task_fv;
     task_bytes->context.uc_stack.ss_sp = task_bytes->stack;
     task_bytes->context.uc_stack.ss_size = task_bytes->stack_size;
     makecontext(&task_bytes->context, (void(*)())start_task, 2, 
@@ -60,15 +74,6 @@ task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler,
                 (uint32_t)(((uintptr_t)task_bytes >> 16) >> 16));
     task_bytes->task_status = TASK_READY;
     return SUCCESS_TASK;
-}
-
-void resume_task(task_t* self) {
-    swapcontext(&self->scheduler->scheduler_context, &self->context);
-}
-
-void yield_task(task_t* task) {
-    if (task == NULL) return;
-    swapcontext(&task->context, &task->scheduler->scheduler_context);
 }
 
 task_return_t make_scheduler(scheduler_t* scheduler_bytes, 
@@ -102,7 +107,7 @@ void scheduler_mainloop(scheduler_t* scheduler) {
         task_t* to_run = scheduler->next_task(scheduler);
         if (to_run != NULL && to_run->task_status == TASK_READY) {
             scheduler->before_each(to_run);
-            to_run->resume_task(to_run);
+            to_run->task_fv->resume_task(to_run);
             scheduler->after_each(to_run);
         } else {
             scheduler->idle_task(scheduler);

@@ -119,7 +119,7 @@ void secret_completer(task_t* self, void* arg) {
     {
         char ch = *reinterpret_cast<char*>(arg);
         auto secret_getter = *reinterpret_cast<pair<jamfuture_t*, 
-                                jamfuture_t*>*>(self->get_user_data(self));
+                                jamfuture_t*>*>(self->task_fv->get_user_data(self));
         push_back_builder = push_back_builder + ch;
         double x(0.25);
         x *= double(ch);
@@ -185,7 +185,7 @@ TEST_CASE("Interlock-10x", "[future]") {
             ntask = make_shared_stack_task(&scheduler_future, secret_completer,
                                            &chx[i], sstack);
         }
-        ntask->set_user_data(ntask, &px[i]);
+        ntask->task_fv->set_user_data(ntask, &px[i]);
         make_future(ptrf, ntask, NULL, renablr);
         prev_future = ptrf;
         sched_queue.push_back(ntask);

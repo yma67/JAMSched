@@ -38,7 +38,7 @@ void get_future(jamfuture_t* self) {
                                     __ATOMIC_RELAXED) < self->spin_rounds);
         if (__atomic_load_n(&(self->lock_word), 
                             __ATOMIC_ACQUIRE) < 0x80000000) {
-            self->owner_task->yield_task(self->owner_task);
+            yield_task(self->owner_task);
         }
     }
     __atomic_fetch_or(&(self->lock_word), 0x80000000, __ATOMIC_SEQ_CST);

@@ -44,7 +44,7 @@ void common_xtask_idle(scheduler_t* self) {
 #if defined(__linux__) && !defined(JAMSCRIPT_ENABLE_VALGRIND)
 
 TEST_CASE("Performance XTask", "[xtask]") {
-    WARN(sizeof(jam_ucontext_t));
+    WARN(sizeof(task_t));
     struct rlimit hlmt;
     if (getrlimit(RLIMIT_AS, &hlmt)) {
         REQUIRE(false);

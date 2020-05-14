@@ -69,6 +69,13 @@ typedef enum {
     ERROR_TASK_WRONG_TYPE
 } task_return_t;
 
+typedef struct task_fvt {
+    void (*resume_task)(task_t*);                               /// function for resuming a task, switch from scheduler to task
+    void (*yield_task_)(task_t*);                               /// function for ending a task, switch from task to scheduler
+    void*(*get_user_data)(task_t*);                             /// getter for user_data, useful when writing extension component based on task_t
+    void (*set_user_data)(task_t*, void*);                      /// setter for user_data, useful when writing extension component based on task_t
+} task_fvt;
+
 struct task_t {
     task_status_t task_status;                                  /// state machine of a task
     scheduler_t* scheduler;                                     /// scheduler of the task
@@ -80,10 +87,7 @@ struct task_t {
     int return_value;                                           /// undefined until call finish_task
     unsigned char *stack;                                       /// stack pointer to an allocated stack for this task, may NOT be null
     unsigned int stack_size;                                    /// size of stack, used for check
-    void (*resume_task)(task_t*);                               /// function for resuming a task, switch from scheduler to task
-    void (*yield_task)(task_t*);                                /// function for ending a task, switch from task to scheduler
-    void*(*get_user_data)(task_t*);                             /// getter for user_data, useful when writing extension component based on task_t
-    void (*set_user_data)(task_t*, void*);                      /// setter for user_data, useful when writing extension component based on task_t
+    task_fvt* task_fv;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     unsigned long v_stack_id;
 #endif
@@ -161,21 +165,14 @@ extern task_return_t shutdown_scheduler(scheduler_t* scheduler);
 
 /**
  * Yield Task
- * @param task: task to give up its context
+ * @param yielding_task: task to give up its context
  * @warning this is NOT an atomic operation, and it is subject to DATA RACE
  * @warning will fail if stack overflow detected
  * @return void
  */
-extern void yield_task(task_t* task);
-
-/**
- * Yield Task
- * @param task: task to give up its context
- * @warning this is NOT an atomic operation, and it is subject to DATA RACE
- * @warning will fail if stack overflow detected
- * @return void
- */
-extern void resume_task(task_t* task);
+#define yield_task(yielding_task)                                              \
+    if (yielding_task == NULL) __builtin_trap();                               \
+    yielding_task->task_fv->yield_task_(yielding_task);
 
 /**
  * Finish Task
@@ -191,7 +188,7 @@ extern void resume_task(task_t* task);
 #define finish_task(finishing_task, finishing_task_return_value)               \
     finishing_task->task_status = TASK_FINISHED;                               \
     finishing_task->return_value = finishing_task_return_value;                \
-    finishing_task->yield_task(finishing_task);
+    yield_task(finishing_task);
 
 /**
  * Scheduler Mainloop

@@ -37,6 +37,8 @@
 #define NULL ((void*)(0))
 #endif
 
+
+
 void* get_shared_stack_task_user_data(task_t* task) {
     return ((xuser_data_t*)(task->user_data))->user_data;
 }
@@ -144,6 +146,13 @@ void shared_stack_task_yield(task_t* xself) {
     }
 }
 
+task_fvt shared_stack_task_fv = {
+    .resume_task   = shared_stack_task_resume,
+    .yield_task_   = shared_stack_task_yield, 
+    .get_user_data = get_shared_stack_task_user_data,
+    .set_user_data = set_shared_stack_task_user_data
+};
+
 task_t* make_shared_stack_task(scheduler_t* scheduler, 
                                void (*task_function)(task_t*, void*), 
                                void* task_args, shared_stack_t* xstack) {
@@ -164,10 +173,7 @@ task_t* make_shared_stack_task(scheduler_t* scheduler,
               new_xdata->shared_stack->__shared_stack_size, 
               new_xdata->shared_stack->__shared_stack_ptr);
     task_bytes->user_data = new_xdata;
-    task_bytes->resume_task = shared_stack_task_resume;
-    task_bytes->yield_task = shared_stack_task_yield;
-    task_bytes->get_user_data = get_shared_stack_task_user_data;
-    task_bytes->set_user_data = set_shared_stack_task_user_data;
+    task_bytes->task_fv = &shared_stack_task_fv;
     return task_bytes;
 }
 
