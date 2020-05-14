@@ -12,7 +12,7 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 ///
-/// contains a modified part from
+/// contains aligned stack from
 ///
 /// Copyright 2018 Sen Han <00hnes@gmail.com>
 ///
@@ -135,7 +135,7 @@ void shared_stack_task_yield(task_t* xself) {
                 xself->task_status = TASK_FINISHED;
                 xself->return_value = ERROR_TASK_STACK_OVERFLOW;
                 swapcontext(&xself->context, 
-                               &xself->scheduler->scheduler_context);
+                            &xself->scheduler->scheduler_context);
             }
         }
         xstack->shared_stack_memcpy(xdata->private_stack, &tosm, 
