@@ -35,12 +35,6 @@
 #include <string.h>
 #include <stdarg.h> 
 
-#if defined(__APPLE__)
-#define ASM_SYMBOL(name_) "_" #name_
-#else
-#define ASM_SYMBOL(name_) #name_
-#endif
-
 #if defined(__x86_64__)
 void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 
@@ -61,8 +55,13 @@ void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 }
 asm(".text\n\t"
     ".p2align 5\n\t"
-    ".globl "ASM_SYMBOL(swapcontext)"\n\t"
-    ASM_SYMBOL(swapcontext) ":  \n\t"
+#ifdef __APPLE__
+    ".globl _swapcontext        \n\t"
+    "_swapcontext:              \n\t"
+#else
+    ".globl swapcontext         \n\t"
+    "swapcontext:               \n\t"
+#endif
     "movq       (%rsp), %rdx    \n\t"
     "leaq       0x8(%rsp), %rcx \n\t"
     "movq       %r12, (%rdi)    \n\t"
