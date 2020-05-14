@@ -64,7 +64,7 @@ asm(".text\n\t"
     "movq       (%rsp), %rdx    \n\t"
     "leaq       0x8(%rsp), %rcx \n\t"
     "movq       %r12, (%rdi)    \n\t"
-    "movq       %r13, 0x8(%rdi)\n\t"
+    "movq       %r13, 0x8(%rdi) \n\t"
     "movq       %r14, 0x10(%rdi)\n\t"
     "movq       %r15, 0x18(%rdi)\n\t"
     "movq       %rdx, 0x20(%rdi)\n\t"
@@ -95,7 +95,6 @@ asm(".text\n\t"
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 	int i, *sp;
 	va_list arg;
-	
 	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
 	va_start(arg, argc);
 	uc->registers[0] = va_arg(arg, int);
@@ -120,7 +119,6 @@ asm(".text\n\t"
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 	int i, *sp;
 	va_list arg;
-	
 	va_start(arg, argc);
 	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
 	for(i=0; i<4 && i<argc; i++)
