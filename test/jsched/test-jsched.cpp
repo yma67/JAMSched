@@ -44,7 +44,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(self->scheduler->get_scheduler_data(self->scheduler));
         for (int v = 0; v < 2; v++) {
             for (int i = 0; i < 10; i++) {
-                std::this_thread::sleep_for(std::chrono::microseconds(90));
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
                 yield_task(self);
             }
             std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
@@ -54,7 +54,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                     auto* self_cpp = static_cast<jamscript::interactive_extender*>(self->task_fv->get_user_data(self));
                     *i1cp = true;
                     std::cout << "INTERAC" << std::endl;
-                    std::this_thread::sleep_for(std::chrono::microseconds(90));
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
                     yield_task(self);
                     notify_future(self_cpp->handle.get());
                 }
@@ -62,19 +62,19 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             });
             std::cout << "GOT HANDLE" << std::endl;
             for (int i = 0; i < 10; i++) {
-                std::this_thread::sleep_for(std::chrono::microseconds(90));
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
                 yield_task(self);
             }
             std::cout << "FINISHED PSEUDO PREEMPT B" << std::endl;
             scheduler_ptr->add_batch_task(1000, nullptr, [] (task_t* self, void* args) {
-                std::this_thread::sleep_for(std::chrono::microseconds(900));
+                std::this_thread::sleep_for(std::chrono::microseconds(1000));
                 b1c = true;
                 std::cout << "BATCH" << std::endl;
                 yield_task(self);
             });
             get_future(handle_interactive1.get());
             for (int i = 0; i < 10; i++) {
-                std::this_thread::sleep_for(std::chrono::microseconds(90));
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
                 yield_task(self);
             }
             if (handle_interactive1->status == ack_cancelled) i1c = true;
@@ -88,13 +88,13 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             jamc_sched.add_real_time_task(1, &r1c, [] (task_t* self, void* args) {
                 {
                     auto* r1cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(std::chrono::microseconds(950));
+                    std::this_thread::sleep_for(std::chrono::microseconds(1000));
                     std::cout << "TASK1 EXEC" << std::endl;
                     (*r1cp)++;
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
-            std::this_thread::sleep_for(std::chrono::microseconds(4950));
+            std::this_thread::sleep_for(std::chrono::microseconds(5000));
         }
     });
     std::thread ar2([&] () {
@@ -102,13 +102,13 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             jamc_sched.add_real_time_task(2, &r2c, [] (task_t* self, void* args) {
                 {
                     auto* r2cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(std::chrono::microseconds(950));
+                    std::this_thread::sleep_for(std::chrono::microseconds(1000));
                     std::cout << "TASK2 EXEC" << std::endl;
                     (*r2cp)++;
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
-            std::this_thread::sleep_for(std::chrono::microseconds(9950));
+            std::this_thread::sleep_for(std::chrono::microseconds(10000));
         }
     });
     std::thread ar3([&] () {
@@ -116,13 +116,13 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             jamc_sched.add_real_time_task(3, &r3c, [] (task_t* self, void* args) {
                 {
                     auto* r3cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(std::chrono::microseconds(950));
+                    std::this_thread::sleep_for(std::chrono::microseconds(1000));
                     std::cout << "TASK3 EXEC" << std::endl;
                     (*r3cp)++;
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
-            std::this_thread::sleep_for(std::chrono::microseconds(7450));
+            std::this_thread::sleep_for(std::chrono::microseconds(7500));
         }
     });
     std::thread ar4([&] () {
@@ -130,13 +130,13 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             jamc_sched.add_real_time_task(4, &r4c, [] (task_t* self, void* args) {
                 {
                     auto* r4cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(std::chrono::microseconds(1950));
+                    std::this_thread::sleep_for(std::chrono::microseconds(2000));
                     std::cout << "TASK4 EXEC" << std::endl;
                     (*r4cp)++;
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
-            std::this_thread::sleep_for(std::chrono::microseconds(5950));
+            std::this_thread::sleep_for(std::chrono::microseconds(6000));
         }
     });
     std::this_thread::sleep_for(std::chrono::microseconds(1000));
