@@ -66,7 +66,8 @@ typedef enum {
     ERROR_TASK_INVALID_ARGUMENT,
     ERROR_TASK_STACK_OVERFLOW, 
     ERROR_TASK_CONTEXT_SWITCH, 
-    ERROR_TASK_WRONG_TYPE
+    ERROR_TASK_WRONG_TYPE, 
+    ERROR_TASK_CANCELLED
 } task_return_t;
 
 typedef struct task_fvt {

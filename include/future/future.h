@@ -39,6 +39,7 @@ extern "C" {
 #include <core/scheduler/task.h>
 
 typedef struct jamfuture_t jamfuture_t;
+typedef enum { ack_finished, ack_cancelled, ack_failed } ack_types;
 
 /**
  * @struct jamfuture_t
@@ -57,6 +58,7 @@ struct jamfuture_t {
     task_t* owner_task;                             /// task that sleeps/wakeups
     uint32_t spin_rounds;                           /// number of spin rounds
     void (*post_future_callback)(jamfuture_t*);     /// cleanup after value prepared (make schedulable)
+    ack_types status;
 };
 
 /**
