@@ -40,8 +40,7 @@ void jamscript::after_each_jam_impl(task_t *self) {
             });
         }
     }
-    if (self != scheduler_ptr->c_local_app_task &&
-        traits->task_type == jamscript::batch_task_t) {
+    if (traits->task_type == jamscript::batch_task_t) {
         auto* cpp_task_traits2 = static_cast<batch_extender*>(
                     self->task_fv->get_user_data(self)
                 );
@@ -115,9 +114,6 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
             ).task_id];
     if (current_rt == nullptr) {
         bool is_interactive;
-        if (self->c_local_app_task->task_status == TASK_READY) {
-            return self->c_local_app_task;
-        }
         if (self->batch_queue.empty() && self->interactive_queue.empty()) {
             return nullptr;
         } else if (self->batch_queue.empty() ||
@@ -184,8 +180,7 @@ void jamscript::interactive_task_handle_post_callback(jamfuture_t *self) {
             cpp_task_traits2->deadline, self->owner_task
         });
     }
-    if (cpp_task_traits->task_type == jamscript::batch_task_t &&
-        self->owner_task != cpp_scheduler->c_local_app_task) {
+    if (cpp_task_traits->task_type == jamscript::batch_task_t) {
         std::unique_lock<std::mutex> lock(cpp_scheduler->batch_tasks_mutex);
         cpp_scheduler->batch_queue.push_back(self->owner_task);
     }
@@ -245,6 +240,7 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
                                              c_local_app_task_extender);
     real_time_tasks_map[0x0] = nullptr;
     current_schedule = &normal_schedule;
+    batch_queue.push_back(c_local_app_task);
 }
 
 std::shared_ptr<jamfuture_t>
@@ -361,6 +357,7 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
+        if (task == c_local_app_task) continue;
         delete[] task->stack;
         delete static_cast<batch_extender*>(
                 task->task_fv->get_user_data(task)

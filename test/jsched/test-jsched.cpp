@@ -41,8 +41,8 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                                              { 22 * 1000, 22500,     0 }, { 22500,     23500,     3 },
                                              { 23500,     24 * 1000, 0 }, { 24 * 1000, 26 * 1000, 4 }, 
                                              { 26 * 1000, 27 * 1000, 1 }, { 27 * 1000, 30 * 1000, 0 } }, 1024 * 256, nullptr, [] (task_t* self, void* args) {
-        {
-            auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(self->scheduler->get_scheduler_data(self->scheduler));
+        auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(self->scheduler->get_scheduler_data(self->scheduler));
+        for (int v = 0; v < 2; v++) {
             for (int i = 0; i < 10; i++) {
                 std::this_thread::sleep_for(std::chrono::microseconds(90));
                 yield_task(self);
@@ -73,9 +73,14 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                 yield_task(self);
             });
             get_future(handle_interactive1.get());
+            for (int i = 0; i < 10; i++) {
+                std::this_thread::sleep_for(std::chrono::microseconds(90));
+                yield_task(self);
+            }
             if (handle_interactive1->status == ack_cancelled) i1c = true;
-            scheduler_ptr->exit();
+            
         }
+        scheduler_ptr->exit();
         finish_task(self, EXIT_SUCCESS);
     });
     std::thread ar1([&] () {
