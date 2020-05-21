@@ -239,7 +239,7 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
     c_local_app_task->task_fv->set_user_data(c_local_app_task,
                                              c_local_app_task_extender);
     real_time_tasks_map[0x0] = nullptr;
-    current_schedule = &normal_schedule;
+    current_schedule = decide();
     batch_queue.push_back(c_local_app_task);
 }
 
@@ -375,7 +375,13 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
 
 std::vector<jamscript::task_schedule_entry> *
 jamscript::c_side_scheduler::decide() {
-    return &normal_schedule;
+    if (rand() % 2 == 0) {
+        std::cout << "NORMAL" << std::endl;
+        return &normal_schedule;
+    } else {
+        std::cout << "GREEDY" << std::endl;
+        return &greedy_schedule;
+    } 
 }
 
 void jamscript::c_side_scheduler::run() {

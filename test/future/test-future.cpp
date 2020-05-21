@@ -74,7 +74,7 @@ void test_listener() {
 void test_future_idle(scheduler_t* self) {
     this_thread::sleep_for(chrono::nanoseconds(1));
 }
-
+#ifndef JAMSCRIPT_ENABLE_VALGRIND
 TEST_CASE("Performance Future", "[future]") {
     pthread_barrier_init(&barrier, NULL, 2);
     make_scheduler(&scheduler_future, schedule_next_future, 
@@ -98,7 +98,7 @@ TEST_CASE("Performance Future", "[future]") {
     WARN("total elapse " << total_elapse << " ns, average elapse " 
          << total_elapse / niter << " ns");
 }
-
+#endif
 #endif
 /**
  * @test test chaining sleep/wakeup of 104 coroutines
