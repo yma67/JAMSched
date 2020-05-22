@@ -34,6 +34,7 @@ struct c_side_task_extender {
 
 struct real_time_extender : public c_side_task_extender {
     uint32_t id;
+    uint64_t start, deadline;
 };
 
 struct batch_extender : public c_side_task_extender {
@@ -79,11 +80,12 @@ public:
                      uint32_t stack_size, void* local_app_args,
                      void (*local_app_fn)(task_t *, void *));
     ~c_side_scheduler();
+    uint32_t current_schedule_slot, multiplier;
 private:
     scheduler_t* c_scheduler;
     task_t* c_local_app_task;
     shared_stack_t* c_shared_stack;
-    uint32_t current_schedule_slot, multiplier;
+    
     uint64_t virtual_clock_batch, virtual_clock_interactive;
     std::vector<task_schedule_entry>* current_schedule;
     decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time,
@@ -92,8 +94,8 @@ private:
     std::priority_queue<std::pair<uint64_t, task_t*>,
                         std::vector<std::pair<uint64_t, task_t*>>,
                         decltype(jamscript::edf_cmp)> interactive_queue;
-    std::deque<task_t*> batch_queue;
-    std::unordered_map<uint32_t, task_t*> real_time_tasks_map;
+    std::deque<task_t*> batch_queue, interactive_stack;
+    std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
     std::mutex real_time_tasks_mutex, batch_tasks_mutex;
 };
 

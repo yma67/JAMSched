@@ -4,6 +4,7 @@
 #include "jamscript-impl/jamscript-scheduler.h"
 #include <memory>
 #include <random>
+#include <thread>
 #include <cstring>
 #include <iostream>
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
@@ -28,6 +29,21 @@ void jamscript::after_each_jam_impl(task_t *self) {
     auto actual_exec_time = std::chrono::duration_cast<
                 std::chrono::microseconds
             >(task_current_time - scheduler_ptr->task_start_time).count();
+    auto current_time = std::chrono::duration_cast<
+                std::chrono::microseconds
+            >(task_current_time - scheduler_ptr->scheduler_start_time).count();
+    if (traits->task_type == jamscript::real_time_task_t) {
+        auto* cpp_task_traits2 = static_cast<real_time_extender*>(
+                    self->task_fv->get_user_data(self)
+                );
+        while (current_time < cpp_task_traits2->deadline + 
+               scheduler_ptr->current_schedule->back().end_time * 
+               scheduler_ptr->multiplier) {
+            current_time = std::chrono::duration_cast<
+                std::chrono::microseconds
+            >(task_current_time - scheduler_ptr->scheduler_start_time).count();
+        }
+    }
     if (traits->task_type == jamscript::interactive_task_t) {
         auto* cpp_task_traits2 = static_cast<interactive_extender*>(
                     self->task_fv->get_user_data(self)
@@ -79,12 +95,6 @@ void jamscript::after_each_jam_impl(task_t *self) {
             auto* traits2 = static_cast<real_time_extender*>(
                         self->task_fv->get_user_data(self)
                     );
-            {
-                std::unique_lock<std::mutex> lock(
-                            scheduler_ptr->real_time_tasks_mutex
-                        );
-                scheduler_ptr->real_time_tasks_map[traits2->id] = nullptr;
-            }
             delete traits2;
             destroy_shared_stack_task(self);
         }
@@ -109,10 +119,11 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
             self->current_schedule = self->decide();
         }
     }
-    task_t* current_rt = self->real_time_tasks_map[self->current_schedule->at(
+    auto& current_tasks = self->real_time_tasks_map[
+            self->current_schedule->at(
                 self->current_schedule_slot
             ).task_id];
-    if (current_rt == nullptr) {
+    if (current_tasks.empty()) {
         bool is_interactive;
         if (self->batch_queue.empty() && self->interactive_queue.empty()) {
             return nullptr;
@@ -125,30 +136,34 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
         }
         task_t* to_return;
         if (is_interactive) {
-            if (self->interactive_queue.empty()) return nullptr;
-            to_return = self->interactive_queue.top().second;
-            auto* to_cancel_ext = static_cast<interactive_extender*>(
-                        to_return->task_fv->get_user_data(to_return)
-                    );
-            while (to_cancel_ext->deadline <= current_time_point) {
-                to_cancel_ext->handle->status = ack_cancelled;
-                notify_future(to_cancel_ext->handle.get());
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-                VALGRIND_STACK_DEREGISTER(to_return->v_stack_id);
-#endif
-                delete[] to_return->stack;
-                delete static_cast<interactive_extender*>(
-                            to_return->task_fv->get_user_data(to_return)
-                        );
-                delete to_return;
-                self->interactive_queue.pop();
-                if (self->interactive_queue.empty()) return nullptr;
+            interactive_extender* to_cancel_ext;
+            while (!self->interactive_queue.empty()) {
                 to_return = self->interactive_queue.top().second;
                 to_cancel_ext = static_cast<interactive_extender*>(
                             to_return->task_fv->get_user_data(to_return)
                         );
+                if ((to_cancel_ext->deadline - to_cancel_ext->burst) <= current_time_point) {
+                    self->interactive_stack.push_back(to_return);
+                    while (self->interactive_stack.size() > 3) {
+                        self->interactive_stack.pop_front();
+                    }
+                    self->interactive_queue.pop();
+                } else {
+                    break;
+                }
             }
-            self->interactive_queue.pop();
+            if (self->interactive_queue.empty()) {
+                if (self->interactive_stack.empty()) {
+                    return nullptr;
+                } else {
+                    to_return = self->interactive_stack.back();
+                    self->interactive_stack.pop_back();
+                    return to_return;
+                }
+            } else {
+                self->interactive_queue.pop();
+                return to_return;
+            }
         } else {
             std::unique_lock<std::mutex> lock(self->batch_tasks_mutex);
             to_return = self->batch_queue.front();
@@ -156,6 +171,17 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
         }
         return to_return;
     }
+    task_t* current_rt = current_tasks.back();
+    current_tasks.pop_back();
+    auto* current_rt_extender = static_cast<real_time_extender*>(
+        current_rt->task_fv->get_user_data(current_rt)
+    );
+    current_rt_extender->start = self->current_schedule->at(
+                self->current_schedule_slot
+            ).start_time;
+    current_rt_extender->deadline = self->current_schedule->at(
+                self->current_schedule_slot
+            ).end_time;
     return current_rt;
 }
 
@@ -238,7 +264,7 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
               stack_size, c_local_app_task_stack);
     c_local_app_task->task_fv->set_user_data(c_local_app_task,
                                              c_local_app_task_extender);
-    real_time_tasks_map[0x0] = nullptr;
+    real_time_tasks_map[0x0] = {};
     current_schedule = decide();
     batch_queue.push_back(c_local_app_task);
 }
@@ -283,11 +309,11 @@ bool jamscript::c_side_scheduler::add_batch_task(uint32_t burst, void* args,
                     c_shared_stack->__shared_stack_size
                 ];
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-            batch_task->v_stack_id = VALGRIND_STACK_REGISTER(
-                batch_task_stack, 
-                (void*)((uintptr_t)batch_task_stack + 
-                        c_shared_stack->__shared_stack_size)
-            );
+        batch_task->v_stack_id = VALGRIND_STACK_REGISTER(
+            batch_task_stack, 
+            (void*)((uintptr_t)batch_task_stack + 
+                    c_shared_stack->__shared_stack_size)
+        );
 #endif
         auto* batch_task_extender = new batch_extender;
         batch_task_extender->task_type = jamscript::batch_task_t;
@@ -308,11 +334,6 @@ bool jamscript::c_side_scheduler::add_real_time_task(uint32_t task_id,
                                                      void (*real_time_task_fn)(
                                                            task_t *, void *)) {
     if (c_shared_stack->is_allocatable) {
-        {
-            std::unique_lock<std::mutex> lock(real_time_tasks_mutex);
-            if (real_time_tasks_map[task_id] != nullptr)
-                return false;
-        }
         task_t* new_xtask = make_shared_stack_task(c_scheduler,
                                                    real_time_task_fn, args,
                                                    c_shared_stack);
@@ -325,7 +346,7 @@ bool jamscript::c_side_scheduler::add_real_time_task(uint32_t task_id,
         new_xtask->task_fv->set_user_data(new_xtask, new_xextender);
         {
             std::unique_lock<std::mutex> lock(real_time_tasks_mutex);
-            real_time_tasks_map[task_id] = new_xtask;
+            real_time_tasks_map[task_id].push_back(new_xtask);
             return true;
         }
     }
@@ -345,12 +366,14 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
         delete task;
         interactive_queue.pop();
     }
-    for (auto [id, task]: real_time_tasks_map) {
-        if (task != nullptr) {
+    for (auto& [id, tasks]: real_time_tasks_map) {
+        while (!tasks.empty()) {
+            task_t* task = tasks.back();
             delete static_cast<real_time_extender*>(
                     task->task_fv->get_user_data(task)
             );
             destroy_shared_stack_task(task);
+            tasks.pop_back();
         }
     }
     for (auto task: batch_queue) {

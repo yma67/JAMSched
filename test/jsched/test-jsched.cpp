@@ -9,14 +9,17 @@
 #include <cstdlib>
 #include <sys/resource.h>
 #include <vector>
+#include <utility>
 #include <iostream>
 #include <thread>
 
 int r1c, r2c, r3c, r4c;
 bool b1c = false, i1c = false;
+uint32_t sleep_time;
 
 TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     r1c = r2c = r3c = r4c = 0;
+    sleep_time = 1000;
     jamscript::c_side_scheduler jamc_sched(
         {   { 0 * 1000,  1 * 1000,  1 }, { 1 * 1000,  3 * 1000,  4 },
             { 3 * 1000,  4 * 1000,  3 }, { 4 * 1000,  5 * 1000,  2 },
@@ -41,17 +44,15 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             { 23 * 1000, 24 * 1000, 3 }, { 24 * 1000, 26 * 1000, 4 }, 
             { 26 * 1000, 27 * 1000, 1 }, { 27 * 1000, 30 * 1000, 0 }   }, 
         1024 * 256, nullptr, [] (task_t* self, void* args) {
+        std::cout << "LOCAL START" << std::endl;
+        yield_task(self);
         auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(
                 self->scheduler->get_scheduler_data(self->scheduler)
             );
         for (int v = 0; v < 2; v++) {
-            for (int i = 0; i < 10; i++) {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
-                yield_task(self);
-            }
             std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
             std::shared_ptr<jamfuture_t> handle_interactive1 = scheduler_ptr->
-            add_interactive_task(self, 100 * 1000, 1000, &i1c, 
+            add_interactive_task(self, 30 * 1000, 500, &i1c, 
                                  [] (task_t* self, void* args) {
                 {
                     auto* i1cp = static_cast<bool*>(args);
@@ -62,112 +63,96 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                         );
                     *i1cp = true;
                     std::cout << "INTERAC" << std::endl;
-                    std::this_thread::sleep_for(
-                            std::chrono::microseconds(100)
+                    for (int i = 0; i < 100; i++) {
+                        std::this_thread::sleep_for(
+                            std::chrono::microseconds(5)
                         );
-                    yield_task(self);
+                        yield_task(self);
+                    }
                     notify_future(self_cpp->handle.get());
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
-            std::cout << "GOT HANDLE" << std::endl;
-            for (int i = 0; i < 10; i++) {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
-                yield_task(self);
-            }
             std::cout << "FINISHED PSEUDO PREEMPT B" << std::endl;
-            scheduler_ptr->add_batch_task(1000, nullptr, 
+            scheduler_ptr->add_batch_task(500, &sleep_time, 
                                           [] (task_t* self, void* args) {
-                std::this_thread::sleep_for(std::chrono::microseconds(1000));
+                for (int i = 0; i < 100; i++) {
+                    std::this_thread::sleep_for(std::chrono::microseconds(
+                                *static_cast<uint32_t*>(args) / 200
+                            ));
+                    yield_task(self);
+                }
                 b1c = true;
                 std::cout << "BATCH" << std::endl;
                 yield_task(self);
             });
             get_future(handle_interactive1.get());
-            for (int i = 0; i < 10; i++) {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
-                yield_task(self);
-            }
+            std::cout << "GOT HANDLE" << std::endl;
             if (handle_interactive1->status == ack_cancelled) i1c = true;
-            
+        }
+        while (scheduler_ptr->multiplier < 3) {
+            std::this_thread::sleep_for(std::chrono::microseconds(5));
+            yield_task(self);
         }
         scheduler_ptr->exit();
         finish_task(self, EXIT_SUCCESS);
     });
-    std::thread ar1([&] () {
-        while (jamc_sched.is_running()) {
-            jamc_sched.add_real_time_task(1, &r1c, 
-                                          [] (task_t* self, void* args) {
-                {
-                    auto* r1cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(
-                            std::chrono::microseconds(1000)
-                        );
-                    std::cout << "TASK1 EXEC" << std::endl;
-                    (*r1cp)++;
-                }
-                finish_task(self, EXIT_SUCCESS);
-            });
-            std::this_thread::sleep_for(std::chrono::microseconds(5000));
+    auto rt1 = [] (task_t* self, void* args) {
+        {
+            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            std::this_thread::sleep_for(
+                    std::chrono::microseconds(995)
+                );
+            std::cout << "TASK1 EXEC" << std::endl;
+            (*(pack.first))++;
+            pack.second->add_real_time_task(1, args, self->task_function);
         }
-    });
-    std::thread ar2([&] () {
-        while (jamc_sched.is_running()) {
-            jamc_sched.add_real_time_task(2, &r2c, 
-                                          [] (task_t* self, void* args) {
-                {
-                    auto* r2cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(
-                            std::chrono::microseconds(1000)
-                        );
-                    std::cout << "TASK2 EXEC" << std::endl;
-                    (*r2cp)++;
-                }
-                finish_task(self, EXIT_SUCCESS);
-            });
-            std::this_thread::sleep_for(std::chrono::microseconds(10000));
+        finish_task(self, EXIT_SUCCESS);
+    };
+    auto rt2 = [] (task_t* self, void* args) {
+        {
+            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            std::this_thread::sleep_for(
+                    std::chrono::microseconds(995)
+                );
+            std::cout << "TASK2 EXEC" << std::endl;
+            (*(pack.first))++;
+            pack.second->add_real_time_task(2, args, self->task_function);
         }
-    });
-    std::thread ar3([&] () {
-        while (jamc_sched.is_running()) {
-            jamc_sched.add_real_time_task(3, &r3c, 
-                                          [] (task_t* self, void* args) {
-                {
-                    auto* r3cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(
-                            std::chrono::microseconds(1000)
-                        );
-                    std::cout << "TASK3 EXEC" << std::endl;
-                    (*r3cp)++;
-                }
-                finish_task(self, EXIT_SUCCESS);
-            });
-            std::this_thread::sleep_for(std::chrono::microseconds(7500));
+        finish_task(self, EXIT_SUCCESS);
+    };
+    auto rt3 = [] (task_t* self, void* args) {
+        {
+            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            std::this_thread::sleep_for(
+                    std::chrono::microseconds(995)
+                );
+            std::cout << "TASK3 EXEC" << std::endl;
+            (*(pack.first))++;
+            pack.second->add_real_time_task(3, args, self->task_function);
         }
-    });
-    std::thread ar4([&] () {
-        while (jamc_sched.is_running()) {
-            jamc_sched.add_real_time_task(4, &r4c, 
-                                          [] (task_t* self, void* args) {
-                {
-                    auto* r4cp = static_cast<int*>(args);
-                    std::this_thread::sleep_for(
-                            std::chrono::microseconds(2000)
-                        );
-                    std::cout << "TASK4 EXEC" << std::endl;
-                    (*r4cp)++;
-                }
-                finish_task(self, EXIT_SUCCESS);
-            });
-            std::this_thread::sleep_for(std::chrono::microseconds(6000));
+        finish_task(self, EXIT_SUCCESS);
+    };
+    auto rt4 = [] (task_t* self, void* args) {
+        {
+            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            std::this_thread::sleep_for(
+                    std::chrono::microseconds(1995)
+                );
+            std::cout << "TASK4 EXEC" << std::endl;
+            (*(pack.first))++;
+            pack.second->add_real_time_task(4, args, self->task_function);
         }
-    });
-    std::this_thread::sleep_for(std::chrono::microseconds(1000));
+        finish_task(self, EXIT_SUCCESS);
+    };
+    std::pair<void*, jamscript::c_side_scheduler*> 
+    pack1({ &r1c, &jamc_sched }), pack2({ &r2c, &jamc_sched }),
+    pack3({ &r3c, &jamc_sched }), pack4({ &r4c, &jamc_sched });
+    jamc_sched.add_real_time_task(1, &pack1, rt1);
+    jamc_sched.add_real_time_task(2, &pack2, rt2);
+    jamc_sched.add_real_time_task(3, &pack3, rt3);
+    jamc_sched.add_real_time_task(4, &pack4, rt4);
     jamc_sched.run();
-    ar1.join();
-    ar2.join();
-    ar3.join();
-    ar4.join();
     REQUIRE(i1c);
 #ifndef JAMSCRIPT_ENABLE_VALGRIND
     REQUIRE(b1c);
