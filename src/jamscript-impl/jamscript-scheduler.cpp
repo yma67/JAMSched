@@ -39,7 +39,7 @@ void jamscript::after_each_jam_impl(task_t *self) {
         while (current_time < cpp_task_traits2->deadline + 
                scheduler_ptr->current_schedule->back().end_time * 
                scheduler_ptr->multiplier) {
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
             current_time = std::chrono::duration_cast<
                 std::chrono::microseconds
             >(std::chrono::high_resolution_clock::now() - 
@@ -114,6 +114,10 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
     while (!(self->current_schedule->at(self->current_schedule_slot)
            .inside(current_time_point, self->current_schedule->back().end_time,
                    self->multiplier))) {
+        current_time_point = std::chrono::duration_cast<
+                std::chrono::microseconds
+            >(std::chrono::high_resolution_clock::now() -
+              self->scheduler_start_time).count();
         self->current_schedule_slot = self->current_schedule_slot + 1;
         if (self->current_schedule_slot >= self->current_schedule->size()) {
             self->current_schedule_slot = 0;
