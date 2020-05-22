@@ -156,6 +156,15 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
                      current_time_point) {
                     self->interactive_stack.push_back(to_return);
                     while (self->interactive_stack.size() > 3) {
+                        task_t* to_drop = self->interactive_stack.front();
+                        auto* to_drop_ext = static_cast<interactive_extender*>(
+                            to_drop->task_fv->get_user_data(to_drop)
+                        );
+                        to_drop_ext->handle->status = ack_cancelled;
+                        notify_future(to_drop_ext->handle.get());
+                        delete[] to_drop->stack;
+                        delete to_drop_ext;
+                        delete to_drop;
                         self->interactive_stack.pop_front();
                     }
                     self->interactive_queue.pop();
