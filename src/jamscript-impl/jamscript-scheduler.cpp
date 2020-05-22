@@ -118,16 +118,16 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
     while (!(self->current_schedule->at(self->current_schedule_slot)
            .inside(current_time_point, self->current_schedule->back().end_time,
                    self->multiplier))) {
-        current_time_point = std::chrono::duration_cast<
-                std::chrono::microseconds
-            >(std::chrono::high_resolution_clock::now() -
-              self->scheduler_start_time).count();
         self->current_schedule_slot = self->current_schedule_slot + 1;
         if (self->current_schedule_slot >= self->current_schedule->size()) {
             self->current_schedule_slot = 0;
             self->multiplier++;
             self->current_schedule = self->decide();
         }
+        current_time_point = std::chrono::duration_cast<
+            std::chrono::microseconds
+        >(std::chrono::high_resolution_clock::now() -
+            self->scheduler_start_time).count();
     }
     auto& current_tasks = self->real_time_tasks_map[
             self->current_schedule->at(
