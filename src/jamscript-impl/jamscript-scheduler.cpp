@@ -99,11 +99,11 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
                 std::chrono::microseconds
             >(std::chrono::high_resolution_clock::now() -
               self->scheduler_start_time).count();
-    while (!(self->normal_schedule.at(self->current_schedule_slot)
-           .inside(current_time_point, self->normal_schedule.back().end_time,
+    while (!(self->current_schedule->at(self->current_schedule_slot)
+           .inside(current_time_point, self->current_schedule->back().end_time,
                    self->multiplier))) {
         self->current_schedule_slot = self->current_schedule_slot + 1;
-        if (self->current_schedule_slot >= self->normal_schedule.size()) {
+        if (self->current_schedule_slot >= self->current_schedule->size()) {
             self->current_schedule_slot = 0;
             self->multiplier++;
             self->current_schedule = self->decide();
@@ -139,7 +139,7 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
                 delete[] to_return->stack;
                 delete static_cast<interactive_extender*>(
                             to_return->task_fv->get_user_data(to_return)
-                       );
+                        );
                 delete to_return;
                 self->interactive_queue.pop();
                 if (self->interactive_queue.empty()) return nullptr;
@@ -390,7 +390,6 @@ void jamscript::c_side_scheduler::run() {
 }
 
 bool jamscript::c_side_scheduler::is_running() {
-    current_schedule = &normal_schedule;
     return c_scheduler->cont != 0;
 }
 
