@@ -99,7 +99,8 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     });
     auto rt1 = [] (task_t* self, void* args) {
         {
-            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            auto pack = *static_cast<std::pair<int*, 
+            jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
                     std::chrono::microseconds(995)
                 );
@@ -111,7 +112,8 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     };
     auto rt2 = [] (task_t* self, void* args) {
         {
-            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            auto pack = *static_cast<std::pair<int*, 
+            jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
                     std::chrono::microseconds(995)
                 );
@@ -123,7 +125,8 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     };
     auto rt3 = [] (task_t* self, void* args) {
         {
-            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            auto pack = *static_cast<std::pair<int*, 
+            jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
                     std::chrono::microseconds(995)
                 );
@@ -135,7 +138,8 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     };
     auto rt4 = [] (task_t* self, void* args) {
         {
-            auto pack = *static_cast<std::pair<int*, jamscript::c_side_scheduler*>*>(args);
+            auto pack = *static_cast<std::pair<int*, 
+            jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
                     std::chrono::microseconds(1995)
                 );
