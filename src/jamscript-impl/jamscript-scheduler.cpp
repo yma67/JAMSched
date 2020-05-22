@@ -142,7 +142,8 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
                 to_cancel_ext = static_cast<interactive_extender*>(
                             to_return->task_fv->get_user_data(to_return)
                         );
-                if ((to_cancel_ext->deadline - to_cancel_ext->burst) <= current_time_point) {
+                if ((to_cancel_ext->deadline - to_cancel_ext->burst) <= 
+                     current_time_point) {
                     self->interactive_stack.push_back(to_return);
                     while (self->interactive_stack.size() > 3) {
                         self->interactive_stack.pop_front();
