@@ -49,7 +49,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(
                 self->scheduler->get_scheduler_data(self->scheduler)
             );
-        /*for (int v = 0; v < 2; v++) {
+        for (int v = 0; v < 2; v++) {
             std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
             std::shared_ptr<jamfuture_t> handle_interactive1 = scheduler_ptr->
             add_interactive_task(self, 30 * 1000, 500, &i1c, 
@@ -89,7 +89,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             get_future(handle_interactive1.get());
             std::cout << "GOT HANDLE" << std::endl;
             if (handle_interactive1->status == ack_cancelled) i1c = true;
-        }*/
+        }
         while (scheduler_ptr->multiplier < 3) {
             std::this_thread::sleep_for(std::chrono::microseconds(1));
             yield_task(self);
