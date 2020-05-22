@@ -102,7 +102,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             auto pack = *static_cast<std::pair<int*, 
             jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
-                    std::chrono::microseconds(995)
+                    std::chrono::microseconds(900)
                 );
             std::cout << "TASK1 EXEC" << std::endl;
             (*(pack.first))++;
@@ -115,7 +115,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             auto pack = *static_cast<std::pair<int*, 
             jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
-                    std::chrono::microseconds(995)
+                    std::chrono::microseconds(900)
                 );
             std::cout << "TASK2 EXEC" << std::endl;
             (*(pack.first))++;
@@ -128,7 +128,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             auto pack = *static_cast<std::pair<int*, 
             jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
-                    std::chrono::microseconds(995)
+                    std::chrono::microseconds(900)
                 );
             std::cout << "TASK3 EXEC" << std::endl;
             (*(pack.first))++;
@@ -141,7 +141,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             auto pack = *static_cast<std::pair<int*, 
             jamscript::c_side_scheduler*>*>(args);
             std::this_thread::sleep_for(
-                    std::chrono::microseconds(1995)
+                    std::chrono::microseconds(1900)
                 );
             std::cout << "TASK4 EXEC" << std::endl;
             (*(pack.first))++;

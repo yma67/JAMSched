@@ -39,9 +39,11 @@ void jamscript::after_each_jam_impl(task_t *self) {
         while (current_time < cpp_task_traits2->deadline + 
                scheduler_ptr->current_schedule->back().end_time * 
                scheduler_ptr->multiplier) {
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
             current_time = std::chrono::duration_cast<
                 std::chrono::microseconds
-            >(task_current_time - scheduler_ptr->scheduler_start_time).count();
+            >(std::chrono::high_resolution_clock::now() - 
+              scheduler_ptr->scheduler_start_time).count();
         }
     }
     if (traits->task_type == jamscript::interactive_task_t) {
