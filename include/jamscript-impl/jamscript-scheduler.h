@@ -15,6 +15,7 @@
 #include <chrono>
 #include <utility>
 #include <functional>
+#include <unordered_set>
 #include <unordered_map>
 
 namespace jamscript {
@@ -94,6 +95,7 @@ private:
     std::priority_queue<std::pair<uint64_t, task_t*>,
                         std::vector<std::pair<uint64_t, task_t*>>,
                         decltype(jamscript::edf_cmp)> interactive_queue;
+    std::unordered_multiset<task_t*> batch_wait, interactive_wait;
     std::deque<task_t*> batch_queue, interactive_stack;
     std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
     std::mutex real_time_tasks_mutex, batch_tasks_mutex;

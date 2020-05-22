@@ -56,6 +56,8 @@ void jamscript::after_each_jam_impl(task_t *self) {
             scheduler_ptr->interactive_queue.push({
                 cpp_task_traits2->deadline, self
             });
+        } else if (self->task_status == TASK_PENDING) {
+            scheduler_ptr->interactive_wait.insert(self);
         }
     }
     if (traits->task_type == jamscript::batch_task_t) {
@@ -69,6 +71,8 @@ void jamscript::after_each_jam_impl(task_t *self) {
                         scheduler_ptr->batch_tasks_mutex
                     );
             scheduler_ptr->batch_queue.push_back(self);
+        } else if (self->task_status == TASK_PENDING) {
+            scheduler_ptr->batch_wait.insert(self);
         }
     }
     if (self->task_status == TASK_FINISHED && 
@@ -209,11 +213,13 @@ void jamscript::interactive_task_handle_post_callback(jamfuture_t *self) {
         auto* cpp_task_traits2 = static_cast<interactive_extender*>(
                     self->owner_task->task_fv->get_user_data(self->owner_task)
                 );
+        cpp_scheduler->interactive_wait.erase(self->owner_task);
         cpp_scheduler->interactive_queue.push({
             cpp_task_traits2->deadline, self->owner_task
         });
     }
     if (cpp_task_traits->task_type == jamscript::batch_task_t) {
+        cpp_scheduler->batch_wait.erase(self->owner_task);
         std::unique_lock<std::mutex> lock(cpp_scheduler->batch_tasks_mutex);
         cpp_scheduler->batch_queue.push_back(self->owner_task);
     }
@@ -373,6 +379,26 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
         delete task;
         interactive_queue.pop();
     }
+    for (auto task: interactive_wait) {
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
+#endif
+        delete[] task->stack;
+        delete static_cast<interactive_extender*>(
+                task->task_fv->get_user_data(task)
+        );
+        delete task;
+    }
+    for (auto task: interactive_stack) {
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
+#endif
+        delete[] task->stack;
+        delete static_cast<interactive_extender*>(
+                task->task_fv->get_user_data(task)
+        );
+        delete task;
+    }
     for (auto& [id, tasks]: real_time_tasks_map) {
         while (!tasks.empty()) {
             task_t* task = tasks.back();
@@ -394,7 +420,17 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
         );
         delete task;
     }
-    
+    for (auto task: batch_wait) {
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
+#endif
+        if (task == c_local_app_task) continue;
+        delete[] task->stack;
+        delete static_cast<batch_extender*>(
+                task->task_fv->get_user_data(task)
+        );
+        delete task;
+    }
     destroy_shared_stack(c_shared_stack);
     delete[] c_local_app_task->stack;
     delete static_cast<batch_extender*>(c_local_app_task->task_fv->
