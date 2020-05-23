@@ -7,18 +7,20 @@
 #include <jamscript-impl/jamscript-scheduler.h>
 
 struct task_data_transfer {
-    uint32_t task_id;
+    uint32_t task_id, exec_count;
     uint64_t task_sleep;
     jamscript::c_side_scheduler* scheduler;
     jamscript::ctask_types task_type;
+    task_data_transfer() : 
+    task_id(0), task_sleep(0), scheduler(nullptr), 
+    task_type(jamscript::real_time_task_t), exec_count(0) {}
     task_data_transfer(uint32_t task_id, uint64_t task_sleep, 
                        jamscript::c_side_scheduler* scheduler, 
                        jamscript::ctask_types task_type) : 
     task_id(task_id), task_sleep(task_sleep), scheduler(scheduler), 
-    task_type(task_type) {}
+    task_type(task_type), exec_count(0) {}
 };
 
-int r1c = 0, r2c = 0, r3c = 0, r4c = 0;
 bool b1c = false, i1c = false;
 uint32_t sleep_time = 1000;
 
@@ -28,16 +30,20 @@ int main(int argc, char *argv[]) {
     uint64_t s, e;
     uint32_t id;
     std::ifstream trace_file(argv[1]);
-    std::vector<uint64_t> tasks;
+    std::vector<uint64_t> tasks, tasks_exec_count;
     std::vector<task_data_transfer> task_dtos;
     std::vector<jamscript::task_schedule_entry> normal_sched, greedy_sched;
     if (trace_file.is_open()) {
         trace_file >> ntask;
         tasks.resize(ntask + 1);
+        tasks_exec_count.resize(ntask + 1);
+        task_dtos.resize(ntask + 1);
+        for (auto& c: tasks_exec_count) c = 0;
         trace_file >> nn;
         while (nn--) {
             trace_file >> s >> e >> id;
             tasks[id] = (e - s);
+            tasks_exec_count[id]++;
             normal_sched.push_back({ s, e, id });
         }
         trace_file >> ng;
@@ -109,19 +115,22 @@ int main(int argc, char *argv[]) {
             finish_task(self, EXIT_SUCCESS);
         });
         for (uint32_t i = 1; i < tasks.size(); i++) {
-            task_dtos.push_back({ i, tasks[i], &jamc_sched, 
-                                  jamscript::real_time_task_t });
-        }
-        for (uint32_t i = 1; i < tasks.size(); i++) {
-            jamc_sched.add_real_time_task(i, &(*(task_dtos.begin() + i - 1)), 
+            task_dtos[i] = { i, tasks[i], &jamc_sched, 
+                             jamscript::real_time_task_t };
+            jamc_sched.add_real_time_task(i, &(*(task_dtos.begin() + i)), 
                                           [](task_t* self, void* args) {
                 {
                     auto* pack = static_cast<task_data_transfer*>(args);
+                    if (pack->scheduler->multiplier >= 3) {
+                        pack->scheduler->exit();
+                        finish_task(self, EXIT_SUCCESS);
+                    }
                     std::this_thread::sleep_for(
                             std::chrono::microseconds(pack->task_sleep)
                         );
-                    std::cout << "TASK #" << pack->task_id << 
-                                 " EXEC"  << std::endl;
+                    std::cout << "TASK #" << pack->task_id << " " << 
+                                 "EXEC"   << std::endl;
+                    pack->exec_count++;
                     pack->scheduler->add_real_time_task(pack->task_id, pack, 
                                                         self->task_function);
                 }
@@ -129,6 +138,11 @@ int main(int argc, char *argv[]) {
             });
         }
         jamc_sched.run();
+        for (uint32_t i = 1; i < task_dtos.size(); i++) {
+            std::cout << "TASK #" << i << " EXP: " << 
+                         jamc_sched.multiplier * tasks_exec_count[i] << " " <<
+                         "ACT: "  << task_dtos[i].exec_count << std::endl;
+        }
     }
     return 0;
 }
