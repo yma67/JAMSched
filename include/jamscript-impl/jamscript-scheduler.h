@@ -86,7 +86,6 @@ private:
     scheduler_t* c_scheduler;
     task_t* c_local_app_task;
     shared_stack_t* c_shared_stack;
-    
     uint64_t virtual_clock_batch, virtual_clock_interactive;
     std::vector<task_schedule_entry>* current_schedule;
     decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time,
