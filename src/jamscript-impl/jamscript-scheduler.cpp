@@ -297,6 +297,39 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
     c_local_app_task->task_fv->set_user_data(c_local_app_task,
                                              c_local_app_task_extender);
     real_time_tasks_map[0x0] = {};
+    greedy_ss_acc.resize(this->greedy_schedule.back().end_time / 1000 + 1);
+    normal_ss_acc.resize(this->normal_schedule.back().end_time / 1000 + 1);
+    uint64_t prev_time = 0, prev_acc = 0;
+    for (auto& entry: this->normal_schedule) {
+        if (entry.task_id == 0x0) {
+            for (uint64_t i = prev_time; i < entry.start_time / 1000; i++) {
+                normal_ss_acc[i] = prev_acc;
+            }
+            for (uint64_t i = entry.start_time / 1000; 
+                          i < entry.end_time / 1000; i++) {
+                normal_ss_acc[i] = prev_acc + (i * 1000 - entry.start_time);
+            }
+            prev_time = entry.end_time / 1000;
+            prev_acc = normal_ss_acc[prev_time - 1] + 1000;
+        }
+    }
+    normal_ss_acc[prev_time] = prev_acc;
+    prev_time = 0, prev_acc = 0;
+    for (auto& entry: this->greedy_schedule) {
+        if (entry.task_id == 0x0) {
+            for (uint64_t i = prev_time; i < entry.start_time / 1000; i++) {
+                greedy_ss_acc[i] = prev_acc;
+            }
+            for (uint64_t i = entry.start_time / 1000; 
+                          i < entry.end_time / 1000; i++) {
+                greedy_ss_acc[i] = prev_acc + (i * 1000 - entry.start_time);
+            }
+            prev_time = entry.end_time / 1000;
+            prev_acc = greedy_ss_acc[prev_time - 1] + 1000;
+        }
+    }
+    greedy_ss_acc[prev_time] = prev_acc;
+    srand(0);
     current_schedule = decide();
     batch_queue.push_back(c_local_app_task);
 }
@@ -307,7 +340,7 @@ jamscript::c_side_scheduler::add_interactive_task(task_t *parent_task,
                                                   uint64_t burst,
                                                   void *interactive_task_args,
                                                   void (*interactive_task_fn)(
-                                                          task_t *, void *)) {
+                                                        task_t *, void *)) {
     auto int_task_handle = std::make_shared<jamfuture_t>();
     make_future(int_task_handle.get(), parent_task, nullptr,
                 interactive_task_handle_post_callback);
@@ -329,6 +362,12 @@ jamscript::c_side_scheduler::add_interactive_task(task_t *parent_task,
               interactive_task_args, parent_task->stack_size, int_task_stack);
     int_task->task_fv->set_user_data(int_task, int_task_extender);
     interactive_queue.push({ deadline, int_task });
+    interactive_extender itec;
+    itec.task_type = int_task_extender->task_type;
+    itec.deadline = int_task_extender->deadline;
+    itec.burst = int_task_extender->burst;
+    itec.handle = nullptr;
+    interactive_record.push_back(std::move(itec));
     return int_task_handle;
 }
 
@@ -459,14 +498,53 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
 }
 
 std::vector<jamscript::task_schedule_entry> *
-jamscript::c_side_scheduler::decide() {
+jamscript::c_side_scheduler::random_decide() {
     if (rand() % 2 == 0) {
-        std::cout << "NORMAL" << std::endl;
+        std::cout << "RANDOM NORMAL" << std::endl;
         return &normal_schedule;
     } else {
-        std::cout << "GREEDY" << std::endl;
+        std::cout << "RANDOM GREEDY" << std::endl;
         return &greedy_schedule;
     } 
+}
+
+std::vector<jamscript::task_schedule_entry> *
+jamscript::c_side_scheduler::decide() {
+    if (interactive_record.empty()) {
+        return this->random_decide();
+    }
+    std::sort(interactive_record.begin(), interactive_record.end(), 
+              [this](const interactive_extender& e1, 
+                     const interactive_extender& e2) {
+        return e1.deadline < e2.deadline;
+    });
+    uint64_t acc_normal = 0, success_count_normal = 0, 
+             acc_greedy = 0, success_count_greedy = 0;
+    for (auto& r: interactive_record) {
+        if (r.burst + acc_normal <= normal_ss_acc[r.deadline / 1000]) {
+            success_count_normal++;
+            acc_normal += r.burst;
+        }
+    }
+    for (auto& r: interactive_record) {
+        if (r.burst + acc_greedy <= greedy_ss_acc[r.deadline / 1000]) {
+            success_count_greedy++;
+            acc_greedy += r.burst;
+        }
+    }
+    std::cout << "greedy success: " << success_count_greedy << std::endl;
+    std::cout << "normal success: " << success_count_normal << std::endl;
+    std::cout << "=> ";
+    interactive_record.clear();
+    if (success_count_greedy == success_count_normal) {
+        return this->random_decide();
+    } else if (success_count_greedy < success_count_normal) {
+        std::cout << "MIN GI NORMAL" << std::endl;
+        return &normal_schedule;
+    } else {
+        std::cout << "MIN GI GREEDY" << std::endl;
+        return &greedy_schedule;
+    }
 }
 
 void jamscript::c_side_scheduler::run() {

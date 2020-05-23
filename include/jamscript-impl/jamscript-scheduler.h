@@ -88,6 +88,8 @@ private:
     shared_stack_t* c_shared_stack;
     uint64_t virtual_clock_batch, virtual_clock_interactive;
     std::vector<task_schedule_entry>* current_schedule;
+    std::vector<uint64_t> normal_ss_acc, greedy_ss_acc;
+    std::vector<interactive_extender> interactive_record;
     decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time,
                                                         task_start_time;
     std::vector<task_schedule_entry> normal_schedule, greedy_schedule;
@@ -98,6 +100,7 @@ private:
     std::deque<task_t*> batch_queue, interactive_stack;
     std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
     std::mutex real_time_tasks_mutex, batch_tasks_mutex;
+    std::vector<jamscript::task_schedule_entry> *random_decide();
 };
 
 void before_each_jam_impl(task_t *);

@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
                     std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
                     std::shared_ptr<jamfuture_t> handle_interactive1 = 
                     scheduler_ptr->
-                    add_interactive_task(self, 30 * 1000, 500, &i1c, 
+                    add_interactive_task(self, 18000, 9000, &i1c, 
                                         [] (task_t* self, void* args) {
                         {
                             auto* i1cp = static_cast<bool*>(args);
@@ -74,13 +74,13 @@ int main(int argc, char *argv[]) {
                                     self->task_fv->get_user_data(self)
                                 );
                             *i1cp = true;
-                            std::cout << "INTERAC" << std::endl;
-                            for (int i = 0; i < 100; i++) {
+                            for (int i = 0; i < 160; i++) {
                                 std::this_thread::sleep_for(
-                                    std::chrono::microseconds(5)
+                                    std::chrono::microseconds(50)
                                 );
                                 yield_task(self);
                             }
+                            std::cout << "INTERAC" << std::endl;
                             notify_future(self_cpp->handle.get());
                         }
                         finish_task(self, EXIT_SUCCESS);
@@ -104,6 +104,10 @@ int main(int argc, char *argv[]) {
                     std::cout << "GOT HANDLE" << std::endl;
                     if (handle_interactive1->status == ack_cancelled) {
                         i1c = true;
+                    }
+                    for (int i = 0; i < 240; i++) {
+                        std::this_thread::sleep_for(std::chrono::microseconds(50));
+                        yield_task(self);
                     }
                 }
                 while (scheduler_ptr->multiplier < 3) {
