@@ -111,6 +111,8 @@ int main(int argc, char *argv[]) {
         for (uint32_t i = 1; i < tasks.size(); i++) {
             task_dtos.push_back({ i, tasks[i], &jamc_sched, 
                                   jamscript::real_time_task_t });
+        }
+        for (uint32_t i = 1; i < tasks.size(); i++) {
             jamc_sched.add_real_time_task(i, &(*(task_dtos.begin() + i - 1)), 
                                           [](task_t* self, void* args) {
                 {
@@ -125,9 +127,6 @@ int main(int argc, char *argv[]) {
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
-        }
-        for (uint32_t i = 1; i < tasks.size(); i++) {
-            
         }
         jamc_sched.run();
     }
