@@ -521,13 +521,17 @@ jamscript::c_side_scheduler::decide() {
     uint64_t acc_normal = 0, success_count_normal = 0, 
              acc_greedy = 0, success_count_greedy = 0;
     for (auto& r: interactive_record) {
-        if (r.burst + acc_normal <= normal_ss_acc[r.deadline / 1000]) {
+        if (r.burst + acc_normal <= normal_ss_acc[
+                (r.deadline % greedy_schedule.back().end_time) / 1000
+            ]) {
             success_count_normal++;
             acc_normal += r.burst;
         }
     }
     for (auto& r: interactive_record) {
-        if (r.burst + acc_greedy <= greedy_ss_acc[r.deadline / 1000]) {
+        if (r.burst + acc_greedy <= greedy_ss_acc[
+                (r.deadline % greedy_schedule.back().end_time) / 1000
+            ]) {
             success_count_greedy++;
             acc_greedy += r.burst;
         }
