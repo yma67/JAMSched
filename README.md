@@ -1,4 +1,4 @@
-# JAMSched [![Build Status](https://travis-ci.com/citelab/JAMSched.svg?token=WDPhpGnigsQCoWp5WMJt&branch=master)](https://travis-ci.com/citelab/JAMSched)
+# JAMSched [![Build Status](https://travis-ci.com/citelab/JAMSched.svg?token=WDPhpGnigsQCoWp5WMJt&branch=master)](https://travis-ci.com/citelab/JAMSched) 
 #### The light weight micro-kernel-like scheduling framework
 ## General Workflow
 ### Create an application
