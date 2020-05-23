@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
                 {
                     auto* pack = static_cast<task_data_transfer*>(args);
                     std::this_thread::sleep_for(
-                            std::chrono::microseconds(pack->task_sleep - 5)
+                            std::chrono::microseconds(pack->task_sleep)
                         );
                     std::cout << "TASK #" << pack->task_id << 
                                  " EXEC"  << std::endl;
