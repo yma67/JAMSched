@@ -49,7 +49,7 @@ void jamscript::after_each_jam_impl(task_t *self) {
         while (current_time < cpp_task_traits2->deadline + 
                scheduler_ptr->current_schedule->back().end_time * 
                scheduler_ptr->multiplier) {
-            std::this_thread::sleep_for(std::chrono::microseconds(1));
+            std::this_thread::sleep_for(std::chrono::microseconds(5));
             current_time = std::chrono::duration_cast<
                 std::chrono::microseconds
             >(std::chrono::high_resolution_clock::now() - 
