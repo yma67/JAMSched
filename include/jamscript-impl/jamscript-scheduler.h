@@ -103,11 +103,35 @@ private:
     std::vector<jamscript::task_schedule_entry> *random_decide();
 };
 
-void before_each_jam_impl(task_t *);
-void after_each_jam_impl(task_t *);
-task_t* next_task_jam_impl(scheduler_t *);
-void idle_task_jam_impl(scheduler_t *);
-void interactive_task_handle_post_callback(jamfuture_t *);
+/**
+ * before task
+ * start task executing clock
+ */
+void before_each_jam_impl(task_t *self);
+
+/**
+ * after task
+ * @remark ready task: increase clock, add back to queue
+ * @remark pending task: increase clock
+ * @remark finished task: increase clock, free memory
+ */
+void after_each_jam_impl(task_t *self);
+
+/**
+ * next task
+ * @remark if the current time slot is RT, return RT
+ * @remark if the current time slot is SS, if both queues empty, return nullptr, if batch queue is empty we return one from interactive, 
+ *         and vice verca, otherwise, we dispatch according to virtual clock value
+ * @remark for batch task, we use a unbounded FIFO queue
+ * @remark for interactive task, we use a priority queue to implement EDF, and another bounded stack to store task with missing deadline
+ * @remark when we decide to schedule interactive task, if there is any expired task from priority queue, we put them into stack, 
+ *         if there is no task remaining after the previous process, we pop the (last entered, latest) expired task from stack (LIFO)
+ *         if no such task exist in stack, return nullptr. if there is unexpired task from priority queue, we return the task with earliest
+ *         deadline (EDF)
+ */
+task_t* next_task_jam_impl(scheduler_t *self);
+void idle_task_jam_impl(scheduler_t *self);
+void interactive_task_handle_post_callback(jamfuture_t *self);
 
 }
 #endif //JAMSCRIPT_JAMSCRIPT_SCHEDULER_H

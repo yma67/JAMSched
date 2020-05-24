@@ -1,3 +1,4 @@
+4
 24
 0 1000 1
 1000 3000 4
@@ -44,21 +45,3 @@
 24000 26000 4
 26000 27000 1
 27000 30000 0
-1
-0 30000 500
-1
-0 500
-# ATTENTION: DO NOT INCLUDE THE CURRENT LINE AND ALL LINES BELOW IN ACTUAL TRACE FILE
-Explanation: 
-section 1: normal schedule
-[number of lines to read in normal schedule]
-[start] [deadline] [task id]
-section 2: greedy schedule
-[number of lines to read in greedy schedule]
-[start] [deadline] [task id]
-section 3: interactive tasks
-[number of interactive tasks]
-[arrival time] [deadline] [burst time]
-section 4: batch tasks
-[number of batch tasks]
-[arrival time] [burst time]
