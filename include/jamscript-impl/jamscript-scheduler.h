@@ -53,8 +53,8 @@ struct task_schedule_entry {
     task_schedule_entry(uint64_t s, uint64_t e, uint32_t id) : 
     start_time(s), end_time(e), task_id(id) {}
     bool inside(uint64_t time_point) const {
-        return ((start_time) <= time_point) && 
-                (time_point <= (end_time));
+        return ((start_time * 1000) <= time_point) && 
+               (time_point <= (end_time * 1000));
     }
 };
 

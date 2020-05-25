@@ -135,7 +135,7 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
                 self_c->get_scheduler_data(self_c)
             );
     uint64_t current_time_point = std::chrono::duration_cast<
-                std::chrono::microseconds
+                std::chrono::nanoseconds
             >(std::chrono::high_resolution_clock::now() -
               self->cycle_start_time).count();
     while (!(self->current_schedule->at(self->current_schedule_slot)
@@ -157,7 +157,7 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
             self->cycle_start_time = std::chrono::high_resolution_clock::now();
         }
         current_time_point = std::chrono::duration_cast<
-            std::chrono::microseconds
+            std::chrono::nanoseconds
         >(std::chrono::high_resolution_clock::now() -
             self->cycle_start_time).count();
     }
