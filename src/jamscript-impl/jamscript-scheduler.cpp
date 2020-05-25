@@ -23,9 +23,24 @@
 #endif
 
 void jamscript::before_each_jam_impl(task_t *self) {
-    static_cast<c_side_scheduler*>(self->scheduler->
-    get_scheduler_data(self->scheduler))->task_start_time =
-            std::chrono::high_resolution_clock::now();
+    auto* self_task = static_cast<c_side_task_extender*>(
+            self->task_fv->get_user_data(self)
+        );
+    auto* self_sched = static_cast<c_side_scheduler*>(self->scheduler->
+    get_scheduler_data(self->scheduler));
+    self_sched->task_start_time = std::chrono::high_resolution_clock::now();
+    if (self_task->task_type == jamscript::real_time_task_t) {
+        auto* self_rtask = static_cast<real_time_extender*>(
+            self->task_fv->get_user_data(self)
+        );
+        self_sched->total_jitter.push_back(
+            std::abs((long long)std::chrono::duration_cast<
+                std::chrono::microseconds
+            >(self_sched->task_start_time - self_sched->cycle_start_time
+            ).count() - (long long)(self_rtask->start))
+        );
+    }
+    
 }
 
 void jamscript::after_each_jam_impl(task_t *self) {
@@ -40,8 +55,20 @@ void jamscript::after_each_jam_impl(task_t *self) {
                 std::chrono::microseconds
             >(task_current_time - scheduler_ptr->task_start_time).count();
     auto current_time = std::chrono::duration_cast<
-                std::chrono::microseconds
-            >(task_current_time - scheduler_ptr->scheduler_start_time).count();
+                std::chrono::nanoseconds
+            >(task_current_time - scheduler_ptr->cycle_start_time).count();
+    if (traits->task_type == jamscript::real_time_task_t) {
+        auto* cpp_task_traits2 = static_cast<real_time_extender*>(
+                    self->task_fv->get_user_data(self)
+                );
+        while (current_time < cpp_task_traits2->deadline * 1000) {
+            // std::this_thread::sleep_for(std::chrono::nanoseconds(50));
+            current_time = std::chrono::duration_cast<
+                std::chrono::nanoseconds
+            >(std::chrono::high_resolution_clock::now() - 
+              scheduler_ptr->cycle_start_time).count();
+        }
+    }
     if (traits->task_type == jamscript::interactive_task_t) {
         auto* cpp_task_traits2 = static_cast<interactive_extender*>(
                     self->task_fv->get_user_data(self)
@@ -64,7 +91,7 @@ void jamscript::after_each_jam_impl(task_t *self) {
         cpp_task_traits2->burst -= actual_exec_time;
         if (self->task_status == TASK_READY) {
             std::unique_lock<std::mutex> lock(
-                        scheduler_ptr->batch_tasks_mutex
+                        scheduler_ptr->real_time_tasks_mutex
                     );
             scheduler_ptr->batch_queue.push_back(self);
         } else if (self->task_status == TASK_PENDING) {
@@ -110,20 +137,29 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
     uint64_t current_time_point = std::chrono::duration_cast<
                 std::chrono::microseconds
             >(std::chrono::high_resolution_clock::now() -
-              self->scheduler_start_time).count();
+              self->cycle_start_time).count();
     while (!(self->current_schedule->at(self->current_schedule_slot)
-           .inside(current_time_point, self->current_schedule->back().end_time,
-                   self->multiplier))) {
+           .inside(current_time_point))) {
         self->current_schedule_slot = self->current_schedule_slot + 1;
         if (self->current_schedule_slot >= self->current_schedule->size()) {
             self->current_schedule_slot = 0;
             self->multiplier++;
             self->current_schedule = self->decide();
+            long long jacc = 0;
+            std::cout << "JITTERS: ";
+            for (auto& j: self->total_jitter) {
+                std::cout << j << " ";
+                jacc += j;
+            }
+            std::cout << "AVG: " << double(jacc) / self->total_jitter.size() <<
+            std::endl;
+            self->total_jitter.clear();
+            self->cycle_start_time = std::chrono::high_resolution_clock::now();
         }
         current_time_point = std::chrono::duration_cast<
             std::chrono::microseconds
         >(std::chrono::high_resolution_clock::now() -
-            self->scheduler_start_time).count();
+            self->cycle_start_time).count();
     }
     auto& current_tasks = self->real_time_tasks_map[
             self->current_schedule->at(
@@ -244,11 +280,11 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
                                               current_schedule_slot(0),
                                               current_schedule(nullptr),
                                               multiplier(0),
-                                              scheduler_start_time(
+                                              task_start_time(
                                                   std::chrono::
                                                   high_resolution_clock::
                                                   now()),
-                                              task_start_time(
+                                              cycle_start_time(
                                                   std::chrono::
                                                   high_resolution_clock::
                                                   now()),
@@ -538,7 +574,7 @@ jamscript::c_side_scheduler::decide() {
 }
 
 void jamscript::c_side_scheduler::run() {
-    scheduler_start_time = std::chrono::high_resolution_clock::now();
+    cycle_start_time = std::chrono::high_resolution_clock::now();
     scheduler_mainloop(c_scheduler);
 }
 

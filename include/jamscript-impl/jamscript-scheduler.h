@@ -52,10 +52,9 @@ struct task_schedule_entry {
     uint32_t task_id;
     task_schedule_entry(uint64_t s, uint64_t e, uint32_t id) : 
     start_time(s), end_time(e), task_id(id) {}
-    bool inside(uint64_t time_point, uint64_t hyper_period, 
-                uint32_t multiplier) const {
-        return ((start_time + multiplier * hyper_period) <= time_point) && 
-                (time_point <= (end_time + multiplier * hyper_period));
+    bool inside(uint64_t time_point) const {
+        return ((start_time) <= time_point) && 
+                (time_point <= (end_time));
     }
 };
 
@@ -87,11 +86,13 @@ private:
     task_t* c_local_app_task;
     shared_stack_t* c_shared_stack;
     uint64_t virtual_clock_batch, virtual_clock_interactive;
+    std::vector<long long> total_jitter;
     std::vector<task_schedule_entry>* current_schedule;
     std::vector<uint64_t> normal_ss_acc, greedy_ss_acc;
     std::vector<interactive_extender> interactive_record;
-    decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time,
-                                                        task_start_time;
+    decltype(std::chrono::high_resolution_clock::now())
+                                                task_start_time, 
+                                                cycle_start_time;
     std::vector<task_schedule_entry> normal_schedule, greedy_schedule;
     std::priority_queue<std::pair<uint64_t, task_t*>,
                         std::vector<std::pair<uint64_t, task_t*>>,

@@ -57,10 +57,10 @@ int main(int argc, char *argv[]) {
                                                [](task_t* self, void* args) {
             {
                 std::cout << "LOCAL START" << std::endl;
-                yield_task(self);
+                //yield_task(self);
                 auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>
                     (self->scheduler->get_scheduler_data(self->scheduler));
-                for (int v = 0; v < 2; v++) {
+                /*for (int v = 0; v < 2; v++) {
                     std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
                     std::shared_ptr<jamfuture_t> handle_interactive1 = 
                     scheduler_ptr->
@@ -109,9 +109,9 @@ int main(int argc, char *argv[]) {
                         std::this_thread::sleep_for(std::chrono::microseconds(50));
                         yield_task(self);
                     }
-                }
+                }*/
                 while (scheduler_ptr->multiplier < 3) {
-                    std::this_thread::sleep_for(std::chrono::microseconds(1));
+                    // std::this_thread::sleep_for(std::chrono::microseconds(1));
                     yield_task(self);
                 }
                 scheduler_ptr->exit();
@@ -124,14 +124,15 @@ int main(int argc, char *argv[]) {
             jamc_sched.add_real_time_task(i, &(*(task_dtos.begin() + i)), 
                                           [](task_t* self, void* args) {
                 {
+                    auto _start_time = std::chrono::high_resolution_clock::now();
                     auto* pack = static_cast<task_data_transfer*>(args);
                     if (pack->scheduler->multiplier >= 3) {
                         pack->scheduler->exit();
                         finish_task(self, EXIT_SUCCESS);
                     }
-                    std::this_thread::sleep_for(
-                            std::chrono::microseconds(pack->task_sleep)
-                        );
+                    while (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - _start_time).count() < pack->task_sleep * 1000) {
+                        // std::this_thread::sleep_for(std::chrono::nanoseconds(50));
+                    }
                     std::cout << "TASK #" << pack->task_id << " " << 
                                  "EXEC"   << std::endl;
                     pack->exec_count++;
