@@ -34,13 +34,16 @@ int nrounds, batch_count = 0, interactive_count = 0, preempt_tslice = 0,
     _bc, _ic;
 
 int main(int argc, char *argv[]) {
+    // both of the followings are fine
+    // ./schedule-ai-experiment [trace file name] [number of cycles to simulate]
+    // ./schedule-ai-experiment [trace file name] [number of cycles to simulate] [psuedo-preemption time slice in ns]
     if (argc < 3 || argc > 4) return EXIT_FAILURE;
     int nn, ng, ntask, nitask, nbtask;
-    uint64_t s, e;
-    uint32_t id;
     std::ifstream trace_file(argv[1]);
     nrounds = std::atoi(argv[2]);
     if (argc == 4) preempt_tslice = std::atoi(argv[3]);
+    uint64_t s, e;
+    uint32_t id;
     std::vector<uint64_t> tasks, tasks_exec_count;
     std::vector<task_data_transfer> task_dtos;
     std::vector<jamscript::task_schedule_entry> normal_sched, greedy_sched;
