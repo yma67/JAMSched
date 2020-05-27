@@ -280,6 +280,10 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
                                               current_schedule_slot(0),
                                               current_schedule(nullptr),
                                               multiplier(0),
+                                              scheduler_start_time(
+                                                  std::chrono::
+                                                  high_resolution_clock::
+                                                  now()), 
                                               task_start_time(
                                                   std::chrono::
                                                   high_resolution_clock::
@@ -574,6 +578,7 @@ jamscript::c_side_scheduler::decide() {
 }
 
 void jamscript::c_side_scheduler::run() {
+    scheduler_start_time = std::chrono::high_resolution_clock::now();
     cycle_start_time = std::chrono::high_resolution_clock::now();
     scheduler_mainloop(c_scheduler);
 }

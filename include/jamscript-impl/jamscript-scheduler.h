@@ -81,6 +81,7 @@ public:
                      void (*local_app_fn)(task_t *, void *));
     ~c_side_scheduler();
     uint32_t current_schedule_slot, multiplier;
+    decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time;
 private:
     scheduler_t* c_scheduler;
     task_t* c_local_app_task;
@@ -90,9 +91,8 @@ private:
     std::vector<task_schedule_entry>* current_schedule;
     std::vector<uint64_t> normal_ss_acc, greedy_ss_acc;
     std::vector<interactive_extender> interactive_record;
-    decltype(std::chrono::high_resolution_clock::now())
-                                                task_start_time, 
-                                                cycle_start_time;
+    decltype(std::chrono::high_resolution_clock::now()) task_start_time, 
+                                                        cycle_start_time;
     std::vector<task_schedule_entry> normal_schedule, greedy_schedule;
     std::priority_queue<std::pair<uint64_t, task_t*>,
                         std::vector<std::pair<uint64_t, task_t*>>,
