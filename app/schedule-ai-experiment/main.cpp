@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
                                                         self->task_function);
                     while (std::chrono::duration_cast<std::chrono::nanoseconds>
                            (std::chrono::high_resolution_clock::now() - 
-                            _start_time).count() < pack->task_sleep * 1000) {}
+                            _start_time).count() < pack->task_sleep * 1000);
                 }
                 finish_task(self, EXIT_SUCCESS);
             });
@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
             }
             while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - inv_start
-                   ).count() < (nsc.end_time - nsc.start_time) * 1000) {}
+                   ).count() < (nsc.end_time - nsc.start_time) * 1000);
         }
         std::cout << "AVG: " << double(tacc) / cacc << std::endl;
         std::cout << "GREEDY LOWER BOUND: ";
@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
             // sleep until finishing this interval
             while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - inv_start
-                   ).count() < (nsc.end_time - nsc.start_time) * 1000) {}
+                   ).count() < (nsc.end_time - nsc.start_time) * 1000);
         }
         std::cout << "AVG: " << double(tacc) / cacc << std::endl;
         std::cout << "TOTAL-I: " << _ic << ", " <<
