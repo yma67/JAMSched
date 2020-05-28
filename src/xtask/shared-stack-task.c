@@ -12,7 +12,7 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 ///
-/// contains a modified part from
+/// contains aligned stack from
 ///
 /// Copyright 2018 Sen Han <00hnes@gmail.com>
 ///
@@ -36,6 +36,8 @@
 #ifndef NULL
 #define NULL ((void*)(0))
 #endif
+
+
 
 void* get_shared_stack_task_user_data(task_t* task) {
     return ((xuser_data_t*)(task->user_data))->user_data;
@@ -135,7 +137,7 @@ void shared_stack_task_yield(task_t* xself) {
                 xself->task_status = TASK_FINISHED;
                 xself->return_value = ERROR_TASK_STACK_OVERFLOW;
                 swapcontext(&xself->context, 
-                               &xself->scheduler->scheduler_context);
+                            &xself->scheduler->scheduler_context);
             }
         }
         xstack->shared_stack_memcpy(xdata->private_stack, &tosm, 
@@ -143,6 +145,13 @@ void shared_stack_task_yield(task_t* xself) {
         swapcontext(&xself->context, &xself->scheduler->scheduler_context);
     }
 }
+
+task_fvt shared_stack_task_fv = {
+    .resume_task   = shared_stack_task_resume,
+    .yield_task_   = shared_stack_task_yield, 
+    .get_user_data = get_shared_stack_task_user_data,
+    .set_user_data = set_shared_stack_task_user_data
+};
 
 task_t* make_shared_stack_task(scheduler_t* scheduler, 
                                void (*task_function)(task_t*, void*), 
@@ -164,10 +173,7 @@ task_t* make_shared_stack_task(scheduler_t* scheduler,
               new_xdata->shared_stack->__shared_stack_size, 
               new_xdata->shared_stack->__shared_stack_ptr);
     task_bytes->user_data = new_xdata;
-    task_bytes->resume_task = shared_stack_task_resume;
-    task_bytes->yield_task = shared_stack_task_yield;
-    task_bytes->get_user_data = get_shared_stack_task_user_data;
-    task_bytes->set_user_data = set_shared_stack_task_user_data;
+    task_bytes->task_fv = &shared_stack_task_fv;
     return task_bytes;
 }
 

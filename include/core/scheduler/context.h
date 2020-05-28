@@ -27,13 +27,6 @@ struct jam_ucontext{
     jam_stack_t	uc_stack;
 };
 
-#if defined(__APPLE__)
-#define jam_mcontext libthread_mcontext
-#define jam_mcontext_t libthread_mcontext_t
-#define jam_ucontext libthread_ucontext
-#define jam_ucontext_t libthread_ucontext_t
-#endif
-
 typedef struct jam_ucontext jam_ucontext_t;
 int	swapcontext(jam_ucontext_t*, jam_ucontext_t*);
 void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...);

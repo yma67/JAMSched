@@ -4,7 +4,9 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 1
+#endif
 
 struct timespec diff(struct timespec start, struct timespec end);
 

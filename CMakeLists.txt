@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(JAMScript DESCRIPTION "JAMScript Scheduler & Runtime" LANGUAGES C CXX ASM)
 
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 # add_compile_definitions(JAMSCRIPT_ENABLE_VALGRIND)
 
 add_subdirectory(src)

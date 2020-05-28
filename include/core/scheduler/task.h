@@ -1,25 +1,26 @@
 /**
- * @file task.h 
- * @brief JAMScript core control flow and coroutine construction
- * @warning this module does not take care of memory management, everyting is 
- *          dependency injection and abstraction
- * @remark Please include this Header ONLY, do NOT include context.c or anything
- *         under include/ucontext directory
- * @author Yuxiang Ma, Muthucumaru Maheswaran
+ * @file        task.h 
+ * @brief       JAMScript core control flow and coroutine construction
+ * @warning     this module does not take care of memory management, everyting is 
+ *              dependency injection and abstraction
+ * @warning     DO NOT RETURN IN A TASK FUNCTION
+ * @remark      Please include this Header ONLY, do NOT include context.c or anything
+ *              under include/ucontext directory
+ * @author      Yuxiang Ma, Muthucumaru Maheswaran
  * @copyright 
- *          Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+ *              Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
  * 
- *          Licensed under the Apache License, Version 2.0 (the "License");
- *          you may not use this file except in compliance with the License.
- *          You may obtain a copy of the License at
+ *              Licensed under the Apache License, Version 2.0 (the "License");
+ *              you may not use this file except in compliance with the License.
+ *              You may obtain a copy of the License at
  * 
- *              http://www.apache.org/licenses/LICENSE-2.0
+ *                  http://www.apache.org/licenses/LICENSE-2.0
  * 
- *          Unless required by applicable law or agreed to in writing, software
- *          distributed under the License is distributed on an "AS IS" BASIS,
- *          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *          See the License for the specific language governing permissions and
- *          limitations under the License.
+ *              Unless required by applicable law or agreed to in writing, software
+ *              distributed under the License is distributed on an "AS IS" BASIS,
+ *              WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *              See the License for the specific language governing permissions and
+ *              limitations under the License.
  */
 #ifndef TASK_H
 #define TASK_H
@@ -65,8 +66,16 @@ typedef enum {
     ERROR_TASK_INVALID_ARGUMENT,
     ERROR_TASK_STACK_OVERFLOW, 
     ERROR_TASK_CONTEXT_SWITCH, 
-    ERROR_TASK_WRONG_TYPE
+    ERROR_TASK_WRONG_TYPE, 
+    ERROR_TASK_CANCELLED
 } task_return_t;
+
+typedef struct task_fvt {
+    void (*resume_task)(task_t*);                               /// function for resuming a task, switch from scheduler to task
+    void (*yield_task_)(task_t*);                               /// function for ending a task, switch from task to scheduler
+    void*(*get_user_data)(task_t*);                             /// getter for user_data, useful when writing extension component based on task_t
+    void (*set_user_data)(task_t*, void*);                      /// setter for user_data, useful when writing extension component based on task_t
+} task_fvt;
 
 struct task_t {
     task_status_t task_status;                                  /// state machine of a task
@@ -79,10 +88,7 @@ struct task_t {
     int return_value;                                           /// undefined until call finish_task
     unsigned char *stack;                                       /// stack pointer to an allocated stack for this task, may NOT be null
     unsigned int stack_size;                                    /// size of stack, used for check
-    void (*resume_task)(task_t*);                               /// function for resuming a task, switch from scheduler to task
-    void (*yield_task)(task_t*);                                /// function for ending a task, switch from task to scheduler
-    void*(*get_user_data)(task_t*);                             /// getter for user_data, useful when writing extension component based on task_t
-    void (*set_user_data)(task_t*, void*);                      /// setter for user_data, useful when writing extension component based on task_t
+    task_fvt* task_fv;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     unsigned long v_stack_id;
 #endif
@@ -160,21 +166,14 @@ extern task_return_t shutdown_scheduler(scheduler_t* scheduler);
 
 /**
  * Yield Task
- * @param task: task to give up its context
+ * @param yielding_task: task to give up its context
  * @warning this is NOT an atomic operation, and it is subject to DATA RACE
  * @warning will fail if stack overflow detected
  * @return void
  */
-extern void yield_task(task_t* task);
-
-/**
- * Yield Task
- * @param task: task to give up its context
- * @warning this is NOT an atomic operation, and it is subject to DATA RACE
- * @warning will fail if stack overflow detected
- * @return void
- */
-extern void resume_task(task_t* task);
+#define yield_task(yielding_task)                                              \
+    if (yielding_task == NULL) __builtin_trap();                               \
+    yielding_task->task_fv->yield_task_(yielding_task);
 
 /**
  * Finish Task
@@ -183,12 +182,14 @@ extern void resume_task(task_t* task);
  * @warning: this write is NOT atomic, and may not be propergated to other cores in a 
  *           multiprocessor program
  * @warning: a finished task could not be restored
+ * @warning: USE THIS VERY CAREFULLY IN C++, add an extra {} to wrap all your code in the task_function
+ *           before invoking this macro at the end
  * @return not meaningful
  */
-#define finish_task(finishing_task, finishing_task_return_value) \
-    finishing_task->task_status = TASK_FINISHED;\
-    finishing_task->return_value = finishing_task_return_value;\
-    finishing_task->yield_task(finishing_task);
+#define finish_task(finishing_task, finishing_task_return_value)               \
+    finishing_task->task_status = TASK_FINISHED;                               \
+    finishing_task->return_value = finishing_task_return_value;                \
+    yield_task(finishing_task);
 
 /**
  * Scheduler Mainloop

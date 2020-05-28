@@ -1,31 +1,31 @@
 /**
- * @file shared-stack-task.h 
- * @brief   Shared-Stack Task/Coroutine Implementation
- * @details copies stack to another dynamically allocated location to avoid
- *          fragmentation caused by pre-allocating a stack with fixed sized
- * @remarks context switching may be slower
- * @warning DO NOT USE Stack Local Variable for Pass-By-Pointer Convension 
- *          when calling a function that involves context switch, 
- *          since when stack was copied, only content was changed, but address
- *          passed into the function has not being re-mapped to storage stack
- * @warning Please use set_user_data() and get_user_data() to set and
- *          get user_data, since shared_stack takes a different layout
- * @see     task.h
- * @author  Yuxiang Ma, Muthucumaru Maheswaran
+ * @file        shared-stack-task.h 
+ * @brief       Shared-Stack Task/Coroutine Implementation
+ * @details     copies stack to another dynamically allocated location to avoid
+ *              fragmentation caused by pre-allocating a stack with fixed sized
+ * @remarks     context switching may be slower
+ * @warning     DO NOT USE Stack Local Variable for Pass-By-Pointer Convension 
+ *              when calling a function that involves context switch, 
+ *              since when stack was copied, only content was changed, but address
+ *              passed into the function has not being re-mapped to storage stack
+ * @warning     Please use set_user_data() and get_user_data() to set and
+ *              get user_data, since shared_stack takes a different layout
+ * @see         task.h
+ * @author      Yuxiang Ma, Muthucumaru Maheswaran
  * @copyright 
- *          Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+ *              Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
  * 
- *          Licensed under the Apache License, Version 2.0 (the "License");
- *          you may not use this file except in compliance with the License.
- *          You may obtain a copy of the License at
+ *              Licensed under the Apache License, Version 2.0 (the "License");
+ *              you may not use this file except in compliance with the License.
+ *              You may obtain a copy of the License at
  * 
- *              http://www.apache.org/licenses/LICENSE-2.0
+ *                  http://www.apache.org/licenses/LICENSE-2.0
  * 
- *          Unless required by applicable law or agreed to in writing, software
- *          distributed under the License is distributed on an "AS IS" BASIS,
- *          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *          See the License for the specific language governing permissions and
- *          limitations under the License.
+ *              Unless required by applicable law or agreed to in writing, software
+ *              distributed under the License is distributed on an "AS IS" BASIS,
+ *              WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *              See the License for the specific language governing permissions and
+ *              limitations under the License.
  */
 #ifndef SHARED_STACK_TASK_H
 #define SHARED_STACK_TASK_H

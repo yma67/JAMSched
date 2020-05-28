@@ -17,11 +17,13 @@ int naive_fact(int x) {
 void share_fact_wrapper(task_t* self, void* args) {
     int axe[1024];
     memset(axe, '\0' + 1, sizeof(int) * 1024);
-    self->yield_task(self);
+    yield_task(self);
 }
+
 void after_xsched(task_t* self) {
     // printf("%d\n", ((xuser_data_t*)(self->user_data))->__private_stack_size);
 }
+
 task_t* xstask_app_sched(scheduler_t* self) {
     coro_count += 1;
     printf("%d\n", coro_count);

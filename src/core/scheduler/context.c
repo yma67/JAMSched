@@ -1,6 +1,25 @@
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+///     http://www.apache.org/licenses/LICENSE-2.0
+///
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
+///
+/// contains makecontext from
+///
 /* Copyright (c) 2005-2006 Russ Cox, MIT; see COPYRIGHT */
-// Copyright 2018 Sen Han <00hnes@gmail.com>
-//
+///
+/// contains x86-64 swapcontext from
+///
+/// Copyright 2018 Sen Han <00hnes@gmail.com>
+///
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,21 +35,15 @@
 #include <string.h>
 #include <stdarg.h>
 
-#if defined(__APPLE__)
-#define ASM_SYMBOL(name_) "_" #name_
-#else
-#define ASM_SYMBOL(name_) #name_
-#endif
-
 #if defined(__x86_64__)
 void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
-    va_list va;
-    memset(ucp->registers, 0, 16 * 8);
-    if(argc != 2) *(int*)0 = 0;
-    va_start(va, argc);
-    ucp->registers[14] = va_arg(va, int);
-    ucp->registers[15] = va_arg(va, int);
-    va_end(va);
+	  va_list va;
+	  memset(ucp->registers, 0, 16 * 8);
+	  if(argc != 2) __builtin_trap();
+	  va_start(va, argc);
+	  ucp->registers[14] = va_arg(va, int);
+	  ucp->registers[15] = va_arg(va, int);
+	  va_end(va);
     uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
                     (sizeof(void*) << 1) + 
                     (uintptr_t)ucp->uc_stack.ss_sp);
@@ -41,12 +54,17 @@ void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 }
 asm(".text\n\t"
     ".p2align 5\n\t"
-    ".globl "ASM_SYMBOL(swapcontext)"\n\t"
-    ASM_SYMBOL(swapcontext) ":  \n\t"
+#ifdef __APPLE__
+    ".globl _swapcontext        \n\t"
+    "_swapcontext:              \n\t"
+#else
+    ".globl swapcontext         \n\t"
+    "swapcontext:               \n\t"
+#endif
     "movq       (%rsp), %rdx    \n\t"
     "leaq       0x8(%rsp), %rcx \n\t"
     "movq       %r12, (%rdi)    \n\t"
-    "movq       %r13, 0x8(%rdi)\n\t"
+    "movq       %r13, 0x8(%rdi) \n\t"
     "movq       %r14, 0x10(%rdi)\n\t"
     "movq       %r15, 0x18(%rdi)\n\t"
     "movq       %rdx, 0x20(%rdi)\n\t"
@@ -101,7 +119,6 @@ asm(".text\n\t"
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 	int i, *sp;
 	va_list arg;
-	
 	va_start(arg, argc);
 	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
 	for(i=0; i<4 && i<argc; i++)

@@ -1,4 +1,7 @@
 add_subdirectory(one-task)
 add_subdirectory(fifo-schedule)
 add_subdirectory(shared-task)
+if(CMAKE_SYSTEM_NAME EQUAL "Linux")
 add_subdirectory(edf-schedule)
+endif(CMAKE_SYSTEM_NAME EQUAL "Linux")
+add_subdirectory(schedule-ai-experiment)
