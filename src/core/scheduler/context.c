@@ -33,17 +33,17 @@
 // limitations under the License.
 #include "core/scheduler/context.h"
 #include <string.h>
-#include <stdarg.h> 
+#include <stdarg.h>
 
 #if defined(__x86_64__)
 void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
-	va_list va;
-	memset(ucp->registers, 0, 16 * 8);
-	if(argc != 2) __builtin_trap();
-	va_start(va, argc);
-	ucp->registers[14] = va_arg(va, int);
-	ucp->registers[15] = va_arg(va, int);
-	va_end(va);
+	  va_list va;
+	  memset(ucp->registers, 0, 16 * 8);
+	  if(argc != 2) __builtin_trap();
+	  va_start(va, argc);
+	  ucp->registers[14] = va_arg(va, int);
+	  ucp->registers[15] = va_arg(va, int);
+	  va_end(va);
     uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
                     (sizeof(void*) << 1) + 
                     (uintptr_t)ucp->uc_stack.ss_sp);
@@ -93,15 +93,15 @@ asm(".text\n\t"
 #error "not implemented yet"
 #elif defined(__arm__)
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
-	int i, *sp;
-	va_list arg;
-	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
-	va_start(arg, argc);
-	uc->registers[0] = va_arg(arg, int);
-	uc->registers[1] = va_arg(arg, int);
-	va_end(arg);
-	uc->registers[13] = (uint)sp;
-	uc->registers[14] = (uint)fn;
+    uintptr_t sp;
+    va_list arg;
+    sp = (uintptr_t)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
+    va_start(arg, argc);
+    uc->registers[0] = va_arg(arg, uint32_t);
+    uc->registers[1] = va_arg(arg, uint32_t);
+    va_end(arg);
+    uc->registers[13] = (uint32_t)sp;
+    uc->registers[14] = (uint32_t)fn;
 }
 asm(".text\n\t"
     ".p2align 5\n\t"
