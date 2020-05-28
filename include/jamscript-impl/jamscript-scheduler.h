@@ -52,10 +52,9 @@ struct task_schedule_entry {
     uint32_t task_id;
     task_schedule_entry(uint64_t s, uint64_t e, uint32_t id) : 
     start_time(s), end_time(e), task_id(id) {}
-    bool inside(uint64_t time_point, uint64_t hyper_period, 
-                uint32_t multiplier) const {
-        return ((start_time + multiplier * hyper_period) <= time_point) && 
-                (time_point <= (end_time + multiplier * hyper_period));
+    bool inside(uint64_t time_point) const {
+        return ((start_time * 1000) <= time_point) && 
+               (time_point <= (end_time * 1000));
     }
 };
 
@@ -82,14 +81,18 @@ public:
                      void (*local_app_fn)(task_t *, void *));
     ~c_side_scheduler();
     uint32_t current_schedule_slot, multiplier;
+    decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time;
 private:
     scheduler_t* c_scheduler;
     task_t* c_local_app_task;
     shared_stack_t* c_shared_stack;
     uint64_t virtual_clock_batch, virtual_clock_interactive;
+    std::vector<long long> total_jitter;
     std::vector<task_schedule_entry>* current_schedule;
-    decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time,
-                                                        task_start_time;
+    std::vector<uint64_t> normal_ss_acc, greedy_ss_acc;
+    std::vector<interactive_extender> interactive_record;
+    decltype(std::chrono::high_resolution_clock::now()) task_start_time, 
+                                                        cycle_start_time;
     std::vector<task_schedule_entry> normal_schedule, greedy_schedule;
     std::priority_queue<std::pair<uint64_t, task_t*>,
                         std::vector<std::pair<uint64_t, task_t*>>,
@@ -98,13 +101,38 @@ private:
     std::deque<task_t*> batch_queue, interactive_stack;
     std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
     std::mutex real_time_tasks_mutex, batch_tasks_mutex;
+    std::vector<jamscript::task_schedule_entry> *random_decide();
 };
 
-void before_each_jam_impl(task_t *);
-void after_each_jam_impl(task_t *);
-task_t* next_task_jam_impl(scheduler_t *);
-void idle_task_jam_impl(scheduler_t *);
-void interactive_task_handle_post_callback(jamfuture_t *);
+/**
+ * before task
+ * start task executing clock
+ */
+void before_each_jam_impl(task_t *self);
+
+/**
+ * after task
+ * @remark ready task: increase clock, add back to queue
+ * @remark pending task: increase clock
+ * @remark finished task: increase clock, free memory
+ */
+void after_each_jam_impl(task_t *self);
+
+/**
+ * next task
+ * @remark if the current time slot is RT, return RT
+ * @remark if the current time slot is SS, if both queues empty, return nullptr, if batch queue is empty we return one from interactive, 
+ *         and vice verca, otherwise, we dispatch according to virtual clock value
+ * @remark for batch task, we use a unbounded FIFO queue
+ * @remark for interactive task, we use a priority queue to implement EDF, and another bounded stack to store task with missing deadline
+ * @remark when we decide to schedule interactive task, if there is any expired task from priority queue, we put them into stack, 
+ *         if there is no task remaining after the previous process, we pop the (last entered, latest) expired task from stack (LIFO)
+ *         if no such task exist in stack, return nullptr. if there is unexpired task from priority queue, we return the task with earliest
+ *         deadline (EDF)
+ */
+task_t* next_task_jam_impl(scheduler_t *self);
+void idle_task_jam_impl(scheduler_t *self);
+void interactive_task_handle_post_callback(jamfuture_t *self);
 
 }
 #endif //JAMSCRIPT_JAMSCRIPT_SCHEDULER_H
