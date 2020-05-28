@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
                     auto _start_time = std::chrono::
                                        high_resolution_clock::now();
                     auto* pack = static_cast<task_data_transfer*>(args);
-                    if (pack->scheduler->multiplier >= 3) {
+                    if (pack->scheduler->multiplier >= nrounds) {
                         pack->scheduler->exit();
                         finish_task(self, EXIT_SUCCESS);
                     }
