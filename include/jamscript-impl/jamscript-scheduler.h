@@ -77,10 +77,11 @@ public:
     void exit();
     c_side_scheduler(std::vector<task_schedule_entry> normal_schedule,
                      std::vector<task_schedule_entry> greedy_schedule,
-                     uint32_t stack_size, void* local_app_args,
+                     uint32_t device_id, uint32_t stack_size, 
+                     void* local_app_args,
                      void (*local_app_fn)(task_t *, void *));
     ~c_side_scheduler();
-    uint32_t current_schedule_slot, multiplier;
+    uint32_t current_schedule_slot, multiplier, device_id;
     decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time;
 private:
     scheduler_t* c_scheduler;

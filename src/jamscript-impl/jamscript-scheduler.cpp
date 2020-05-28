@@ -270,6 +270,7 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
                                               normal_schedule,
                                               std::vector<task_schedule_entry>
                                               greedy_schedule,
+                                              uint32_t device_id,
                                               uint32_t stack_size,
                                               void* local_app_args,
                                               void (*local_app_fn)(task_t *,
@@ -280,6 +281,7 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
                                               current_schedule_slot(0),
                                               current_schedule(nullptr),
                                               multiplier(0),
+                                              device_id(device_id),
                                               scheduler_start_time(
                                                   std::chrono::
                                                   high_resolution_clock::

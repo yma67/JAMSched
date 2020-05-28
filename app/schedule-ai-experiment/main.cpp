@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
         }
 
         jamscript::c_side_scheduler jamc_sched(normal_sched, greedy_sched, 
-                                               1024 * 256, &pbi, 
+                                               0, 1024 * 256, &pbi, 
                                                [](task_t* self, void* args) {
 
             {
