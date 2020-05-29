@@ -75,12 +75,10 @@ int main(int argc, char *argv[]) {
         while (nitask--) {
             int arr, ddl, burst;
             trace_file >> arr >> ddl >> burst;
-            jamscript::interactive_extender ie;
-            ie.burst = burst;
-            ie.deadline = ddl;
-            ie.task_type = jamscript::interactive_task_t;
-            ie.handle = nullptr;
-            interactive_tasks.push_back({ arr, ie });
+            interactive_tasks.push_back({ arr, 
+                                          jamscript::interactive_extender(
+                                                burst, ddl, nullptr
+                                          )});
         }
         trace_file >> nbtask;
         _bc = nbtask;

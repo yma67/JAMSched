@@ -62,7 +62,11 @@ void jamscript::after_each_jam_impl(task_t *self) {
                     self->task_fv->get_user_data(self)
                 );
         while (current_time < cpp_task_traits2->deadline * 1000) {
-            // std::this_thread::sleep_for(std::chrono::nanoseconds(50));
+#if defined(JAMSCRIPT_RT_SPINWAIT_DELTA) && JAMSCRIPT_RT_SPINWAIT_DELTA > 0
+            std::this_thread::sleep_for(
+                std::chrono::nanoseconds(JAMSCRIPT_RT_SPINWAIT_DELTA)
+            );
+#endif
             current_time = std::chrono::duration_cast<
                 std::chrono::nanoseconds
             >(std::chrono::high_resolution_clock::now() - 
@@ -105,11 +109,14 @@ void jamscript::after_each_jam_impl(task_t *self) {
         }
         if (traits->task_type == jamscript::interactive_task_t ||
             traits->task_type == jamscript::batch_task_t) {
-            // notify future in coroutine
             if (traits->task_type == jamscript::interactive_task_t) {
-                delete static_cast<interactive_extender*>(
+                auto* traits_i = static_cast<interactive_extender*>(
                             self->task_fv->get_user_data(self)
                         );
+                if (traits_i->handle->status != ack_finished) {
+                    notify_future(traits_i->handle.get());
+                }
+                delete traits_i;
             } else {
                 delete static_cast<batch_extender*>(
                             self->task_fv->get_user_data(self)
@@ -144,7 +151,9 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
         if (self->current_schedule_slot >= self->current_schedule->size()) {
             self->current_schedule_slot = 0;
             self->multiplier++;
+            self->download_schedule();
             self->current_schedule = self->decide();
+#ifdef JAMSCRIPT_SCHED_AI_EXP
             long long jacc = 0;
             std::cout << "JITTERS: ";
             for (auto& j: self->total_jitter) {
@@ -154,17 +163,17 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
             std::cout << "AVG: " << double(jacc) / self->total_jitter.size() <<
             std::endl;
             self->total_jitter.clear();
+#endif
             self->cycle_start_time = std::chrono::high_resolution_clock::now();
         }
-        current_time_point = std::chrono::duration_cast<
-            std::chrono::nanoseconds
-        >(std::chrono::high_resolution_clock::now() -
-            self->cycle_start_time).count();
+        current_time_point = std::chrono::
+            duration_cast<std::chrono::nanoseconds>
+            (std::chrono::high_resolution_clock::now() -
+             self->cycle_start_time).count();
     }
     auto& current_tasks = self->real_time_tasks_map[
-            self->current_schedule->at(
-                self->current_schedule_slot
-            ).task_id];
+            self->current_schedule->at(self->current_schedule_slot).task_id
+        ];
     if (current_tasks.empty()) {
         bool is_interactive;
         if (self->batch_queue.empty() && self->interactive_queue.empty()) {
@@ -317,9 +326,9 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
         (void*)((uintptr_t)c_local_app_task_stack + stack_size)
     );
 #endif
-    auto* c_local_app_task_extender = new batch_extender;
-    c_local_app_task_extender->task_type = jamscript::batch_task_t;
-    c_local_app_task_extender->burst = std::numeric_limits<uint64_t>::max();
+    auto* c_local_app_task_extender = new batch_extender(
+        std::numeric_limits<uint64_t>::max()
+    );
     make_task(c_local_app_task, c_scheduler, local_app_fn, local_app_args,
               stack_size, c_local_app_task_stack);
     c_local_app_task->task_fv->set_user_data(c_local_app_task,
@@ -381,21 +390,13 @@ jamscript::c_side_scheduler::add_interactive_task(task_t *parent_task,
         (void*)((uintptr_t)int_task_stack + parent_task->stack_size)
     );
 #endif
-    auto* int_task_extender = new interactive_extender;
-    int_task_extender->task_type = jamscript::interactive_task_t;
-    int_task_extender->deadline = deadline;
-    int_task_extender->burst = burst;
-    int_task_extender->handle = int_task_handle;
+    auto* int_task_extender = new interactive_extender(burst, deadline, 
+                                                       int_task_handle);
     make_task(int_task, parent_task->scheduler, interactive_task_fn,
               interactive_task_args, parent_task->stack_size, int_task_stack);
     int_task->task_fv->set_user_data(int_task, int_task_extender);
     interactive_queue.push({ deadline, int_task });
-    interactive_extender itec;
-    itec.task_type = int_task_extender->task_type;
-    itec.deadline = int_task_extender->deadline;
-    itec.burst = int_task_extender->burst;
-    itec.handle = nullptr;
-    interactive_record.push_back(std::move(itec));
+    interactive_record.push_back(interactive_extender(burst, deadline, nullptr));
     return int_task_handle;
 }
 
@@ -414,7 +415,7 @@ bool jamscript::c_side_scheduler::add_batch_task(uint32_t burst, void* args,
                     c_shared_stack->__shared_stack_size)
         );
 #endif
-        auto* batch_task_extender = new batch_extender;
+        auto* batch_task_extender = new batch_extender(burst);
         batch_task_extender->task_type = jamscript::batch_task_t;
         batch_task_extender->burst = burst;
         make_task(batch_task, c_scheduler, batch_fn, args,
@@ -439,10 +440,8 @@ bool jamscript::c_side_scheduler::add_real_time_task(uint32_t task_id,
         if (new_xtask == nullptr) {
             throw std::bad_alloc();
         }
-        auto* new_xextender = new real_time_extender;
-        new_xextender->task_type = jamscript::real_time_task_t;
-        new_xextender->id = task_id;
-        new_xtask->task_fv->set_user_data(new_xtask, new_xextender);
+        new_xtask->task_fv->set_user_data(new_xtask, 
+                                          new real_time_extender(task_id));
         {
             std::unique_lock<std::mutex> lock(real_time_tasks_mutex);
             real_time_tasks_map[task_id].push_back(new_xtask);
@@ -528,10 +527,14 @@ jamscript::c_side_scheduler::~c_side_scheduler() {
 std::vector<jamscript::task_schedule_entry> *
 jamscript::c_side_scheduler::random_decide() {
     if (rand() % 2 == 0) {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "RANDOM NORMAL" << std::endl;
+#endif
         return &normal_schedule;
     } else {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "RANDOM GREEDY" << std::endl;
+#endif
         return &greedy_schedule;
     } 
 }
@@ -564,17 +567,23 @@ jamscript::c_side_scheduler::decide() {
             acc_greedy += r.burst;
         }
     }
+#ifdef JAMSCRIPT_SCHED_AI_EXP
     std::cout << "greedy success: " << success_count_greedy << std::endl;
     std::cout << "normal success: " << success_count_normal << std::endl;
     std::cout << "=> ";
+#endif
     interactive_record.clear();
     if (success_count_greedy == success_count_normal) {
         return this->random_decide();
     } else if (success_count_greedy < success_count_normal) {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "MIN GI NORMAL" << std::endl;
+#endif
         return &normal_schedule;
     } else {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "MIN GI GREEDY" << std::endl;
+#endif
         return &greedy_schedule;
     }
 }
@@ -591,4 +600,32 @@ bool jamscript::c_side_scheduler::is_running() {
 
 void jamscript::c_side_scheduler::exit() {
     c_scheduler->cont = 0;
+}
+
+std::vector<jamscript::task_schedule_entry>& 
+jamscript::c_side_scheduler::get_normal_schedule() {
+    return normal_schedule;
+}
+
+void 
+jamscript::c_side_scheduler::set_normal_schedule
+(const std::vector<jamscript::task_schedule_entry>& sched) {
+    normal_schedule = sched;
+}
+
+std::vector<jamscript::task_schedule_entry>& 
+jamscript::c_side_scheduler::get_greedy_schedule() {
+    return greedy_schedule;
+}
+
+void 
+jamscript::c_side_scheduler::set_greedy_schedule
+(const std::vector<jamscript::task_schedule_entry>& sched) {
+    greedy_schedule = sched;
+}
+
+void jamscript::c_side_scheduler::download_schedule() {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+    std::cout << "downloading schedule at end of cycle..." << std::endl;
+#endif
 }

@@ -31,20 +31,38 @@ static std::function<bool(const std::pair<uint64_t, task_t*>&,
 
 struct c_side_task_extender {
     ctask_types task_type;
+    c_side_task_extender(ctask_types task_type) : 
+    task_type(task_type) {}
+private:
+    c_side_task_extender() = delete;
 };
 
 struct real_time_extender : public c_side_task_extender {
     uint32_t id;
     uint64_t start, deadline;
+    real_time_extender(uint32_t id) : 
+    c_side_task_extender(real_time_task_t), id(id), start(0), deadline(0) {}
+private:
+    real_time_extender() = delete;
 };
 
 struct batch_extender : public c_side_task_extender {
     uint64_t burst;
+    batch_extender(uint64_t burst) : 
+    c_side_task_extender(batch_task_t), burst(burst) {}
+private:
+    batch_extender() = delete;
 };
 
 struct interactive_extender : public c_side_task_extender {
     uint64_t burst, deadline;
     std::shared_ptr<jamfuture_t> handle;
+    interactive_extender(uint64_t burst, uint64_t deadline, 
+                         std::shared_ptr<jamfuture_t> handle) : 
+    c_side_task_extender(interactive_task_t), burst(burst), deadline(deadline),
+    handle(std::move(handle)) {}
+private:
+    interactive_extender() = delete;
 };
 
 struct task_schedule_entry {
@@ -72,6 +90,10 @@ public:
                                                       uint64_t, void *,
                                                       void(*)(task_t*, void*));
     std::vector<task_schedule_entry>* decide();
+    std::vector<task_schedule_entry>& get_normal_schedule();
+    void set_normal_schedule(const std::vector<task_schedule_entry>& sched);
+    std::vector<task_schedule_entry>& get_greedy_schedule();
+    void set_greedy_schedule(const std::vector<task_schedule_entry>& sched);
     void run();
     bool is_running();
     void exit();
@@ -103,6 +125,11 @@ private:
     std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
     std::mutex real_time_tasks_mutex, batch_tasks_mutex;
     std::vector<jamscript::task_schedule_entry> *random_decide();
+    void download_schedule();
+    c_side_scheduler(c_side_scheduler const&) = delete;
+    c_side_scheduler(c_side_scheduler &&) = delete;
+    c_side_scheduler& operator=(c_side_scheduler const&) = delete;
+    c_side_scheduler& operator=(c_side_scheduler &&) = delete;
 };
 
 /**
