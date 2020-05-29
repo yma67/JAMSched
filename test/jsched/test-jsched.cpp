@@ -11,10 +11,7 @@
 #include <vector>
 #include <utility>
 #include <thread>
-
-#ifdef JAMSCRIPT_SCHED_AI_EXP
 #include <iostream>
-#endif
 
 int r1c, r2c, r3c, r4c;
 bool b1c = false, i1c = false;

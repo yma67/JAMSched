@@ -16,7 +16,11 @@
 #include <random>
 #include <thread>
 #include <cstring>
+
+#ifdef JAMSCRIPT_SCHED_AI_EXP
 #include <iostream>
+#endif
+
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
 #include <valgrind/helgrind.h>
 #include <valgrind/valgrind.h>
