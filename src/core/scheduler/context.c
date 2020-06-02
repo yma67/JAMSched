@@ -37,29 +37,29 @@
 
 #if defined(__x86_64__)
 void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
-	  va_list va;
-	  memset(ucp->registers, 0, 16 * 8);
-	  if(argc != 2) __builtin_trap();
-	  va_start(va, argc);
-	  ucp->registers[14] = va_arg(va, int);
-	  ucp->registers[15] = va_arg(va, int);
-	  va_end(va);
+    va_list va;
+    memset(ucp->registers, 0, 16 * 8);
+    if(argc != 2) __builtin_trap();
+    va_start(va, argc);
+    ucp->registers[14] = va_arg(va, int);
+    ucp->registers[15] = va_arg(va, int);
+    va_end(va);
     uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
                     (sizeof(void*) << 1) + 
                     (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
     ucp->registers[4] = (uintptr_t)(func);
     ucp->registers[5] = (uintptr_t)(u_p - sizeof(void*));
-    *((void**)(ucp->registers[5])) = (void*)(NULL);
+    *((void**)(ucp->registers[5])) = (void*)(null);
 }
 asm(".text\n\t"
     ".p2align 5\n\t"
 #ifdef __APPLE__
-    ".globl _swapcontext        \n\t"
-    "_swapcontext:              \n\t"
+    ".globl _jamswapcontext     \n\t"
+    "_jamswapcontext:           \n\t"
 #else
-    ".globl swapcontext         \n\t"
-    "swapcontext:               \n\t"
+    ".globl jamswapcontext      \n\t"
+    "jamswapcontext:            \n\t"
 #endif
     "movq       (%rsp), %rdx    \n\t"
     "leaq       0x8(%rsp), %rcx \n\t"
@@ -90,8 +90,66 @@ asm(".text\n\t"
     "movq       %rcx, %rsp      \n\t"
     "jmp        *%rax           \n\t");
 #elif defined(__aarch64__)
-#error "not implemented yet"
-#elif defined(__arm__)
+void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
+    va_list va;
+    memset(ucp->registers, 0, 25 * 8);
+    if(argc != 2) __builtin_trap();
+    va_start(va, argc);
+    ucp->registers[23] = va_arg(va, uint32_t);
+    ucp->registers[24] = va_arg(va, uint32_t);
+    va_end(va);
+    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
+                    (sizeof(void*) << 1) + 
+                    (uintptr_t)ucp->uc_stack.ss_sp);
+    u_p = (u_p >> 4) << 4;
+    ucp->registers[13] = (uintptr_t)(func);
+    ucp->registers[14] = (uintptr_t)(u_p - sizeof(void*));
+    *((void**)(ucp->registers[14])) = (NULL);
+}
+asm(".text                   \n\t"
+    ".p2align 5              \n\t"
+    ".globl jamswapcontext   \n\t"
+    "jamswapcontext:         \n\t"
+    "stp x16, x17, [x0]      \n\t"
+    "stp x19, x20, [x0, #16] \n\t"
+    "stp x21, x22, [x0, #32] \n\t"
+    "stp x23, x24, [x0, #48] \n\t"
+    "stp x25, x26, [x0, #64] \n\t"
+    "stp x27, x28, [x0, #80] \n\t"
+    "stp fp,  lr,  [x0, #96] \n\t"
+    "mov x2,  sp             \n\t"
+    "str x2,  [x0, #112]     \n\t"
+    "str d8,  [x0, #120]     \n\t"
+    "str d9,  [x0, #128]     \n\t"
+    "str d10, [x0, #136]     \n\t"
+    "str d11, [x0, #144]     \n\t"
+    "str d12, [x0, #152]     \n\t"
+    "str d13, [x0, #160]     \n\t"
+    "str d14, [x0, #168]     \n\t"
+    "str d15, [x0, #176]     \n\t"
+    "mov x2,  x0             \n\t"
+    "stp x0,  x1,  [x2, #184]\n\t"
+    "ldp x16, x17, [x1]      \n\t"
+    "ldp x19, x20, [x1, #16] \n\t"
+    "ldp x21, x22, [x1, #32] \n\t"
+    "ldp x23, x24, [x1, #48] \n\t"
+    "ldp x25, x26, [x1, #64] \n\t"
+    "ldp x27, x28, [x1, #80] \n\t"
+    "ldp fp,  lr,  [x1, #96] \n\t"
+    "ldr x2,  [x1, #112]     \n\t"
+    "mov sp,  x2             \n\t"
+    "ldr d8,  [x1, #120]     \n\t"
+    "ldr d9,  [x1, #128]     \n\t"
+    "ldr d10, [x1, #136]     \n\t"
+    "ldr d11, [x1, #144]     \n\t"
+    "ldr d12, [x1, #152]     \n\t"
+    "ldr d13, [x1, #160]     \n\t"
+    "ldr d14, [x1, #168]     \n\t"
+    "ldr d15, [x1, #176]     \n\t"
+    "mov x2,  x1             \n\t"
+    "ldp x0,  x1,  [x2, #184]\n\t"
+    "blr lr                  \n\t");
+#elif defined(__aarch32__)
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
     uintptr_t sp;
     va_list arg;

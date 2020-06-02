@@ -113,8 +113,8 @@ void shared_stack_task_resume(task_t* xself) {
                                     xdata->private_stack_size, 
                                     xdata->private_stack, 
                                     xdata->private_stack_size);
-        swapcontext(&xself->scheduler->scheduler_context, 
-                    &xself->context);
+        jamswapcontext(&xself->scheduler->scheduler_context, 
+                       &xself->context);
     }
 }
 
@@ -136,13 +136,13 @@ void shared_stack_task_yield(task_t* xself) {
             if (xdata->private_stack == NULL) {
                 xself->task_status = TASK_FINISHED;
                 xself->return_value = ERROR_TASK_STACK_OVERFLOW;
-                swapcontext(&xself->context, 
-                            &xself->scheduler->scheduler_context);
+                jamswapcontext(&xself->context, 
+                               &xself->scheduler->scheduler_context);
             }
         }
         xstack->shared_stack_memcpy(xdata->private_stack, &tosm, 
                                     xdata->private_stack_size);
-        swapcontext(&xself->context, &xself->scheduler->scheduler_context);
+        jamswapcontext(&xself->context, &xself->scheduler->scheduler_context);
     }
 }
 

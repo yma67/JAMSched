@@ -37,12 +37,12 @@ void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 }
 
 void resume_regular_task(task_t* self) {
-    swapcontext(&self->scheduler->scheduler_context, &self->context);
+    jamswapcontext(&self->scheduler->scheduler_context, &self->context);
 }
 
 void yield_regular_task(task_t* task) {
     if (task == NULL) return;
-    swapcontext(&task->context, &task->scheduler->scheduler_context);
+    jamswapcontext(&task->context, &task->scheduler->scheduler_context);
 }
 
 task_fvt regular_task_fv = {
