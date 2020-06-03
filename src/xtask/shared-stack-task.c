@@ -76,7 +76,7 @@ shared_stack_t* make_shared_stack(uint32_t xstack_size,
 #ifdef __x86_64__
     new_xstack->shared_stack_ptr = (void*)(u_p - sizeof(void*));
     *((void**)(new_xstack->shared_stack_ptr)) = (void*)(_void_ret_func_xstack);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__arm__)
     new_xstack->shared_stack_ptr = (void*)(u_p);
 #else
 #error "not supported"
@@ -131,7 +131,7 @@ void shared_stack_task_yield(task_t* xself) {
     void* tos = NULL;
 #ifdef __x86_64__
     asm("movq %%rsp, %0" : "=rm" (tos));
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__arm__)
     asm("mov %[tosp], sp" : [tosp] "=r" (tos));
 #else
 #error "not supported"

@@ -14,7 +14,7 @@ struct jam_ucontext{
 #if defined(__x86_64__)
     uintptr_t registers[16];
 #elif defined(__aarch64__)
-    uintptr_t registers[26];
+    uintptr_t registers[25];
 #elif defined(__arm__)
     uint32_t registers[16];
 #elif defined(__mips__)
