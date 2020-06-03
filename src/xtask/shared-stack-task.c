@@ -121,12 +121,19 @@ void shared_stack_task_resume(task_t* xself) {
 void shared_stack_task_yield(task_t* xself) {
     xuser_data_t* xdata = xself->user_data;
     shared_stack_t* xstack = xdata->shared_stack;
-    char tosm = 'M';
-    if ((uintptr_t)(&tosm) <= (uintptr_t)xstack->shared_stack_ptr && 
+    void* tos = 0;
+#ifdef __x86_64__
+    asm("movq %%rsp, %0" : "=rm" (tos));
+#elif defined(__aarch64__)
+    asm("mov %[tosp], sp, ror #1" : [tosp] "=r" (tos));
+#else
+#error "not supported"
+#endif
+    if ((uintptr_t)(tos) <= (uintptr_t)xstack->shared_stack_ptr && 
         ((uintptr_t)(xstack->shared_stack_ptr_high_addr) - 
-         (uintptr_t)(xstack->shared_stack_size)) <= (uintptr_t)(&tosm)) {
+         (uintptr_t)(xstack->shared_stack_size)) <= (uintptr_t)(tos)) {
         xdata->private_stack_size = (uintptr_t)(xstack->shared_stack_ptr) - 
-                                    (uintptr_t)(&tosm);
+                                    (uintptr_t)(tos);
         if (xdata->__private_stack_size < xdata->private_stack_size) {
             xstack->shared_stack_free(xdata->private_stack);
             xdata->__private_stack_size = xdata->private_stack_size;
@@ -140,7 +147,7 @@ void shared_stack_task_yield(task_t* xself) {
                             &xself->scheduler->scheduler_context);
             }
         }
-        xstack->shared_stack_memcpy(xdata->private_stack, &tosm, 
+        xstack->shared_stack_memcpy(xdata->private_stack, tos, 
                                     xdata->private_stack_size);
         swapcontext(&xself->context, &xself->scheduler->scheduler_context);
     }
