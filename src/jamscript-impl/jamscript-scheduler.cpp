@@ -598,9 +598,11 @@ jamscript::c_side_scheduler::decide() {
     for (auto& r: interactive_record) {
         std::cout << "b: " << r.burst << ", acc: " << acc_normal << ", ddl: " << 
                      r.deadline << std::endl;
-        if (r.burst + acc_normal <= normal_ss_acc[
+        if (multiplier * normal_schedule.back().end_time <= r.deadline &&
+            r.deadline <= (multiplier + 1) * normal_schedule.back().end_time && 
+	    r.burst + acc_normal <= normal_ss_acc[
                 (r.deadline - 
-                 multiplier * greedy_schedule.back().end_time) / 1000
+                 multiplier * normal_schedule.back().end_time) / 1000
             ]) {
                 std::cout << "accept" << std::endl;
             success_count_normal++;
@@ -611,11 +613,13 @@ jamscript::c_side_scheduler::decide() {
     for (auto& r: interactive_record) {
         std::cout << "b: " << r.burst << ", acc: " << acc_greedy << ", ddl: " << 
                      r.deadline << std::endl;
-        if (r.burst + acc_greedy <= greedy_ss_acc[
+        if (multiplier * greedy_schedule.back().end_time <= r.deadline &&
+            r.deadline <= (multiplier + 1) * greedy_schedule.back().end_time && 
+            r.burst + acc_greedy <= greedy_ss_acc[
                 (r.deadline - 
                  multiplier * greedy_schedule.back().end_time) / 1000
             ]) {
-            std::cout << "AC" << std::endl;
+            std::cout << "accept" << std::endl;
             success_count_greedy++;
             acc_greedy += r.burst;
             scg.push_back(r);

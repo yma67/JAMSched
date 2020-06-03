@@ -67,14 +67,20 @@ shared_stack_t* make_shared_stack(uint32_t xstack_size,
     if (new_xstack->__shared_stack_ptr == NULL) {
         xstack_free(new_xstack);
         return NULL;
-    } 
+    }
     uintptr_t u_p = (uintptr_t)(new_xstack->__shared_stack_size - 
                     (sizeof(void*) << 1) + 
                     (uintptr_t)new_xstack->__shared_stack_ptr);
     u_p = (u_p >> 4) << 4;
     new_xstack->shared_stack_ptr_high_addr = (void*)u_p;
-    new_xstack->shared_stack_ptr  = (void*)(u_p - sizeof(void*));
+#ifdef __x86_64__
+    new_xstack->shared_stack_ptr = (void*)(u_p - sizeof(void*));
     *((void**)(new_xstack->shared_stack_ptr)) = (void*)(_void_ret_func_xstack);
+#elif defined(__aarch64__)
+    new_xstack->shared_stack_ptr = (void*)(u_p);
+#else
+#error "not supported"
+#endif
     new_xstack->shared_stack_size = new_xstack->__shared_stack_size - 16 - 
                                     (sizeof(void*) << 1); 
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
@@ -115,6 +121,7 @@ void shared_stack_task_resume(task_t* xself) {
                                     xdata->private_stack_size);
         jamswapcontext(&xself->scheduler->scheduler_context, 
                        &xself->context);
+	return;
     }
 }
 
@@ -127,6 +134,12 @@ void shared_stack_task_yield(task_t* xself) {
          (uintptr_t)(xstack->shared_stack_size)) <= (uintptr_t)(&tosm)) {
         xdata->private_stack_size = (uintptr_t)(xstack->shared_stack_ptr) - 
                                     (uintptr_t)(&tosm);
+#ifdef __x86_64__
+#elif defined(__aarch64__)
+        xdata->private_stack_size += 39;
+#else
+#error "not supported"
+#endif
         if (xdata->__private_stack_size < xdata->private_stack_size) {
             xstack->shared_stack_free(xdata->private_stack);
             xdata->__private_stack_size = xdata->private_stack_size;
@@ -140,9 +153,18 @@ void shared_stack_task_yield(task_t* xself) {
                                &xself->scheduler->scheduler_context);
             }
         }
+#ifdef __x86_64__
         xstack->shared_stack_memcpy(xdata->private_stack, &tosm, 
                                     xdata->private_stack_size);
+#elif defined(__aarch64__)
+        xstack->shared_stack_memcpy(xdata->private_stack, 
+                                    (void*)((uintptr_t)(&tosm) - 39UL), 
+                                    xdata->private_stack_size);
+#else
+#error "not supported"
+#endif
         jamswapcontext(&xself->context, &xself->scheduler->scheduler_context);
+	return;
     }
 }
 
@@ -179,9 +201,9 @@ task_t* make_shared_stack_task(scheduler_t* scheduler,
 
 void destroy_shared_stack_task(task_t* task) {
     xuser_data_t* xdata = task->user_data;
+    xdata->shared_stack->shared_stack_free(task);
     xdata->shared_stack->shared_stack_free(xdata->private_stack);
     xdata->shared_stack->shared_stack_free(xdata);
-    xdata->shared_stack->shared_stack_free(task);
 }
 
 void destroy_shared_stack(shared_stack_t* stack) {

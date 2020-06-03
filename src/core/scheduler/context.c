@@ -50,7 +50,7 @@ void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
     u_p = (u_p >> 4) << 4;
     ucp->registers[4] = (uintptr_t)(func);
     ucp->registers[5] = (uintptr_t)(u_p - sizeof(void*));
-    *((void**)(ucp->registers[5])) = (void*)(null);
+    *((void**)(ucp->registers[5])) = (void*)(NULL);
 }
 asm(".text\n\t"
     ".p2align 5\n\t"
@@ -98,13 +98,12 @@ void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
     ucp->registers[23] = va_arg(va, uint32_t);
     ucp->registers[24] = va_arg(va, uint32_t);
     va_end(va);
-    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
-                    (sizeof(void*) << 1) + 
+    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size -
+		    (sizeof(void*) << 1) + 
                     (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
     ucp->registers[13] = (uintptr_t)(func);
-    ucp->registers[14] = (uintptr_t)(u_p - sizeof(void*));
-    *((void**)(ucp->registers[14])) = (NULL);
+    ucp->registers[14] = (uintptr_t)(u_p);
 }
 asm(".text                   \n\t"
     ".p2align 5              \n\t"
@@ -148,7 +147,7 @@ asm(".text                   \n\t"
     "ldr d15, [x1, #176]     \n\t"
     "mov x2,  x1             \n\t"
     "ldp x0,  x1,  [x2, #184]\n\t"
-    "blr lr                  \n\t");
+    "br lr                     \n\t");
 #elif defined(__aarch32__)
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
     uintptr_t sp;

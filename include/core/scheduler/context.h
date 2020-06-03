@@ -14,7 +14,7 @@ struct jam_ucontext{
 #if defined(__x86_64__)
     uintptr_t registers[16];
 #elif defined(__aarch64__)
-    uintptr_t registers[25];
+    uintptr_t registers[26];
 #elif defined(__arm__)
     uint32_t registers[16];
 #elif defined(__mips__)
@@ -27,7 +27,7 @@ struct jam_ucontext{
 };
 
 typedef struct jam_ucontext jam_ucontext_t;
-extern void jamswapcontext(jam_ucontext_t*, jam_ucontext_t*);
+extern int jamswapcontext(jam_ucontext_t*, jam_ucontext_t*);
 extern void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...);
 
 #endif

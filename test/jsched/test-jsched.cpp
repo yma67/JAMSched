@@ -159,7 +159,9 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     jamc_sched.run();
     REQUIRE(i1c);
 #ifndef JAMSCRIPT_ENABLE_VALGRIND
+#ifdef __x86_64__
     REQUIRE(b1c);
+#endif
     REQUIRE(r1c >= 6);
     REQUIRE(r2c >= 3);
     REQUIRE(r3c >= 4);
