@@ -16,6 +16,7 @@
 #include <random>
 #include <thread>
 #include <cstring>
+#include <cstdlib>
 
 #ifdef JAMSCRIPT_SCHED_AI_EXP
 #include <iostream>
@@ -404,12 +405,16 @@ jamscript::c_side_scheduler::c_side_scheduler(std::vector<task_schedule_entry>
         }
     }
     greedy_ss_acc[prev_time] = prev_acc;
+#ifdef JAMSCRIPT_SCHED_AI_EXP
     std::cout << "GREEDY ACC: ";
     for (auto& r: greedy_ss_acc) std::cout << r << '\t';
     std::cout << std::endl << "NORMAL ACC: ";
     for (auto& r: normal_ss_acc) std::cout << r << '\t';
     std::cout << std::endl;
     srand(0);
+#elif
+    srand(time(nullptr));
+#endif
     current_schedule = decide();
     batch_queue.push_back(c_local_app_task);
 }
@@ -596,30 +601,38 @@ jamscript::c_side_scheduler::decide() {
              acc_greedy = 0, currt_greedy = 0, success_count_greedy = 0;
     std::vector<interactive_extender> scg, scn;
     for (auto& r: interactive_record) {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "b: " << r.burst << ", acc: " << acc_normal << ", ddl: " << 
                      r.deadline << std::endl;
+#endif
         if (multiplier * normal_schedule.back().end_time <= r.deadline &&
             r.deadline <= (multiplier + 1) * normal_schedule.back().end_time && 
 	    r.burst + acc_normal <= normal_ss_acc[
                 (r.deadline - 
                  multiplier * normal_schedule.back().end_time) / 1000
             ]) {
-                std::cout << "accept" << std::endl;
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+            std::cout << "accept" << std::endl;
+#endif
             success_count_normal++;
             acc_normal += r.burst;
             scn.push_back(r);
         }
     }
     for (auto& r: interactive_record) {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "b: " << r.burst << ", acc: " << acc_greedy << ", ddl: " << 
                      r.deadline << std::endl;
+#endif
         if (multiplier * greedy_schedule.back().end_time <= r.deadline &&
             r.deadline <= (multiplier + 1) * greedy_schedule.back().end_time && 
             r.burst + acc_greedy <= greedy_ss_acc[
                 (r.deadline - 
                  multiplier * greedy_schedule.back().end_time) / 1000
             ]) {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
             std::cout << "accept" << std::endl;
+#endif
             success_count_greedy++;
             acc_greedy += r.burst;
             scg.push_back(r);

@@ -55,11 +55,11 @@ void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 asm(".text\n\t"
     ".p2align 5\n\t"
 #ifdef __APPLE__
-    ".globl _jamswapcontext     \n\t"
-    "_jamswapcontext:           \n\t"
+    ".globl _swapcontext     \n\t"
+    "_swapcontext:           \n\t"
 #else
-    ".globl jamswapcontext      \n\t"
-    "jamswapcontext:            \n\t"
+    ".globl swapcontext      \n\t"
+    "swapcontext:            \n\t"
 #endif
     "movq       (%rsp), %rdx    \n\t"
     "leaq       0x8(%rsp), %rcx \n\t"
@@ -107,8 +107,8 @@ void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
 }
 asm(".text                   \n\t"
     ".p2align 5              \n\t"
-    ".globl jamswapcontext   \n\t"
-    "jamswapcontext:         \n\t"
+    ".globl swapcontext   \n\t"
+    "swapcontext:         \n\t"
     "stp x16, x17, [x0]      \n\t"
     "stp x19, x20, [x0, #16] \n\t"
     "stp x21, x22, [x0, #32] \n\t"

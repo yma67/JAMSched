@@ -27,7 +27,7 @@ struct jam_ucontext{
 };
 
 typedef struct jam_ucontext jam_ucontext_t;
-extern int jamswapcontext(jam_ucontext_t*, jam_ucontext_t*);
+extern int swapcontext(jam_ucontext_t*, jam_ucontext_t*);
 extern void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...);
 
 #endif
