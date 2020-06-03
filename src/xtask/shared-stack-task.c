@@ -121,7 +121,7 @@ void shared_stack_task_resume(task_t* xself) {
 void shared_stack_task_yield(task_t* xself) {
     xuser_data_t* xdata = xself->user_data;
     shared_stack_t* xstack = xdata->shared_stack;
-    void* tos = 0;
+    void* tos = NULL;
 #ifdef __x86_64__
     asm("movq %%rsp, %0" : "=rm" (tos));
 #elif defined(__aarch64__)
