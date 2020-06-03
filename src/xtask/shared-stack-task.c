@@ -38,7 +38,6 @@
 #endif
 
 
-
 void* get_shared_stack_task_user_data(task_t* task) {
     return ((xuser_data_t*)(task->user_data))->user_data;
 }
