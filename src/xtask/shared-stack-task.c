@@ -128,18 +128,19 @@ void shared_stack_task_resume(task_t* xself) {
 void shared_stack_task_yield(task_t* xself) {
     xuser_data_t* xdata = xself->user_data;
     shared_stack_t* xstack = xdata->shared_stack;
-    char tosm = 'M';
-    if ((uintptr_t)(&tosm) <= (uintptr_t)xstack->shared_stack_ptr && 
-        ((uintptr_t)(xstack->shared_stack_ptr_high_addr) - 
-         (uintptr_t)(xstack->shared_stack_size)) <= (uintptr_t)(&tosm)) {
-        xdata->private_stack_size = (uintptr_t)(xstack->shared_stack_ptr) - 
-                                    (uintptr_t)(&tosm);
+    void* tos = NULL;
 #ifdef __x86_64__
+    asm("movq %%rsp, %0" : "=rm" (tos));
 #elif defined(__aarch64__)
-        xdata->private_stack_size += 39;
+    asm("mov %[tosp], sp, ror #1" : [tosp] "=r" (tos));
 #else
 #error "not supported"
 #endif
+    if ((uintptr_t)(tos) <= (uintptr_t)xstack->shared_stack_ptr && 
+        ((uintptr_t)(xstack->shared_stack_ptr_high_addr) - 
+         (uintptr_t)(xstack->shared_stack_size)) <= (uintptr_t)(tos)) {
+        xdata->private_stack_size = (uintptr_t)(xstack->shared_stack_ptr) - 
+                                    (uintptr_t)(tos);
         if (xdata->__private_stack_size < xdata->private_stack_size) {
             xstack->shared_stack_free(xdata->private_stack);
             xdata->__private_stack_size = xdata->private_stack_size;
@@ -153,16 +154,8 @@ void shared_stack_task_yield(task_t* xself) {
                                &xself->scheduler->scheduler_context);
             }
         }
-#ifdef __x86_64__
-        xstack->shared_stack_memcpy(xdata->private_stack, &tosm, 
+        xstack->shared_stack_memcpy(xdata->private_stack, tos, 
                                     xdata->private_stack_size);
-#elif defined(__aarch64__)
-        xstack->shared_stack_memcpy(xdata->private_stack, 
-                                    (void*)((uintptr_t)(&tosm) - 39UL), 
-                                    xdata->private_stack_size);
-#else
-#error "not supported"
-#endif
         jamswapcontext(&xself->context, &xself->scheduler->scheduler_context);
 	return;
     }
