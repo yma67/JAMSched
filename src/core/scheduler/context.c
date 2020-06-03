@@ -147,7 +147,7 @@ asm(".text                   \n\t"
     "ldr d15, [x1, #176]     \n\t"
     "mov x2,  x1             \n\t"
     "ldp x0,  x1,  [x2, #184]\n\t"
-    "br lr                     \n\t");
+    "ret                     \n\t");
 #elif defined(__aarch32__)
 void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
     uintptr_t sp;
