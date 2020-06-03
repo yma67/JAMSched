@@ -125,7 +125,7 @@ void shared_stack_task_yield(task_t* xself) {
 #ifdef __x86_64__
     asm("movq %%rsp, %0" : "=rm" (tos));
 #elif defined(__aarch64__)
-    asm("mov %[tosp], sp, ror #1" : [tosp] "=r" (tos));
+    asm("mov %[tosp], sp" : [tosp] "=r" (tos));
 #else
 #error "not supported"
 #endif
