@@ -123,7 +123,8 @@ private:
     std::unordered_multiset<task_t*> batch_wait, interactive_wait;
     std::deque<task_t*> batch_queue, interactive_stack;
     std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
-    std::mutex real_time_tasks_mutex, batch_tasks_mutex;
+    std::mutex real_time_tasks_mutex, batch_tasks_mutex, 
+               interactive_tasks_mutex;
     std::vector<jamscript::task_schedule_entry> *random_decide();
     void download_schedule();
     c_side_scheduler(c_side_scheduler const&) = delete;

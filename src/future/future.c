@@ -31,9 +31,8 @@ void make_future(jamfuture_t* self, task_t* owner, void* data,
 }
 
 void get_future(jamfuture_t* self) {
-    if (__atomic_compare_exchange_n(&(self->owner_task->task_status), 
-                                    &(self->lock_word), TASK_PENDING, 
-                                    0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+    if (__sync_bool_compare_and_swap(&(self->owner_task->task_status), 
+                                     self->lock_word, TASK_PENDING)) {
         while (__atomic_fetch_add(&(self->lock_word), 1, 
                                     __ATOMIC_RELAXED) < self->spin_rounds);
         if (__atomic_load_n(&(self->lock_word), 
@@ -46,10 +45,11 @@ void get_future(jamfuture_t* self) {
 
 void notify_future(jamfuture_t* self) {
     if (__atomic_fetch_or(&(self->lock_word), 0x80000000, 
-                          __ATOMIC_RELEASE) >= NUM_SPIN_ROUNDS) {
+                          __ATOMIC_RELEASE) >= self->spin_rounds) {
         __atomic_store_n(&(self->owner_task->task_status), TASK_READY, 
                          __ATOMIC_RELEASE);
         self->post_future_callback(self);
+        return;
     }
     __atomic_store_n(&(self->owner_task->task_status), TASK_READY, 
                      __ATOMIC_RELEASE);

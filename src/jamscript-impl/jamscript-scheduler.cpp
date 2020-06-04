@@ -84,6 +84,9 @@ void jamscript::after_each_jam_impl(task_t *self) {
                 );
         scheduler_ptr->virtual_clock_interactive += actual_exec_time;
         cpp_task_traits2->burst -= actual_exec_time;
+        std::unique_lock<std::mutex> lock(
+                        scheduler_ptr->interactive_tasks_mutex
+                    );
         if (self->task_status == TASK_READY) {
             scheduler_ptr->interactive_queue.push({
                 cpp_task_traits2->deadline, self
@@ -98,10 +101,10 @@ void jamscript::after_each_jam_impl(task_t *self) {
                 );
         scheduler_ptr->virtual_clock_batch += actual_exec_time;
         cpp_task_traits2->burst -= actual_exec_time;
-        if (self->task_status == TASK_READY) {
-            std::unique_lock<std::mutex> lock(
-                        scheduler_ptr->real_time_tasks_mutex
+        std::unique_lock<std::mutex> lock(
+                        scheduler_ptr->batch_tasks_mutex
                     );
+        if (self->task_status == TASK_READY) {
             scheduler_ptr->batch_queue.push_back(self);
         } else if (self->task_status == TASK_PENDING) {
             scheduler_ptr->batch_wait.insert(self);
@@ -176,10 +179,30 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
             (std::chrono::high_resolution_clock::now() -
              self->cycle_start_time).count();
     }
-    auto& current_tasks = self->real_time_tasks_map[
+    task_t* current_rt;
+    bool is_current_task_empty;
+    {
+        std::unique_lock<std::mutex> lock(self->real_time_tasks_mutex);
+        auto& current_tasks = self->real_time_tasks_map[
             self->current_schedule->at(self->current_schedule_slot).task_id
         ];
-    if (current_tasks.empty()) {
+        is_current_task_empty = current_tasks.empty();
+        if (!is_current_task_empty) {
+            current_rt = current_tasks.back();
+            current_tasks.pop_back();
+            auto* current_rt_extender = static_cast<real_time_extender*>(
+                current_rt->task_fv->get_user_data(current_rt)
+            );
+            current_rt_extender->start = self->current_schedule->at(
+                        self->current_schedule_slot
+                    ).start_time;
+            current_rt_extender->deadline = self->current_schedule->at(
+                        self->current_schedule_slot
+                    ).end_time;
+            return current_rt;
+        }
+    }
+    if (is_current_task_empty) {
         bool is_interactive;
         if (self->batch_queue.empty() && self->interactive_queue.empty()) {
             return nullptr;
@@ -237,18 +260,7 @@ task_t *jamscript::next_task_jam_impl(scheduler_t *self_c) {
         }
         return to_return;
     }
-    task_t* current_rt = current_tasks.back();
-    current_tasks.pop_back();
-    auto* current_rt_extender = static_cast<real_time_extender*>(
-        current_rt->task_fv->get_user_data(current_rt)
-    );
-    current_rt_extender->start = self->current_schedule->at(
-                self->current_schedule_slot
-            ).start_time;
-    current_rt_extender->deadline = self->current_schedule->at(
-                self->current_schedule_slot
-            ).end_time;
-    return current_rt;
+    return nullptr;
 }
 
 void jamscript::idle_task_jam_impl(scheduler_t *) {
@@ -268,15 +280,24 @@ void jamscript::interactive_task_handle_post_callback(jamfuture_t *self) {
         auto* cpp_task_traits2 = static_cast<interactive_extender*>(
                     self->owner_task->task_fv->get_user_data(self->owner_task)
                 );
-        cpp_scheduler->interactive_wait.erase(self->owner_task);
-        cpp_scheduler->interactive_queue.push({
-            cpp_task_traits2->deadline, self->owner_task
-        });
+        std::unique_lock<std::mutex> lock(
+            cpp_scheduler->interactive_tasks_mutex
+        );
+        if (cpp_scheduler->interactive_wait.find(self->owner_task) != 
+            cpp_scheduler->interactive_wait.end()) {
+            cpp_scheduler->interactive_wait.erase(self->owner_task);
+            cpp_scheduler->interactive_queue.push({
+                cpp_task_traits2->deadline, self->owner_task
+            });
+        }
     }
     if (cpp_task_traits->task_type == jamscript::batch_task_t) {
-        cpp_scheduler->batch_wait.erase(self->owner_task);
         std::unique_lock<std::mutex> lock(cpp_scheduler->batch_tasks_mutex);
-        cpp_scheduler->batch_queue.push_back(self->owner_task);
+        if (cpp_scheduler->batch_wait.find(self->owner_task) != 
+            cpp_scheduler->batch_wait.end()) {
+            cpp_scheduler->batch_wait.erase(self->owner_task);
+            cpp_scheduler->batch_queue.push_back(self->owner_task);
+        }
     }
 }
 
@@ -443,7 +464,10 @@ jamscript::c_side_scheduler::add_interactive_task(task_t *parent_task,
     make_task(int_task, parent_task->scheduler, interactive_task_fn,
               interactive_task_args, parent_task->stack_size, int_task_stack);
     int_task->task_fv->set_user_data(int_task, int_task_extender);
-    interactive_queue.push({ deadline, int_task });
+    {
+        std::unique_lock<std::mutex> lock(interactive_tasks_mutex);
+        interactive_queue.push({ deadline, int_task });
+    }
     interactive_record.push_back(interactive_extender(burst, deadline, nullptr));
     return int_task_handle;
 }
