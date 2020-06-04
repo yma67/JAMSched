@@ -168,3 +168,42 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     REQUIRE(r4c >= 5);
 #endif
 }
+
+int CiteLabAdditionFunction(int a, char b, float c, short d, double e, long f, 
+                            std::string validator) {
+    REQUIRE(1 == a);
+    REQUIRE(2 == b);
+    REQUIRE(Approx(0.5) == c);
+    REQUIRE(3 == d);
+    REQUIRE(Approx(1.25) == e);
+    REQUIRE(4 == f);
+    REQUIRE(validator == "citelab loves java");
+    return a + b + d + f;
+}
+
+TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
+    jamscript::c_side_scheduler jamc_sched({ { 0, 30 * 1000, 0 } }, 
+                                           { { 0, 30 * 1000, 0 } }, 
+                                           888, 1024 * 256, nullptr, 
+                                           [] (task_t* self, void* args) {
+        std::cout << "aaaa" << std::endl;
+        auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(
+            self->scheduler->get_scheduler_data(self->scheduler)
+        );
+        auto res = scheduler_ptr->add_local_named_task_async<int>(
+            self, 30 * 1000, 500, "citelab", 1, 2, float(0.5), 3, double(1.25), 4, 
+            std::string("citelab loves java")
+        );
+        get_future(res.get());
+        REQUIRE(res->status == ack_finished);
+        std::cout << *static_cast<int*>(res->data) << std::endl;
+        REQUIRE(*static_cast<int*>(res->data) == 10);
+        delete static_cast<int*>(res->data);
+        scheduler_ptr->exit();
+        finish_task(self, 0);
+    });
+    jamc_sched.local_function_map["citelab"] = reinterpret_cast<void*>(
+        CiteLabAdditionFunction
+    );
+    jamc_sched.run();
+}

@@ -20,6 +20,8 @@
 
 namespace jamscript {
 
+
+
 enum ctask_types { batch_task_t, interactive_task_t, real_time_task_t };
 
 static std::function<bool(const std::pair<uint64_t, task_t*>&,
@@ -76,6 +78,8 @@ struct task_schedule_entry {
     }
 };
 
+
+
 class c_side_scheduler {
 public:
     friend void before_each_jam_impl(task_t *);
@@ -89,6 +93,36 @@ public:
     std::shared_ptr<jamfuture_t> add_interactive_task(task_t *, uint64_t,
                                                       uint64_t, void *,
                                                       void(*)(task_t*, void*));
+    template <typename Tr, typename Tf>
+    static void local_named_task_function(task_t* self, void* args) {
+        {
+            auto* self_cpp = static_cast<interactive_extender*>(
+                self->task_fv->get_user_data(self)
+            );
+            auto* value_slot = new Tr;
+            self_cpp->handle->data = value_slot;
+            auto* exec_fp = static_cast<Tf*>(args);
+            *(value_slot) = (*exec_fp)();
+            self_cpp->handle->status = ack_finished;
+            notify_future(self_cpp->handle.get());
+            delete exec_fp;
+        }
+        finish_task(self, 0);
+    }
+    template <typename Tr, typename ...Args> 
+    std::shared_ptr<jamfuture_t> 
+    add_local_named_task_async(task_t* parent_task, uint64_t deadline, 
+                               uint64_t duration, std::string exec_name,
+                               Args... args) {
+        auto* named_exec_fp = reinterpret_cast<Tr (*)(Args...)>(
+            local_function_map[exec_name]
+        );
+        auto exec_fp = std::bind(named_exec_fp, std::forward<Args>(args)...);
+        return add_interactive_task(parent_task, deadline, duration, 
+                                    new decltype(exec_fp)(exec_fp),
+                                    local_named_task_function
+                                    <Tr, decltype(exec_fp)>);
+    }
     std::vector<task_schedule_entry>* decide();
     std::vector<task_schedule_entry>& get_normal_schedule();
     void set_normal_schedule(const std::vector<task_schedule_entry>& sched);
@@ -105,6 +139,7 @@ public:
     ~c_side_scheduler();
     uint32_t current_schedule_slot, multiplier, device_id;
     decltype(std::chrono::high_resolution_clock::now()) scheduler_start_time;
+    std::unordered_map<std::string, void*> local_function_map;
 private:
     scheduler_t* c_scheduler;
     task_t* c_local_app_task;
