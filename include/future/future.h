@@ -71,8 +71,8 @@ struct jamfuture_t {
  * @warning no atomicitiy guarantee
  * @see scheduler::next_task in task.h
  */
-void make_future(jamfuture_t* future, task_t* waiter, void* data, 
-                 void (*post_future_callback)(jamfuture_t*));
+int make_future(jamfuture_t* future, task_t* waiter, void* data, 
+                void (*post_future_callback)(jamfuture_t*));
 
 /**
  * Get Future

@@ -18,25 +18,30 @@
 void empty_func_post_future_callback(jamfuture_t* self) {}
 
 // do not defer future using local stack variable as data entry if using xtask
-void make_future(jamfuture_t* self, task_t* owner, void* data, 
+int make_future(jamfuture_t* self, task_t* owner, void* data, 
                  void (*post_future_callback)(jamfuture_t*)) {
     if (post_future_callback == NULL) {
         post_future_callback = empty_func_post_future_callback;
+    }
+    if (self == NULL || owner == NULL) {
+        return 1;
     }
     self->data = data;
     self->owner_task = owner;
     self->lock_word = TASK_READY;
     self->spin_rounds = NUM_SPIN_ROUNDS;
     self->post_future_callback = post_future_callback;
+    return 0;
 }
 
 void get_future(jamfuture_t* self) {
-    if (__sync_bool_compare_and_swap(&(self->owner_task->task_status), 
-                                     self->lock_word, TASK_PENDING)) {
+    if (__atomic_compare_exchange_n(&(self->owner_task->task_status), 
+                                    &(self->lock_word), TASK_PENDING, 
+                                    0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
         while (__atomic_fetch_add(&(self->lock_word), 1, 
                                     __ATOMIC_RELAXED) < self->spin_rounds);
-        if (__atomic_load_n(&(self->lock_word), 
-                            __ATOMIC_ACQUIRE) < 0x80000000) {
+        while (__atomic_load_n(&(self->lock_word), 
+                                 __ATOMIC_ACQUIRE) < 0x80000000) {
             yield_task(self->owner_task);
         }
     }

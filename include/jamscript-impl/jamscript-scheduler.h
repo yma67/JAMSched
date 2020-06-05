@@ -4,9 +4,6 @@
 
 #ifndef JAMSCRIPT_JAMSCRIPT_SCHEDULER_H
 #define JAMSCRIPT_JAMSCRIPT_SCHEDULER_H
-#include "core/scheduler/task.h"
-#include "xtask/shared-stack-task.h"
-#include "future/future.h"
 #include <queue>
 #include <tuple>
 #include <mutex>
@@ -17,6 +14,9 @@
 #include <functional>
 #include <unordered_set>
 #include <unordered_map>
+#include <future/future.h>
+#include <core/scheduler/task.h>
+#include <xtask/shared-stack-task.h>
 
 namespace jamscript {
 
@@ -157,6 +157,7 @@ private:
     std::unordered_map<uint32_t, std::vector<task_t*>> real_time_tasks_map;
     std::mutex real_time_tasks_mutex, batch_tasks_mutex, 
                interactive_tasks_mutex;
+
     std::vector<jamscript::task_schedule_entry> *random_decide();
     void download_schedule();
     c_side_scheduler(c_side_scheduler const&) = delete;
@@ -207,7 +208,7 @@ public:
     std::shared_ptr<jamfuture_t> 
     add_local_named_task_async(task_t* parent_task, uint64_t deadline, 
                                uint64_t duration, std::string exec_name,
-                               Args... args) {
+                               Args&& ...args) {
         if (local_function_map.find(exec_name) == local_function_map.end()) {
             return nullptr;
         }
@@ -224,7 +225,7 @@ public:
     template <typename Tr, typename ...Args> 
     std::shared_ptr<jamfuture_t> 
     add_local_named_task_async(task_t* parent_task, uint32_t task_id, 
-                               std::string exec_name, Args... args) {
+                               std::string exec_name, Args&& ...args) {
         if (local_function_map.find(exec_name) == local_function_map.end()) {
             return nullptr;
         }
@@ -244,7 +245,7 @@ public:
     template <typename Tr, typename ...Args> 
     std::shared_ptr<jamfuture_t> 
     add_local_named_task_async(task_t* parent_task, uint64_t burst, 
-                               std::string exec_name, Args... args) {
+                               std::string exec_name, Args&& ...args) {
         if (local_function_map.find(exec_name) == local_function_map.end()) {
             return nullptr;
         }

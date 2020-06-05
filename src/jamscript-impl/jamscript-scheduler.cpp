@@ -113,7 +113,7 @@ void jamscript::after_each_jam_impl(task_t *self) {
     if (self->task_status == TASK_FINISHED && 
         self != scheduler_ptr->c_local_app_task) {
         if (self->return_value == ERROR_TASK_STACK_OVERFLOW) {
-            self->scheduler->cont = 0;
+            scheduler_ptr->exit();
         }
         if (traits->task_type == jamscript::interactive_task_t ||
             traits->task_type == jamscript::batch_task_t) {
@@ -524,6 +524,12 @@ bool jamscript::c_side_scheduler::add_real_time_task(uint32_t task_id,
 }
 
 jamscript::c_side_scheduler::~c_side_scheduler() {
+    std::scoped_lock<std::mutex, std::mutex, std::mutex> 
+    slock(
+        batch_tasks_mutex, 
+        interactive_tasks_mutex, 
+        real_time_tasks_mutex
+    );
     while (!interactive_queue.empty()) {
         auto [ddl, task] = interactive_queue.top();
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
@@ -730,3 +736,4 @@ void jamscript::c_side_scheduler::download_schedule() {
     std::cout << "downloading schedule at end of cycle..." << std::endl;
 #endif
 }
+
