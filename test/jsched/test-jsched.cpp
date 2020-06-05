@@ -169,7 +169,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
 #endif
 }
 
-int CiteLabAdditionFunction(int a, char b, float c, short d, double e, long f, 
+int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e, long f, 
                             std::string validator) {
     REQUIRE(1 == a);
     REQUIRE(2 == b);
@@ -177,13 +177,37 @@ int CiteLabAdditionFunction(int a, char b, float c, short d, double e, long f,
     REQUIRE(3 == d);
     REQUIRE(Approx(1.25) == e);
     REQUIRE(4 == f);
-    REQUIRE(validator == "citelab loves java");
+    REQUIRE(validator == "citelab loves java interactive");
+    return a + b + d + f;
+}
+
+int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, long f, 
+                            std::string validator) {
+    REQUIRE(1 == a);
+    REQUIRE(2 == b);
+    REQUIRE(Approx(0.5) == c);
+    REQUIRE(3 == d);
+    REQUIRE(Approx(1.25) == e);
+    REQUIRE(4 == f);
+    REQUIRE(validator == "citelab loves java real time");
+    return a + b + d + f;
+}
+
+int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long f, 
+                            std::string validator) {
+    REQUIRE(1 == a);
+    REQUIRE(2 == b);
+    REQUIRE(Approx(0.5) == c);
+    REQUIRE(3 == d);
+    REQUIRE(Approx(1.25) == e);
+    REQUIRE(4 == f);
+    REQUIRE(validator == "citelab loves java batch");
     return a + b + d + f;
 }
 
 TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
-    jamscript::c_side_scheduler jamc_sched({ { 0, 30 * 1000, 0 } }, 
-                                           { { 0, 30 * 1000, 0 } }, 
+    jamscript::c_side_scheduler jamc_sched({ { 0, 10 * 1000, 0 }, { 0, 20 * 1000, 1 }, { 0, 30 * 1000, 0 } }, 
+                                           { { 0, 10 * 1000, 0 }, { 0, 20 * 1000, 1 }, { 0, 30 * 1000, 0 } }, 
                                            888, 1024 * 256, nullptr, 
                                            [] (task_t* self, void* args) {
         std::cout << "aaaa" << std::endl;
@@ -191,19 +215,43 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
             self->scheduler->get_scheduler_data(self->scheduler)
         );
         auto res = scheduler_ptr->add_local_named_task_async<int>(
-            self, 30 * 1000, 500, "citelab", 1, 2, float(0.5), 3, double(1.25), 4, 
-            std::string("citelab loves java")
+            self, uint64_t(30 * 1000), uint64_t(500), "citelab i", 1, 2, float(0.5), 3, double(1.25), 4, 
+            std::string("citelab loves java interactive")
+        );
+        auto resrt = scheduler_ptr->add_local_named_task_async<int>(
+            self, uint32_t(1), "citelab r", 1, 2, float(0.5), 3, double(1.25), 4, 
+            std::string("citelab loves java real time")
+        );
+        auto resb = scheduler_ptr->add_local_named_task_async<int>(
+            self, uint64_t(5), "citelab b", 1, 2, float(0.5), 3, double(1.25), 4, 
+            std::string("citelab loves java batch")
         );
         get_future(res.get());
         REQUIRE(res->status == ack_finished);
         std::cout << *static_cast<int*>(res->data) << std::endl;
         REQUIRE(*static_cast<int*>(res->data) == 10);
         delete static_cast<int*>(res->data);
+        get_future(resrt.get());
+        REQUIRE(resrt->status == ack_finished);
+        std::cout << *static_cast<int*>(resrt->data) << std::endl;
+        REQUIRE(*static_cast<int*>(resrt->data) == 10);
+        delete static_cast<int*>(resrt->data);
+        get_future(resb.get());
+        REQUIRE(resb->status == ack_finished);
+        std::cout << *static_cast<int*>(resb->data) << std::endl;
+        REQUIRE(*static_cast<int*>(resb->data) == 10);
+        delete static_cast<int*>(resb->data);
         scheduler_ptr->exit();
         finish_task(self, 0);
     });
-    jamc_sched.local_function_map["citelab"] = reinterpret_cast<void*>(
-        CiteLabAdditionFunction
+    jamc_sched.local_function_map["citelab i"] = reinterpret_cast<void*>(
+        CiteLabAdditionFunctionInteractive
+    );
+    jamc_sched.local_function_map["citelab r"] = reinterpret_cast<void*>(
+        CiteLabAdditionFunctionRealTime
+    );
+    jamc_sched.local_function_map["citelab b"] = reinterpret_cast<void*>(
+        CiteLabAdditionFunctionBatch
     );
     jamc_sched.run();
 }

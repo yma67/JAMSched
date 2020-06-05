@@ -24,7 +24,7 @@ int main() {
     jamscript::c_side_scheduler jamc_sched({ { 0, 30 * 1000, 0 } }, { { 0, 30 * 1000, 0 } }, 888, 1024 * 256, nullptr, [] (task_t* self, void* args) {
         std::cout << "aaaa" << std::endl;
         auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(self->scheduler->get_scheduler_data(self->scheduler));
-        auto res = scheduler_ptr->add_local_named_task_async<int>(self, 30 * 1000, 500, "citelab", 1, 2, 0.5, 3, 1.25, 4, std::string("120.531.254"));
+        auto res = scheduler_ptr->add_local_named_task_async<int>(self, uint64_t(30 * 1000), uint64_t(500), "citelab", 1, 2, 0.5, 3, 1.25, 4, std::string("120.531.254"));
         get_future(res.get());
         assert(res->status == ack_finished);
         std::cout << *static_cast<int*>(res->data) << std::endl;
