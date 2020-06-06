@@ -33,7 +33,10 @@ int main() {
         scheduler_ptr->exit();
         finish_task(self, 0);
     });
-    jamc_sched.local_function_map["citelab"] = reinterpret_cast<void*>(CiteLabAdditionFunction);
+    jamc_sched.register_named_execution(
+        "citelab", 
+        reinterpret_cast<void*>(CiteLabAdditionFunction)
+    );
     jamc_sched.run();
     return 0;
 }

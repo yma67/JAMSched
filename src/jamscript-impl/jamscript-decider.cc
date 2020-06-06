@@ -1,3 +1,16 @@
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+///     http://www.apache.org/licenses/LICENSE-2.0
+///
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
 #include "jamscript-impl/jamscript-decider.hh"
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include <vector>
@@ -7,15 +20,12 @@
 #include <iostream>
 
 jamscript::decider::
-decider(c_side_scheduler* sched, 
-        const std::vector<task_schedule_entry>& normal,
-        const std::vector<task_schedule_entry>& greedy) : scheduler(sched) {
+decider(c_side_scheduler* sched) : scheduler(sched) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
     srand(0);
 #else
     srand(time(nullptr));
 #endif
-    schedule_change(normal, greedy);
 }
 
 void 

@@ -7,18 +7,17 @@
 #include "jamscript-impl/jamscript-tasktype.hh"
 
 namespace jamscript {
+
 class c_side_scheduler;
+
 class sporadic_manager {
 public:
-
     friend class c_side_scheduler;
-
     friend void before_each_jam_impl(task_t *);
     friend void after_each_jam_impl(task_t *);
     friend task_t* next_task_jam_impl(scheduler_t *);
     friend void idle_task_jam_impl(scheduler_t *);
     friend void interactive_task_handle_post_callback(jamfuture_t *);
-
     virtual task_t* dispatch() = 0;
     virtual void pause(task_t* task) = 0;
     virtual bool ready(task_t* task) = 0;

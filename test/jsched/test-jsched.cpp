@@ -252,19 +252,18 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
         scheduler_ptr->exit();
         finish_task(self, 0);
     });
-    jamc_sched.local_function_map["citelab i"] = 
-    reinterpret_cast<void*>(
-        CiteLabAdditionFunctionInteractive
+    jamc_sched.register_named_execution(
+        "citelab i", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionInteractive)
     );
-    jamc_sched.local_function_map["citelab r"] = 
-    reinterpret_cast<void*>(
-        CiteLabAdditionFunctionRealTime
+    jamc_sched.register_named_execution(
+        "citelab r", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionRealTime)
     );
-    jamc_sched.local_function_map["citelab b"] = 
-    reinterpret_cast<void*>(
-        CiteLabAdditionFunctionBatch
-    );
-    
+    jamc_sched.register_named_execution(
+        "citelab b", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionBatch)
+    ); 
     std::thread t(std::ref(rh), [&](){
         return jamc_sched.is_running();
     });

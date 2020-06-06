@@ -9,6 +9,7 @@
 #include <core/scheduler/task.h>
 #include <xtask/shared-stack-task.h>
 #include "jamscript-impl/jamscript-sporadic.hh"
+
 namespace jamscript {
 
 static std::function<bool(const std::pair<uint64_t, task_t*>&,
@@ -25,21 +26,19 @@ class interactive_manager : public sporadic_manager {
 public:
     friend class c_side_scheduler;
     task_t* dispatch() override;
-    const uint32_t size() const override;
     void pause(task_t* task) override;
     bool ready(task_t* task) override;
     void remove(task_t* task) override;
     void enable(task_t* task) override;
+    const uint32_t size() const override;
     void update_burst(task_t* task, uint64_t burst) override;
     task_t* add(uint64_t burst, void *args, 
-                        void (*func)(task_t *, void *)) override;
+                void (*func)(task_t *, void *)) override;
     task_t* add(task_t *parent, uint64_t deadline, uint64_t burst,
                 void *args, void (*func)(task_t *, void *)) override;
     interactive_manager(c_side_scheduler* scheduler, uint32_t stack_size);
     ~interactive_manager() override;
-    
 private:
-
     std::deque<task_t*> interactive_stack;
     std::unordered_set<task_t*> interactive_wait;
     std::priority_queue<
@@ -47,7 +46,7 @@ private:
         std::vector<std::pair<uint64_t, task_t*>>, 
         decltype(edf_cmp)
     > interactive_queue;
-
 };
+
 }
 #endif

@@ -3,8 +3,14 @@
 #include <cstdint>
 #include <memory>
 #include <future/future.h>
+
 namespace jamscript {
-enum ctask_types { interactive_task_t = 0, batch_task_t = 1,  real_time_task_t };
+
+enum ctask_types { 
+    interactive_task_t = 0, 
+    batch_task_t = 1,  
+    real_time_task_t
+};
 
 struct c_side_task_extender {
     ctask_types task_type;

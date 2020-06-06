@@ -8,14 +8,16 @@
 #include <core/scheduler/task.h>
 
 namespace jamscript {
+
 class c_side_scheduler;
+
 class realtime_manager {
-    friend class c_side_scheduler;
 public:
-    task_t* add(uint32_t id, void* args, void(*func)(task_t *, void*));
+    friend class c_side_scheduler;
+    void spin_until_end();
     task_t* dispatch(uint32_t id);
     void remove(task_t* to_remove);
-    void spin_until_end();
+    task_t* add(uint32_t id, void* args, void(*func)(task_t *, void*));
     realtime_manager(c_side_scheduler* scheduler, uint32_t stack_size);
     ~realtime_manager();
 private:
@@ -26,6 +28,5 @@ private:
     realtime_manager() = delete;
 };
 }
-
 
 #endif

@@ -7,7 +7,9 @@
 #include <xtask/shared-stack-task.h>
 #include <core/scheduler/task.h>
 #include "jamscript-impl/jamscript-sporadic.hh"
+
 namespace jamscript {
+
 class c_side_scheduler;
 
 class batch_manager : public sporadic_manager {
@@ -21,15 +23,14 @@ public:
     void enable(task_t* task) override;
     void update_burst(task_t* task, uint64_t burst) override;
     task_t* add(uint64_t burst, void *args, 
-                        void (*func)(task_t *, void *)) override;
-    task_t* add(task_t *parent, uint64_t deadline, uint64_t burst,
-                void *args, void (*func)(task_t *, void *)) override;
+                void (*func)(task_t *, void *)) override;
+    task_t* add(task_t *parent, uint64_t deadline, uint64_t burst, void *args,
+                void (*func)(task_t *, void *)) override;
     batch_manager(c_side_scheduler* scheduler, uint32_t stack_size);
     ~batch_manager() override;
 private:
-
-    std::unordered_set<task_t*> batch_wait;
     std::deque<task_t*> batch_queue;
+    std::unordered_set<task_t*> batch_wait;
 };
 
 }

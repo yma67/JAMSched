@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
                     auto _start_time = std::chrono::
                                        high_resolution_clock::now();
                     auto* pack = static_cast<task_data_transfer*>(args);
-                    if (pack->scheduler->get_multiplier() >= nrounds) {
+                    if (pack->scheduler->get_num_cycle_finished() >= nrounds) {
                         pack->scheduler->exit();
                         finish_task(self, EXIT_SUCCESS);
                     }
@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
         jamc_sched.run();
         for (uint32_t i = 1; i < task_dtos.size(); i++) {
             std::cout << "TASK #" << i << " EXP: " << 
-                         jamc_sched.get_multiplier() * tasks_exec_count[i] << " " <<
+                         jamc_sched.get_num_cycle_finished() * tasks_exec_count[i] << " " <<
                          "ACT: "  << task_dtos[i].exec_count << std::endl;
         }
         std::cout << "NORMAL LOWER BOUND: ";

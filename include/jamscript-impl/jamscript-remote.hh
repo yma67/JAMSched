@@ -13,7 +13,6 @@
 #include <core/scheduler/task.h>
 #include "jamscript-impl/jamscript-scheduler.hh"
 
-
 namespace jamscript {
 
 class invalid_argument_exception: public std::exception {
