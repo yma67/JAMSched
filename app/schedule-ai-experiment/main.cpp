@@ -4,7 +4,7 @@
 #include <thread>
 #include <cstdint>
 #include <cstdlib>
-#include <jamscript-impl/jamscript-scheduler.h>
+#include <jamscript-impl/jamscript-scheduler.hh>
 
 struct task_data_transfer {
     uint32_t task_id, exec_count;
@@ -32,6 +32,7 @@ struct bi_dto {
 
 int nrounds, batch_count = 0, interactive_count = 0, preempt_tslice = 0, 
     _bc, _ic;
+std::vector<jamscript::task_schedule_entry> normal_sched, greedy_sched;
 
 int main(int argc, char *argv[]) {
     // both of the followings are fine
@@ -46,7 +47,6 @@ int main(int argc, char *argv[]) {
     uint32_t id;
     std::vector<uint64_t> tasks, tasks_exec_count;
     std::vector<task_data_transfer> task_dtos;
-    std::vector<jamscript::task_schedule_entry> normal_sched, greedy_sched;
     std::vector<std::pair<uint64_t, jamscript::interactive_extender>> 
     interactive_tasks;
     std::vector<std::pair<uint64_t, uint64_t>> batch_tasks;
@@ -98,14 +98,8 @@ int main(int argc, char *argv[]) {
                 auto* interactive_tasks = batch_interactives->
                                           pinteractive_tasks;
                 auto* batch_tasks = batch_interactives->pbatch_tasks;
-                while (scheduler_ptr->multiplier < nrounds) {
-                    auto local_app_current_time = 
-                    std::chrono::high_resolution_clock::now();
-                    auto curr_timediff = std::chrono::
-                    duration_cast<std::chrono::nanoseconds>(
-                        local_app_current_time - 
-                        scheduler_ptr->scheduler_start_time
-                    ).count() / 1000;
+                while (scheduler_ptr->get_current_timepoint_in_scheduler() / 1000 < nrounds * normal_sched.back().end_time) {
+                    auto curr_timediff = scheduler_ptr->get_current_timepoint_in_scheduler() / 1000;
                     for (auto& itask: *interactive_tasks) {
                         if (curr_timediff >= itask.first && 
                             itask.second.handle == nullptr) {
@@ -187,7 +181,7 @@ int main(int argc, char *argv[]) {
                     auto _start_time = std::chrono::
                                        high_resolution_clock::now();
                     auto* pack = static_cast<task_data_transfer*>(args);
-                    if (pack->scheduler->multiplier >= nrounds) {
+                    if (pack->scheduler->get_multiplier() >= nrounds) {
                         pack->scheduler->exit();
                         finish_task(self, EXIT_SUCCESS);
                     }
@@ -206,7 +200,7 @@ int main(int argc, char *argv[]) {
         jamc_sched.run();
         for (uint32_t i = 1; i < task_dtos.size(); i++) {
             std::cout << "TASK #" << i << " EXP: " << 
-                         jamc_sched.multiplier * tasks_exec_count[i] << " " <<
+                         jamc_sched.get_multiplier() * tasks_exec_count[i] << " " <<
                          "ACT: "  << task_dtos[i].exec_count << std::endl;
         }
         std::cout << "NORMAL LOWER BOUND: ";

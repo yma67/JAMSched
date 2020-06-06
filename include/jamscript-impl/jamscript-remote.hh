@@ -11,7 +11,7 @@
 #include <future/future.h>
 #include <nlohmann/json.hpp>
 #include <core/scheduler/task.h>
-#include <jamscript-impl/jamscript-scheduler.h>
+#include "jamscript-impl/jamscript-scheduler.hh"
 
 
 namespace jamscript {

@@ -4,8 +4,8 @@
 #include <catch2/catch.hpp>
 #include <core/scheduler/task.h>
 #include <xtask/shared-stack-task.h>
-#include <jamscript-impl/jamscript-scheduler.h>
-#include <jamscript-impl/jamscript-remote.h>
+#include <jamscript-impl/jamscript-scheduler.hh>
+#include <jamscript-impl/jamscript-remote.hh>
 #include <cstring>
 #include <cstdlib>
 #include <sys/resource.h>
@@ -91,7 +91,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             std::cout << "GOT HANDLE" << std::endl;
             if (handle_interactive1->status == ack_cancelled) i1c = true;
         }
-        while (scheduler_ptr->multiplier < 3) {
+        while (scheduler_ptr->get_current_timepoint_in_scheduler() / 1000 < 3 * 30 * 1000) {
             std::this_thread::sleep_for(std::chrono::microseconds(1));
             yield_task(self);
         }
@@ -221,33 +221,34 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
                                              { 0, 30 * 1000, 0 } }, 
                                            888, 1024 * 256, nullptr, 
                                            [] (task_t* self, void* args) {
-        std::cout << "aaaa" << std::endl;
         auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(
             self->scheduler->get_scheduler_data(self->scheduler)
         );
-        auto res = scheduler_ptr->add_local_named_task_async<int>(
-            self, uint64_t(30 * 1000), uint64_t(500), "citelab i", 
-            1, 2, float(0.5), 3, double(1.25), 4, 
-            std::string("citelab loves java interactive")
-        );
-        auto resrt = scheduler_ptr->add_local_named_task_async<int>(
-            self, uint32_t(1), "citelab r", 1, 2, float(0.5), 3, 
-            double(1.25), 4, 
-            std::string("citelab loves java real time")
-        );
-        auto resb = scheduler_ptr->add_local_named_task_async<int>(
-            self, uint64_t(5), "citelab b", 1, 2, float(0.5), 3, 
-            double(1.25), 4, 
-            std::string("citelab loves java batch")
-        );
-        auto resrm = rh.register_remote(
-            self, "what is the source of memory leak", 
-            3, 2
-        ); 
-        REQUIRE(jamscript::extract_local_named_exec<int>(res) == 10);
-        REQUIRE(jamscript::extract_local_named_exec<int>(resrt) == 10);
-        REQUIRE(jamscript::extract_local_named_exec<int>(resb) == 10);
-        REQUIRE(jamscript::extract_remote_named_exec<std::string>(resrm) == "command, condvec, and fmask!");
+        {
+            auto res = scheduler_ptr->add_local_named_task_async<int>(
+                self, uint64_t(30 * 1000), uint64_t(500), "citelab i", 
+                1, 2, float(0.5), 3, double(1.25), 4, 
+                std::string("citelab loves java interactive")
+            );
+            auto resrt = scheduler_ptr->add_local_named_task_async<int>(
+                self, uint32_t(1), "citelab r", 1, 2, float(0.5), 3, 
+                double(1.25), 4, 
+                std::string("citelab loves java real time")
+            );
+            auto resb = scheduler_ptr->add_local_named_task_async<int>(
+                self, uint64_t(5), "citelab b", 1, 2, float(0.5), 3, 
+                double(1.25), 4, 
+                std::string("citelab loves java batch")
+            );
+            auto resrm = rh.register_remote(
+                self, "what is the source of memory leak", 
+                3, 2
+            ); 
+            REQUIRE(jamscript::extract_local_named_exec<int>(res) == 10);
+            REQUIRE(jamscript::extract_local_named_exec<int>(resrt) == 10);
+            REQUIRE(jamscript::extract_local_named_exec<int>(resb) == 10);
+            REQUIRE(jamscript::extract_remote_named_exec<std::string>(resrm) == "command, condvec, and fmask!");
+        }
         scheduler_ptr->exit();
         finish_task(self, 0);
     });

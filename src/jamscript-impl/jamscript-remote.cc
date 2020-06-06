@@ -1,4 +1,4 @@
-#include "jamscript-impl/jamscript-remote.h"
+#include "jamscript-impl/jamscript-remote.hh"
 
 jamscript::remote_handler::remote_handler() : exec_id_generator(0) {
 
