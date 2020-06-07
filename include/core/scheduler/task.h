@@ -107,6 +107,8 @@ struct scheduler_t {
     void* scheduler_data;                                       /// user defined data for scheduler, useful when building an extension of the scheduler
 };
 
+extern __thread task_t* current_task;
+
 /**
  * Task Initializer
  * @param task_bytes: memory allocated for a task,
@@ -190,6 +192,8 @@ extern task_return_t shutdown_scheduler(scheduler_t* scheduler);
     finishing_task->task_status = TASK_FINISHED;                               \
     finishing_task->return_value = finishing_task_return_value;                \
     yield_task(finishing_task);
+
+#define this_task() (current_task)
 
 /**
  * Scheduler Mainloop

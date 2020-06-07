@@ -40,12 +40,11 @@ private:
                        std::shared_ptr<jamfuture_t>> to_wait_pool;
 public:
     template <typename... Args>
-    std::shared_ptr<jamfuture_t> register_remote(task_t* parent_task, 
-                                                 const std::string& 
+    std::shared_ptr<jamfuture_t> register_remote(const std::string& 
                                                  remote_function_name, 
                                                  Args&& ...args) {
         auto f = std::make_shared<jamfuture_t>();
-        make_future(f.get(), parent_task, nullptr, 
+        make_future(f.get(), this_task(), nullptr, 
                     interactive_task_handle_post_callback);
         nlohmann::json rexec_json = {
             { 
@@ -69,15 +68,20 @@ public:
 };
 
 template <typename Tr>
-Tr extract_local_named_exec(const std::shared_ptr<jamfuture_t>& f) {
+const Tr extract_local_named_exec(const std::shared_ptr<jamfuture_t>& f) {
     get_future(f.get());
     if (f->status != ack_finished) {
         throw invalid_argument_exception("value not ready");
     }
     auto* pr = static_cast<Tr*>(f->data);
-    auto r = std::move(*pr);
+    const auto r = std::move(*pr);
     delete pr;
     return r;
+}
+
+template <typename Tr>
+Tr extract_local_named_exec(const std::shared_ptr<future<Tr>>& f) {
+    return f->get();
 }
 
 template <typename Tr>

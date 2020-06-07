@@ -23,6 +23,7 @@
 #include "jamscript-impl/jamscript-sporadic.hh"
 #include "jamscript-impl/jamscript-interactive.hh"
 #include "jamscript-impl/jamscript-batch.hh"
+#include "jamscript-impl/jamscript-future.hh"
 
 namespace jamscript {
 
@@ -95,11 +96,9 @@ public:
     uint64_t get_current_timepoint_in_task();
     void register_named_execution(std::string name, void* fp);
     bool add_real_time_task(uint32_t, void*, void(*)(task_t *, void*));
-    bool add_batch_task(uint32_t burst, void* args, 
-                        void(*local_exec_fn)(task_t *, void*));
+    bool add_batch_task(uint32_t burst, void* args, void(*f)(task_t *, void*));
     std::shared_ptr<jamfuture_t> 
-    add_interactive_task(task_t *, uint64_t, uint64_t, void *, 
-                         void(*)(task_t*, void*));
+    add_interactive_task(uint64_t, uint64_t, void *, void(*f)(task_t*, void*));
     c_side_scheduler(std::vector<task_schedule_entry> normal_schedule,
                      std::vector<task_schedule_entry> greedy_schedule,
                      uint32_t device_id, uint32_t stack_size, 
@@ -137,12 +136,8 @@ public:
     local_named_task_function_br(task_t* self, void* args) {
         {
             auto* exec_p = 
-            static_cast<std::pair<std::shared_ptr<jamfuture_t>, Tf>*>(args);
-            auto* value_slot = new Tr;
-            exec_p->first->data = value_slot;
-            *(value_slot) = (exec_p->second)();
-            exec_p->first->status = ack_finished;
-            notify_future(exec_p->first.get());
+            static_cast<std::pair<std::shared_ptr<future<Tr>>, Tf>*>(args);
+            exec_p->first->set_value(std::move((exec_p->second)()));
             delete exec_p;
         }
         finish_task(self, 0);
@@ -154,10 +149,8 @@ public:
             auto* self_cpp = static_cast<interactive_extender*>(
                 self->task_fv->get_user_data(self)
             );
-            auto* value_slot = new Tr;
-            self_cpp->handle->data = value_slot;
             auto* exec_fp = static_cast<Tf*>(args);
-            *(value_slot) = (*exec_fp)();
+            self_cpp->handle->data = new Tr(std::move((*exec_fp)()));
             self_cpp->handle->status = ack_finished;
             notify_future(self_cpp->handle.get());
             delete exec_fp;
@@ -166,7 +159,7 @@ public:
     }
     template <typename Tr, typename ...Args> 
     std::shared_ptr<jamfuture_t> 
-    add_local_named_task_async(task_t* parent_task, uint64_t deadline, 
+    add_local_named_task_async(uint64_t deadline, 
                                uint64_t duration, std::string exec_name,
                                Args&& ...args) {
         if (local_function_map.find(exec_name) == local_function_map.end()) {
@@ -178,15 +171,15 @@ public:
         );
         l.unlock();
         auto exec_fp = std::bind(named_exec_fp, std::forward<Args>(args)...);
-        return add_interactive_task(parent_task, deadline, duration, 
-                                    new decltype(exec_fp)(exec_fp),
+        return add_interactive_task(deadline, duration, 
+                                    new decltype(exec_fp)(std::move(exec_fp)),
                                     local_named_task_function
                                     <Tr, decltype(exec_fp)>);
     }
     template <typename Tr, typename ...Args> 
-    std::shared_ptr<jamfuture_t> 
-    add_local_named_task_async(task_t* parent_task, uint32_t task_id, 
-                               std::string exec_name, Args&& ...args) {
+    std::shared_ptr<future<Tr>> 
+    add_local_named_task_async(uint32_t task_id, std::string exec_name, 
+                               Args&& ...args) {
         if (local_function_map.find(exec_name) == local_function_map.end()) {
             return nullptr;
         }
@@ -196,18 +189,16 @@ public:
         );
         l.unlock();
         auto exec_fp = std::bind(named_exec_fp, std::forward<Args>(args)...);
-        auto task_handle = std::make_shared<jamfuture_t>();
-        make_future(task_handle.get(), parent_task, nullptr, 
-                    interactive_task_handle_post_callback);
-        add_real_time_task(task_id, new std::pair<std::shared_ptr<jamfuture_t>, 
+        auto task_handle = std::make_shared<future<Tr>>();
+        add_real_time_task(task_id, new std::pair<std::shared_ptr<future<Tr>>, 
                            decltype(exec_fp)>(task_handle, std::move(exec_fp)), 
                            local_named_task_function_br<Tr,decltype(exec_fp)>);
         return task_handle;
     }
     template <typename Tr, typename ...Args> 
-    std::shared_ptr<jamfuture_t> 
-    add_local_named_task_async(task_t* parent_task, uint64_t burst, 
-                               std::string exec_name, Args&& ...args) {
+    std::shared_ptr<future<Tr>> 
+    add_local_named_task_async(uint64_t burst, std::string exec_name, 
+                               Args&& ...args) {
         if (local_function_map.find(exec_name) == local_function_map.end()) {
             return nullptr;
         }
@@ -217,10 +208,8 @@ public:
         );
         l.unlock();
         auto exec_fp = std::bind(named_exec_fp, std::forward<Args>(args)...);
-        auto task_handle = std::make_shared<jamfuture_t>();
-        make_future(task_handle.get(), parent_task, nullptr, 
-                    interactive_task_handle_post_callback);
-        add_batch_task(burst, new std::pair<std::shared_ptr<jamfuture_t>, 
+        auto task_handle = std::make_shared<future<Tr>>();
+        add_batch_task(burst, new std::pair<std::shared_ptr<future<Tr>>, 
                        decltype(exec_fp)>(task_handle, std::move(exec_fp)),
                        local_named_task_function_br<Tr, decltype(exec_fp)>);
         return task_handle;

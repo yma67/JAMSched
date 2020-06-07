@@ -19,6 +19,8 @@
 #define NULL ((void *)0)
 #endif
 
+__thread task_t* current_task;
+
 void empty_func_next_idle(scheduler_t* self) {}
 void empty_func_before_after(task_t* self) {}
 void* get_user_data(task_t* t) { return t->user_data; }
@@ -37,6 +39,7 @@ void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
 }
 
 void resume_regular_task(task_t* self) {
+    current_task = self;
     swapcontext(&self->scheduler->scheduler_context, &self->context);
 }
 

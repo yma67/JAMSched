@@ -13,6 +13,7 @@
 #include <utility>
 #include <thread>
 #include <iostream>
+#include <jamscript-impl/jamscript-future.hh>
 
 int r1c, r2c, r3c, r4c;
 bool b1c = false, i1c = false;
@@ -53,9 +54,10 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         for (int v = 0; v < 2; v++) {
             std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
             std::shared_ptr<jamfuture_t> handle_interactive1 = scheduler_ptr->
-            add_interactive_task(self, 30 * 1000, 500, &i1c, 
+            add_interactive_task(30 * 1000, 500, &i1c, 
                                  [] (task_t* self, void* args) {
                 {
+                    REQUIRE(self == this_task());
                     auto* i1cp = static_cast<bool*>(args);
                     auto* self_cpp = static_cast<
                             jamscript::interactive_extender*
@@ -77,6 +79,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             std::cout << "FINISHED PSEUDO PREEMPT B" << std::endl;
             scheduler_ptr->add_batch_task(500, &sleep_time, 
                                           [] (task_t* self, void* args) {
+                REQUIRE(self == this_task());
                 for (int i = 0; i < 100; i++) {
                     std::this_thread::sleep_for(std::chrono::microseconds(
                                 *static_cast<uint32_t*>(args) / 200
@@ -102,6 +105,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         {
             auto pack = *static_cast<std::pair<int*, 
             jamscript::c_side_scheduler*>*>(args);
+            REQUIRE(self == this_task());
             std::this_thread::sleep_for(
                     std::chrono::microseconds(900)
                 );
@@ -118,6 +122,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             std::this_thread::sleep_for(
                     std::chrono::microseconds(900)
                 );
+            REQUIRE(self == this_task());
             std::cout << "TASK2 EXEC" << std::endl;
             (*(pack.first))++;
             pack.second->add_real_time_task(2, args, self->task_function);
@@ -131,6 +136,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             std::this_thread::sleep_for(
                     std::chrono::microseconds(900)
                 );
+            REQUIRE(self == this_task());
             std::cout << "TASK3 EXEC" << std::endl;
             (*(pack.first))++;
             pack.second->add_real_time_task(3, args, self->task_function);
@@ -144,6 +150,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             std::this_thread::sleep_for(
                     std::chrono::microseconds(1900)
                 );
+            REQUIRE(self == this_task());
             std::cout << "TASK4 EXEC" << std::endl;
             (*(pack.first))++;
             pack.second->add_real_time_task(4, args, self->task_function);
@@ -209,6 +216,18 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c,
     return a + b + d + f;
 }
 
+int CiteLabAdditionFunctionNotifier(std::shared_ptr<jamscript::future<std::string>> secret_arch, 
+                                    std::string validator) {
+    secret_arch->set_value(validator);
+    return 888888;
+}
+
+int CiteLabAdditionFunctionWaiter(std::shared_ptr<jamscript::future<std::string>> secret_arch, 
+                                  std::string validator) {
+    REQUIRE(validator == secret_arch->get());
+    return 233333;
+}
+
 jamscript::remote_handler rh;
 
 TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
@@ -226,28 +245,35 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
         );
         {
             auto res = scheduler_ptr->add_local_named_task_async<int>(
-                self, uint64_t(30 * 1000), uint64_t(500), "citelab i", 
+                uint64_t(30 * 1000), uint64_t(500), "citelab i", 
                 1, 2, float(0.5), 3, double(1.25), 4, 
                 std::string("citelab loves java interactive")
             );
             auto resrt = scheduler_ptr->add_local_named_task_async<int>(
-                self, uint32_t(1), "citelab r", 1, 2, float(0.5), 3, 
+                uint32_t(1), "citelab r", 1, 2, float(0.5), 3, 
                 double(1.25), 4, 
                 std::string("citelab loves java real time")
             );
             auto resb = scheduler_ptr->add_local_named_task_async<int>(
-                self, uint64_t(5), "citelab b", 1, 2, float(0.5), 3, 
+                uint64_t(5), "citelab b", 1, 2, float(0.5), 3, 
                 double(1.25), 4, 
                 std::string("citelab loves java batch")
             );
             auto resrm = rh.register_remote(
-                self, "what is the source of memory leak", 
+                "what is the source of memory leak", 
                 3, 2
             );
             REQUIRE(jamscript::extract_local_named_exec<int>(res) == 10);
             REQUIRE(jamscript::extract_local_named_exec<int>(resrt) == 10);
             REQUIRE(jamscript::extract_local_named_exec<int>(resb) == 10);
             REQUIRE(jamscript::extract_remote_named_exec<std::string>(resrm) == "command, condvec, and fmask!");
+            auto p = std::make_shared<jamscript::future<std::string>>();
+            REQUIRE(jamscript::extract_local_named_exec<int>(scheduler_ptr->add_local_named_task_async<int>(
+                uint64_t(30 * 1000), uint64_t(500), "citelab n", p, std::string("aarch64")
+            )) == 888888);
+            REQUIRE(jamscript::extract_local_named_exec<int>(scheduler_ptr->add_local_named_task_async<int>(
+                uint64_t(5), "citelab w", p, std::string("aarch64")
+            )) == 233333);
         }
         scheduler_ptr->exit();
         finish_task(self, 0);
@@ -263,6 +289,14 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
     jamc_sched.register_named_execution(
         "citelab b", 
         reinterpret_cast<void*>(CiteLabAdditionFunctionBatch)
+    ); 
+    jamc_sched.register_named_execution(
+        "citelab n", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionNotifier)
+    );
+    jamc_sched.register_named_execution(
+        "citelab w", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionWaiter)
     ); 
     std::thread t(std::ref(rh), [&](){
         return jamc_sched.is_running();

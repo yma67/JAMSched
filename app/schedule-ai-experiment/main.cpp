@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
                         if (curr_timediff >= itask.first && 
                             itask.second.handle == nullptr) {
                             itask.second.handle = scheduler_ptr->
-                            add_interactive_task(self, itask.second.deadline, 
+                            add_interactive_task(itask.second.deadline, 
                                                  itask.second.burst, nullptr, 
                                                  [](task_t* self, void* args) {
                                 auto _itask_start = 

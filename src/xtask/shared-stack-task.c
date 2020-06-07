@@ -118,6 +118,7 @@ void shared_stack_task_resume(task_t* xself) {
                                     xdata->private_stack_size, 
                                     xdata->private_stack, 
                                     xdata->private_stack_size);
+        current_task = xself;
         swapcontext(&xself->scheduler->scheduler_context, 
                        &xself->context);
 	    return;

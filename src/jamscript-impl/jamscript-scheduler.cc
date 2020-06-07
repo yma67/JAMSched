@@ -25,7 +25,7 @@
 #include <valgrind/valgrind.h>
 #endif
 #include "jamscript-impl/jamscript-scheduler.hh"
-
+#include "jamscript-impl/jamscript-future.hh"
 jamscript::c_side_scheduler::
 c_side_scheduler(std::vector<task_schedule_entry> normal_schedule, 
                  std::vector<task_schedule_entry> greedy_schedule,
@@ -166,12 +166,12 @@ jamscript::interactive_task_handle_post_callback(jamfuture_t *self) {
 
 std::shared_ptr<jamfuture_t>
 jamscript::c_side_scheduler::
-add_interactive_task(task_t *parent_task, uint64_t deadline,
-                     uint64_t burst, void *interactive_task_args,
+add_interactive_task(uint64_t deadline, uint64_t burst, 
+                     void *interactive_task_args,
                      void (*interactive_task_fn)(task_t *, void *)) {
     if (!rt_manager.c_shared_stack->is_allocatable) return nullptr;
     task_t* handle = s_managers[interactive_task_t]->
-    add(parent_task, deadline, burst, 
+    add(this_task(), deadline, burst, 
         interactive_task_args, interactive_task_fn);
     if (handle == nullptr) {
         rt_manager.c_shared_stack->is_allocatable = 0;
