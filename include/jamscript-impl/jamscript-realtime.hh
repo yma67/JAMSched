@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <xtask/shared-stack-task.h>
 #include <core/scheduler/task.h>
+#include <future/future.h>
 
 namespace jamscript {
 
@@ -14,6 +15,11 @@ class c_side_scheduler;
 class realtime_manager {
 public:
     friend class c_side_scheduler;
+    friend void before_each_jam_impl(task_t *);
+    friend void after_each_jam_impl(task_t *);
+    friend task_t* next_task_jam_impl(scheduler_t *);
+    friend void idle_task_jam_impl(scheduler_t *);
+    friend void interactive_task_handle_post_callback(jamfuture_t *);
     void spin_until_end();
     task_t* dispatch(uint32_t id);
     void remove(task_t* to_remove);

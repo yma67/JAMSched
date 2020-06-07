@@ -101,7 +101,7 @@ jamscript::after_each_jam_impl(task_t *self) {
     }
     if (self->task_status == TASK_FINISHED) {
         if (self->return_value == ERROR_TASK_STACK_OVERFLOW) {
-            scheduler_ptr->exit();
+            scheduler_ptr->rt_manager.c_shared_stack->is_allocatable = 0;
         }
         if (traits->task_type == jamscript::real_time_task_t) {
             scheduler_ptr->rt_manager.remove(self);
@@ -163,8 +163,6 @@ jamscript::interactive_task_handle_post_callback(jamfuture_t *self) {
     cpp_scheduler->
     s_managers[cpp_task_traits->task_type]->ready(self->owner_task);
 }
-
-
 
 std::shared_ptr<jamfuture_t>
 jamscript::c_side_scheduler::

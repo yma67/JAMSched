@@ -16,11 +16,11 @@ class batch_manager : public sporadic_manager {
 public:
     friend class c_side_scheduler;
     task_t* dispatch() override;
-    const uint32_t size() const override;
     void pause(task_t* task) override;
     bool ready(task_t* task) override;
     void remove(task_t* task) override;
     void enable(task_t* task) override;
+    const uint32_t size() const override;
     void update_burst(task_t* task, uint64_t burst) override;
     task_t* add(uint64_t burst, void *args, 
                 void (*func)(task_t *, void *)) override;

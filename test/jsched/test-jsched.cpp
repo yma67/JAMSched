@@ -243,7 +243,7 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
             auto resrm = rh.register_remote(
                 self, "what is the source of memory leak", 
                 3, 2
-            ); 
+            );
             REQUIRE(jamscript::extract_local_named_exec<int>(res) == 10);
             REQUIRE(jamscript::extract_local_named_exec<int>(resrt) == 10);
             REQUIRE(jamscript::extract_local_named_exec<int>(resb) == 10);

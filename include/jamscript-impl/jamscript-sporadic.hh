@@ -23,12 +23,12 @@ public:
     virtual bool ready(task_t* task) = 0;
     virtual void remove(task_t* task) = 0;
     virtual void enable(task_t* task) = 0;
+    virtual const uint32_t size() const = 0;
     virtual void update_burst(task_t* task, uint64_t burst) = 0;
     virtual task_t* add(uint64_t burst, void *args, 
                         void (*func)(task_t *, void *)) = 0;
     virtual task_t* add(task_t *parent, uint64_t deadline, uint64_t burst,
                         void *args, void (*func)(task_t *, void *)) = 0;
-    virtual const uint32_t size() const = 0;
     sporadic_manager(c_side_scheduler* scheduler, uint32_t stack_size) : 
     scheduler(scheduler), stack_size(stack_size) {
 
