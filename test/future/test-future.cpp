@@ -48,9 +48,7 @@ void test_future_task(task_t* self, void* args) {
         endt = std::chrono::high_resolution_clock::now();
         auto elps = std::chrono::duration_cast<std::chrono::nanoseconds>
                     (endt - startt);
-#if !defined(__arm__) && !defined(__aarch64__)
         REQUIRE(self->task_status == TASK_READY);
-#endif
         REQUIRE((future.lock_word & 0x80000000) > 0);
         REQUIRE(elps.count() > 0);
         total_elapse += elps.count();
