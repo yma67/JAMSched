@@ -64,7 +64,8 @@ SetContinueOnTimeoutUntil(task_t* task, uint64_t t_ns) {
 
 void jamscript::JAMTimer::NotifyAllTimeouts() {
     struct timeout *timeOut;
-    timeouts_update(timingWheelPtr, scheduler->get_current_timepoint_in_scheduler());
+    timeouts_update(timingWheelPtr, 
+                    scheduler->get_current_timepoint_in_scheduler());
     while ((timeOut = timeouts_get(timingWheelPtr))) 
         timeOut->callback.fn(timeOut->callback.arg);
 }
@@ -74,5 +75,6 @@ void jamscript::JAMTimer::ZeroTimeout() {
 }
 
 void jamscript::JAMTimer::UpdateTimeout() {
-    timeouts_update(timingWheelPtr, scheduler->get_current_timepoint_in_scheduler());
+    timeouts_update(timingWheelPtr, 
+                    scheduler->get_current_timepoint_in_scheduler());
 }
