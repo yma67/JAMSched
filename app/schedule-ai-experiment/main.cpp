@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <jamscript-impl/jamscript-scheduler.hh>
+#include <jamscript-impl/jamscript-time.hh>
 
 struct task_data_transfer {
     uint32_t task_id, exec_count;
@@ -113,6 +114,10 @@ int main(int argc, char *argv[]) {
                                 static_cast<jamscript::interactive_extender*>(
                                     self->task_fv->get_user_data(self)
                                 );
+                                long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
+                                jamscript::jsleep_for(1000);
+                                long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
+                                std::cout << ("JSleep jitter in ns: " + std::to_string(currns - prevns - 1000 * 1000)) << std::endl;
                                 while (std::chrono::
                                        duration_cast<std::chrono::nanoseconds>(
                                        std::chrono::
@@ -145,6 +150,10 @@ int main(int argc, char *argv[]) {
                                 static_cast<jamscript::batch_extender*>(
                                     self->task_fv->get_user_data(self)
                                 );
+                                long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
+                                jamscript::jsleep_for(1000);
+                                long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
+                                std::cout << ("JSleep jitter in ns: " + std::to_string(currns - prevns - 1000 * 1000)) << std::endl;
                                 while (std::chrono::
                                        duration_cast<std::chrono::nanoseconds>
                                        (std::chrono::

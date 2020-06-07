@@ -26,6 +26,7 @@
 #endif
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-future.hh"
+#include "jamscript-impl/jamscript-time.hh"
 jamscript::c_side_scheduler::
 c_side_scheduler(std::vector<task_schedule_entry> normal_schedule, 
                  std::vector<task_schedule_entry> greedy_schedule,
@@ -33,7 +34,7 @@ c_side_scheduler(std::vector<task_schedule_entry> normal_schedule,
                  void (*local_app_fn)(task_t*, void*)) :
 current_schedule_slot(0), multiplier(0), device_id(device_id), 
 virtual_clock{ 0L, 0L }, rt_manager(this, stack_size),
-task_start_time(std::chrono::high_resolution_clock::now()), 
+task_start_time(std::chrono::high_resolution_clock::now()), jtimer(this),
 scheduler_start_time(task_start_time), cycle_start_time(task_start_time), 
 normal_schedule(std::move(normal_schedule)), 
 greedy_schedule(std::move(greedy_schedule)), 
@@ -117,6 +118,7 @@ jamscript::next_task_jam_impl(scheduler_t *self_c) {
         self_c->get_scheduler_data(self_c)
     );
     self->move_scheduler_slot();
+    self->jtimer.NotifyAllTimeouts();
     task_t* to_dispatch = self->rt_manager.dispatch(
         self->current_schedule->at(self->current_schedule_slot).task_id
     );
@@ -126,19 +128,15 @@ jamscript::next_task_jam_impl(scheduler_t *self_c) {
             return nullptr;
         } else if (self->s_managers[interactive_task_t]->size() == 0 ||
                    self->s_managers[batch_task_t]->size() == 0) {
-            if (self->s_managers[interactive_task_t]->size() > 
-                self->s_managers[batch_task_t]->size()) {
-                return self->s_managers[interactive_task_t]->dispatch();
-            } else {
-                return self->s_managers[batch_task_t]->dispatch();
-            }
+            return self->s_managers[!(
+                self->s_managers[interactive_task_t]->size() > 
+                self->s_managers[batch_task_t]->size()
+            )]->dispatch();
         } else {
-            if (self->virtual_clock[interactive_task_t] < 
-                self->virtual_clock[batch_task_t]) {
-                return self->s_managers[interactive_task_t]->dispatch();
-            } else {
-                return self->s_managers[batch_task_t]->dispatch();
-            }
+            return self->s_managers[!(
+                self->virtual_clock[interactive_task_t] < 
+                self->virtual_clock[batch_task_t]
+            )]->dispatch();
         }
     }
     return to_dispatch;
@@ -221,6 +219,7 @@ jamscript::c_side_scheduler::run() {
         std::lock_guard<std::recursive_mutex> l(time_mutex);
         scheduler_start_time = std::chrono::high_resolution_clock::now();
         cycle_start_time = std::chrono::high_resolution_clock::now();
+        jtimer.ZeroTimeout();
     }
     scheduler_mainloop(c_scheduler);
 }

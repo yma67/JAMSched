@@ -218,6 +218,11 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c,
 
 int CiteLabAdditionFunctionNotifier(std::shared_ptr<jamscript::future<std::string>> secret_arch, 
                                     std::string validator) {
+    long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
+    jamscript::jsleep_for(200);
+    long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
+    REQUIRE(currns >= prevns + 200 * 1000);
+    WARN("JSleep jitter in ns: " + std::to_string(currns - prevns - 200 * 1000));
     secret_arch->set_value(validator);
     return 888888;
 }
@@ -249,6 +254,8 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
                 1, 2, float(0.5), 3, double(1.25), 4, 
                 std::string("citelab loves java interactive")
             );
+            
+            
             auto resrt = scheduler_ptr->add_local_named_task_async<int>(
                 uint32_t(1), "citelab r", 1, 2, float(0.5), 3, 
                 double(1.25), 4, 

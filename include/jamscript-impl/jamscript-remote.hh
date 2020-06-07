@@ -11,7 +11,7 @@
 #include <future/future.h>
 #include <nlohmann/json.hpp>
 #include <core/scheduler/task.h>
-#include "jamscript-impl/jamscript-scheduler.hh"
+#include <jamscript-impl/jamscript-future.hh>
 
 namespace jamscript {
 
@@ -37,15 +37,12 @@ private:
     std::uint64_t exec_id_generator;
     std::deque<nlohmann::json> to_send_pool;
     std::unordered_map<std::uint64_t, 
-                       std::shared_ptr<jamfuture_t>> to_wait_pool;
+                       std::shared_ptr<future<nlohmann::json>>> to_wait_pool;
 public:
     template <typename... Args>
-    std::shared_ptr<jamfuture_t> register_remote(const std::string& 
-                                                 remote_function_name, 
-                                                 Args&& ...args) {
-        auto f = std::make_shared<jamfuture_t>();
-        make_future(f.get(), this_task(), nullptr, 
-                    interactive_task_handle_post_callback);
+    std::shared_ptr<future<nlohmann::json>>
+    register_remote(const std::string& remote_function_name, Args&& ...args) {
+        auto f = std::make_shared<future<nlohmann::json>>();
         nlohmann::json rexec_json = {
             { 
                 "func_name", 
@@ -61,7 +58,7 @@ public:
             auto id = exec_id_generator++;
             rexec_json.push_back({ "exec_id", id });
             to_send_pool.push_back(rexec_json);
-            to_wait_pool[id] = f;
+            to_wait_pool.insert({ id, f });
         }
         return f;
     }
@@ -85,15 +82,8 @@ Tr extract_local_named_exec(const std::shared_ptr<future<Tr>>& f) {
 }
 
 template <typename Tr>
-Tr extract_remote_named_exec(const std::shared_ptr<jamfuture_t>& f) {
-    get_future(f.get());
-    if (f->status != ack_finished) {
-        throw invalid_argument_exception("value not ready");
-    }
-    auto* pr = static_cast<nlohmann::json*>(f->data);
-    auto r = std::move((*pr)["return_val"].get<Tr>());
-    delete pr;
-    return r;
+Tr extract_remote_named_exec(const std::shared_ptr<future<nlohmann::json>>& f) {
+    return f->get()["return_val"].get<Tr>();
 }
 
 }

@@ -24,6 +24,7 @@
 #include "jamscript-impl/jamscript-interactive.hh"
 #include "jamscript-impl/jamscript-batch.hh"
 #include "jamscript-impl/jamscript-future.hh"
+#include "jamscript-impl/jamscript-time.hh"
 
 namespace jamscript {
 
@@ -68,13 +69,16 @@ task_t* next_task_jam_impl(scheduler_t *self);
 void idle_task_jam_impl(scheduler_t *self);
 void interactive_task_handle_post_callback(jamfuture_t *self);
 
+#define this_scheduler() (static_cast<jamscript::c_side_scheduler*>(          \
+    this_task()->scheduler->get_scheduler_data(this_task()->scheduler)        \
+))
+
 class decider;
 class batch_manager;
 class realtime_manager;
 class interactive_manager;
 struct c_side_task_extender;
-struct interactive_extender;
-
+class JAMTimer;
 class c_side_scheduler {
 public:
     friend void after_each_jam_impl(task_t *);
@@ -82,6 +86,8 @@ public:
     friend void idle_task_jam_impl(scheduler_t *);
     friend task_t* next_task_jam_impl(scheduler_t *);
     friend void interactive_task_handle_post_callback(jamfuture_t *);
+    friend void jsleep_for(uint64_t dms);
+    friend void jsleep_until(uint64_t dms);
     friend class decider;
     friend class batch_manager;
     friend class sporadic_manager;
@@ -106,6 +112,7 @@ public:
                      void (*local_app_fn)(task_t *, void *));
     ~c_side_scheduler();
 private:
+    JAMTimer jtimer;
     decider dec;
     scheduler_t* c_scheduler;
     task_t* c_local_app_task;
@@ -216,5 +223,15 @@ public:
     }
 };
 
+inline void jsleep_for(uint64_t dms) {
+    this_scheduler()->jtimer.UpdateTimeout();
+    this_scheduler()->jtimer.SetContinueOnTimeoutFor(this_task(), dms * 1000);
 }
+
+inline void jsleep_until(uint64_t dms) {
+    this_scheduler()->jtimer.SetContinueOnTimeoutUntil(this_task(), dms);
+}
+
+}
+
 #endif //JAMSCRIPT_JAMSCRIPT_SCHEDULER_H

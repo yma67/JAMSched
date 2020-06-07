@@ -41,13 +41,26 @@ notify_remote(uint64_t id, ack_types status,
     std::lock_guard<std::recursive_mutex> lock(pool_mutex);
     if (to_wait_pool.find(id) != to_wait_pool.end()) {
         auto f = to_wait_pool[id];
-        f->data = new nlohmann::json(return_val);
-        f->status = status;
-        notify_future(f.get());
+        if (return_val.contains("return_val") && status == ack_finished) {
+            f->set_value(return_val);
+        } else if (return_val.contains("return_val") && 
+                   status != ack_finished) {
+            f->set_exception(
+                std::make_exception_ptr(
+                    invalid_argument_exception("cancelled or failed")
+                )
+            );
+        } else {
+            f->set_exception(
+                std::make_exception_ptr(
+                    invalid_argument_exception("format of response incorrect")
+                )
+            );
+        }
         to_wait_pool.erase(id);
         return true;
     } else {
-        throw jamscript::invalid_argument_exception("not found");
+        throw invalid_argument_exception("not found");
     }
     return false;
 }

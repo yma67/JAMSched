@@ -70,7 +70,7 @@ add(uint64_t burst, void *args, void (*func)(task_t *, void *)) {
         );
 #endif
     make_task(int_task, scheduler->c_scheduler, func,
-            args, stack_size, int_task_stack);
+              args, stack_size, int_task_stack);
     return int_task;
 }
 
@@ -84,7 +84,7 @@ add(task_t *parent, uint64_t deadline, uint64_t burst,
     int_task_handle->lock_word = 0x0;
     auto* iext = 
     new jamscript::interactive_extender(burst, deadline, int_task_handle);
-    task_t* int_task = add(burst, args, func);    
+    task_t* int_task = add(burst, args, func);
     int_task->task_fv->
     set_user_data(int_task, iext);
     {
