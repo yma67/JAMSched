@@ -41,9 +41,14 @@ public:
     T* operator->() { return *ptr(); }
     T const* operator->() const { return ptr(); }
 private:
-    T* ptr() { return static_cast<T*>(static_cast<void*>(&storage)); }
-    T const* ptr() const { return static_cast<T*>(static_cast<void*>(&storage)); }
-    using storage_type = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
+    T* ptr() { 
+        return static_cast<T*>(static_cast<void*>(&storage)); 
+    }
+    T const* ptr() const { 
+        return static_cast<T*>(static_cast<void*>(&storage)); 
+    }
+    using storage_type = 
+    typename std::aligned_storage<sizeof(T), alignof(T)>::type;
     bool initialized = false;
     storage_type storage;
 };
@@ -52,7 +57,8 @@ template <typename T>
 struct future : public std::enable_shared_from_this<future<T>> {
 public:
     future() : f(std::make_unique<jamfuture_t>()) {
-        make_future(f.get(), this_task(), nullptr, interactive_task_handle_post_callback);
+        make_future(f.get(), this_task(), nullptr, 
+                    interactive_task_handle_post_callback);
     }
     void wait() const {
         get_future(f.get());
