@@ -1,10 +1,16 @@
 language: cpp
+
 dist: bionic
 
+arch:
+  - amd64
+  - arm64
+
 compiler:
+  - gcc
   - clang
 
-install:    
+install:
   - |
     wget https://cmake.org/files/v3.17/cmake-3.17.0-rc3-Linux-x86_64.tar.gz
     tar -xf	cmake-3.17.0-rc3-Linux-x86_64.tar.gz

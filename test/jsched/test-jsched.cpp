@@ -4,7 +4,8 @@
 #include <catch2/catch.hpp>
 #include <core/scheduler/task.h>
 #include <xtask/shared-stack-task.h>
-#include <jamscript-impl/jamscript-scheduler.h>
+#include <jamscript-impl/jamscript-scheduler.hh>
+#include <jamscript-impl/jamscript-remote.hh>
 #include <cstring>
 #include <cstdlib>
 #include <sys/resource.h>
@@ -90,7 +91,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             std::cout << "GOT HANDLE" << std::endl;
             if (handle_interactive1->status == ack_cancelled) i1c = true;
         }
-        while (scheduler_ptr->multiplier < 3) {
+        while (scheduler_ptr->get_current_timepoint_in_scheduler() / 1000 < 3 * 30 * 1000) {
             std::this_thread::sleep_for(std::chrono::microseconds(1));
             yield_task(self);
         }
@@ -159,10 +160,113 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     jamc_sched.run();
     REQUIRE(i1c);
 #ifndef JAMSCRIPT_ENABLE_VALGRIND
+#ifdef __x86_64__
     REQUIRE(b1c);
+#endif
     REQUIRE(r1c >= 6);
     REQUIRE(r2c >= 3);
     REQUIRE(r3c >= 4);
     REQUIRE(r4c >= 5);
 #endif
+}
+
+int CiteLabAdditionFunctionInteractive(int a, char b, float c, 
+                                       short d, double e, long f, 
+                                       std::string validator) {
+    REQUIRE(1 == a);
+    REQUIRE(2 == b);
+    REQUIRE(Approx(0.5) == c);
+    REQUIRE(3 == d);
+    REQUIRE(Approx(1.25) == e);
+    REQUIRE(4 == f);
+    REQUIRE(validator == "citelab loves java interactive");
+    return a + b + d + f;
+}
+
+int CiteLabAdditionFunctionRealTime(int a, char b, float c, 
+                                    short d, double e, long f, 
+                                    std::string validator) {
+    REQUIRE(1 == a);
+    REQUIRE(2 == b);
+    REQUIRE(Approx(0.5) == c);
+    REQUIRE(3 == d);
+    REQUIRE(Approx(1.25) == e);
+    REQUIRE(4 == f);
+    REQUIRE(validator == "citelab loves java real time");
+    return a + b + d + f;
+}
+
+int CiteLabAdditionFunctionBatch(int a, char b, float c, 
+                                 short d, double e, long f, 
+                                 std::string validator) {
+    REQUIRE(1 == a);
+    REQUIRE(2 == b);
+    REQUIRE(Approx(0.5) == c);
+    REQUIRE(3 == d);
+    REQUIRE(Approx(1.25) == e);
+    REQUIRE(4 == f);
+    REQUIRE(validator == "citelab loves java batch");
+    return a + b + d + f;
+}
+
+jamscript::remote_handler rh;
+
+TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
+    
+    jamscript::c_side_scheduler jamc_sched({ { 0, 10 * 1000, 0 }, 
+                                             { 0, 20 * 1000, 1 }, 
+                                             { 0, 30 * 1000, 0 } }, 
+                                           { { 0, 10 * 1000, 0 }, 
+                                             { 0, 20 * 1000, 1 }, 
+                                             { 0, 30 * 1000, 0 } }, 
+                                           888, 1024 * 256, nullptr, 
+                                           [] (task_t* self, void* args) {
+        auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(
+            self->scheduler->get_scheduler_data(self->scheduler)
+        );
+        {
+            auto res = scheduler_ptr->add_local_named_task_async<int>(
+                self, uint64_t(30 * 1000), uint64_t(500), "citelab i", 
+                1, 2, float(0.5), 3, double(1.25), 4, 
+                std::string("citelab loves java interactive")
+            );
+            auto resrt = scheduler_ptr->add_local_named_task_async<int>(
+                self, uint32_t(1), "citelab r", 1, 2, float(0.5), 3, 
+                double(1.25), 4, 
+                std::string("citelab loves java real time")
+            );
+            auto resb = scheduler_ptr->add_local_named_task_async<int>(
+                self, uint64_t(5), "citelab b", 1, 2, float(0.5), 3, 
+                double(1.25), 4, 
+                std::string("citelab loves java batch")
+            );
+            auto resrm = rh.register_remote(
+                self, "what is the source of memory leak", 
+                3, 2
+            );
+            REQUIRE(jamscript::extract_local_named_exec<int>(res) == 10);
+            REQUIRE(jamscript::extract_local_named_exec<int>(resrt) == 10);
+            REQUIRE(jamscript::extract_local_named_exec<int>(resb) == 10);
+            REQUIRE(jamscript::extract_remote_named_exec<std::string>(resrm) == "command, condvec, and fmask!");
+        }
+        scheduler_ptr->exit();
+        finish_task(self, 0);
+    });
+    jamc_sched.register_named_execution(
+        "citelab i", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionInteractive)
+    );
+    jamc_sched.register_named_execution(
+        "citelab r", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionRealTime)
+    );
+    jamc_sched.register_named_execution(
+        "citelab b", 
+        reinterpret_cast<void*>(CiteLabAdditionFunctionBatch)
+    ); 
+    std::thread t(std::ref(rh), [&](){
+        return jamc_sched.is_running();
+    });
+    jamc_sched.run();
+    t.join();
 }
