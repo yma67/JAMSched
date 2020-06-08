@@ -29,7 +29,7 @@ public:
 class remote_handler {
 public:
     void operator()(const std::function<bool()>& predicate);
-    bool notify_remote(uint64_t id, ack_types status, 
+    bool notify_local(uint64_t id, ack_types status, 
                        const nlohmann::json& return_val);
     remote_handler();
 private:
@@ -41,16 +41,23 @@ private:
 public:
     template <typename... Args>
     std::shared_ptr<future<nlohmann::json>>
-    register_remote(const std::string& remote_function_name, Args&& ...args) {
+    register_remote(const std::string& remote_function_name, 
+                    const std::string& condstr, uint32_t condvec, 
+                    Args&& ...args) {
         auto f = std::make_shared<future<nlohmann::json>>();
         nlohmann::json rexec_json = {
             { 
-                "func_name", 
-                remote_function_name 
+                "func_name", remote_function_name 
             }, 
             { 
                 "args", 
                 nlohmann::json::array({ std::forward<Args>(args)... }) 
+            },
+            {
+                "condstr", condstr
+            }, 
+            {
+                "condvec", condvec
             }
         };
         {
@@ -82,7 +89,8 @@ Tr extract_local_named_exec(const std::shared_ptr<future<Tr>>& f) {
 }
 
 template <typename Tr>
-Tr extract_remote_named_exec(const std::shared_ptr<future<nlohmann::json>>& f) {
+Tr 
+extract_remote_named_exec(const std::shared_ptr<future<nlohmann::json>>& f) {
     return f->get()["return_val"].get<Tr>();
 }
 

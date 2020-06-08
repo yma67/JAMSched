@@ -266,8 +266,13 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
                 double(1.25), 4, 
                 std::string("citelab loves java batch")
             );
+            // assume fogonly
             auto resrm = rh.register_remote(
-                "what is the source of memory leak", 
+                "what is the source of memory leak", "this == fog", 1, 
+                3, 2
+            );
+            auto resrm2 = rh.register_remote(
+                "what is the source of memory leak", "this == fog", 0, 
                 3, 2
             );
             REQUIRE(jamscript::extract_local_named_exec<int>(res) == 10);
@@ -281,6 +286,7 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
             REQUIRE(jamscript::extract_local_named_exec<int>(scheduler_ptr->add_local_named_task_async<int>(
                 uint64_t(5), "citelab w", p, std::string("aarch64")
             )) == 233333);
+            REQUIRE_THROWS_WITH(jamscript::extract_remote_named_exec<int>(resrm2), Catch::Contains("wrong device, should be fog only"));
         }
         scheduler_ptr->exit();
         finish_task(self, 0);

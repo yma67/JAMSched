@@ -24,36 +24,50 @@ operator()(const std::function<bool()>& predicate) {
         if (!to_send_pool.empty()) {
             std::cout << to_send_pool.front() << std::endl;
             uint64_t id = to_send_pool.front()["exec_id"].get<uint64_t>();
-            notify_remote(
-                id, ack_finished, { { 
+            if (to_send_pool.front()["condstr"].get<std::string>() == "this == fog" && 
+                to_send_pool.front()["condvec"].get<uint32_t>() == 1) {
+                notify_local(
+                    id, ack_finished, { { 
                         "return_val", 
                         "command, condvec, and fmask!" 
                     } 
-            });
+                });
+            } else {
+                notify_local(
+                    id, ack_failed, { { 
+                        "return_exception", 
+                        "wrong device, should be fog only" 
+                    } 
+                });
+            }
             to_send_pool.pop_front();
         }
     }
 }
 
 bool jamscript::remote_handler::
-notify_remote(uint64_t id, ack_types status, 
+notify_local(uint64_t id, ack_types status, 
               const nlohmann::json& return_val) {
     std::lock_guard<std::recursive_mutex> lock(pool_mutex);
     if (to_wait_pool.find(id) != to_wait_pool.end()) {
         auto f = to_wait_pool[id];
         if (return_val.contains("return_val") && status == ack_finished) {
             f->set_value(return_val);
-        } else if (return_val.contains("return_val") && 
+        } else if (return_val.contains("return_exception") && 
                    status != ack_finished) {
             f->set_exception(
                 std::make_exception_ptr(
-                    invalid_argument_exception("cancelled or failed")
+                    invalid_argument_exception(
+                        return_val["return_exception"].get<std::string>()
+                    )
                 )
             );
         } else {
             f->set_exception(
                 std::make_exception_ptr(
-                    invalid_argument_exception("format of response incorrect")
+                    invalid_argument_exception(
+                        "format of response incorrect"
+                    )
                 )
             );
         }
