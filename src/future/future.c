@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -15,47 +15,43 @@
 
 #define NUM_SPIN_ROUNDS 1000U
 
-void empty_func_post_future_callback(jamfuture_t* self) {}
+void EmptyFuncPostFutureCallback(CFuture* self) {}
 
 // do not defer future using local stack variable as data entry if using xtask
-int make_future(jamfuture_t* self, task_t* owner, void* data, 
-                 void (*post_future_callback)(jamfuture_t*)) {
-    if (post_future_callback == NULL) {
-        post_future_callback = empty_func_post_future_callback;
+int CreateFuture(CFuture* self, CTask* owner, void* data, void (*PostFutureCallback)(CFuture*)) {
+    if (PostFutureCallback == NULL) {
+        PostFutureCallback = EmptyFuncPostFutureCallback;
     }
     if (self == NULL || owner == NULL) {
         return 1;
     }
     self->data = data;
-    self->owner_task = owner;
-    self->lock_word = TASK_READY;
-    self->spin_rounds = NUM_SPIN_ROUNDS;
-    self->post_future_callback = post_future_callback;
+    self->ownerTask = owner;
+    self->lockWord = TASK_READY;
+    self->numberOfSpinRounds = NUM_SPIN_ROUNDS;
+    self->PostFutureCallback = PostFutureCallback;
     return 0;
 }
 
-void get_future(jamfuture_t* self) {
-    if (__atomic_compare_exchange_n(&(self->owner_task->task_status), 
-                                    &(self->lock_word), TASK_PENDING, 
+void WaitForValueFromFuture(CFuture* self) {
+    if (__atomic_compare_exchange_n(&(self->ownerTask->taskStatus), &(self->lockWord), TASK_PENDING,
                                     0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
-        while (__atomic_fetch_add(&(self->lock_word), 1, 
-                                    __ATOMIC_RELAXED) < self->spin_rounds);
-        while (__atomic_load_n(&(self->lock_word), 
-                                 __ATOMIC_ACQUIRE) < 0x80000000) {
-            yield_task(self->owner_task);
+        while (__atomic_fetch_add(&(self->lockWord), 1, __ATOMIC_RELAXED) <
+               self->numberOfSpinRounds)
+            ;
+        while (__atomic_load_n(&(self->lockWord), __ATOMIC_ACQUIRE) < 0x80000000) {
+            YieldTask(self->ownerTask);
         }
     }
-    __atomic_fetch_or(&(self->lock_word), 0x80000000, __ATOMIC_SEQ_CST);
+    __atomic_fetch_or(&(self->lockWord), 0x80000000, __ATOMIC_SEQ_CST);
 }
 
-void notify_future(jamfuture_t* self) {
-    if (__atomic_fetch_or(&(self->lock_word), 0x80000000, 
-                          __ATOMIC_RELEASE) >= self->spin_rounds) {
-        __atomic_store_n(&(self->owner_task->task_status), TASK_READY, 
-                         __ATOMIC_RELEASE);
-        self->post_future_callback(self);
+void NotifyFinishOfFuture(CFuture* self) {
+    if (__atomic_fetch_or(&(self->lockWord), 0x80000000, __ATOMIC_RELEASE) >=
+        self->numberOfSpinRounds) {
+        __atomic_store_n(&(self->ownerTask->taskStatus), TASK_READY, __ATOMIC_RELEASE);
+        self->PostFutureCallback(self);
         return;
     }
-    __atomic_store_n(&(self->owner_task->task_status), TASK_READY, 
-                     __ATOMIC_RELEASE);
+    __atomic_store_n(&(self->ownerTask->taskStatus), TASK_READY, __ATOMIC_RELEASE);
 }

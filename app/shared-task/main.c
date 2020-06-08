@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <sys/resource.h>
 
-shared_stack_t* xstack_app;
-scheduler_t xsched;
+CSharedStack* xstack_app;
+CScheduler xsched;
 int coro_count = 0;
 
 
@@ -14,24 +14,24 @@ int naive_fact(int x) {
     return (x > 1) ? (naive_fact(x - 1) * x) : (1);
 }
 
-void share_fact_wrapper(task_t* self, void* args) {
+void share_fact_wrapper(CTask* self, void* args) {
     int axe[1024];
     memset(axe, '\0' + 1, sizeof(int) * 1024);
-    yield_task(self);
+    YieldTask(self);
 }
 
-void after_xsched(task_t* self) {
-    // printf("%d\n", ((xuser_data_t*)(self->user_data))->__private_stack_size);
+void after_xsched(CTask* self) {
+    // printf("%d\n", ((xuser_data_t*)(self->userData))->__privateStackSize);
 }
 
-task_t* xstask_app_sched(scheduler_t* self) {
+CTask* xstask_app_sched(CScheduler* self) {
     coro_count += 1;
     printf("%d\n", coro_count);
-    return make_shared_stack_task(&xsched, share_fact_wrapper, NULL, xstack_app);
+    return CreateSharedStackTask(&xsched, share_fact_wrapper, NULL, xstack_app);
 }
 //unsigned char fxs[256 * 1024];
-task_t* nortask_app_sched(scheduler_t* self) {
-    task_t* t = malloc(sizeof(task_t*));
+CTask* nortask_app_sched(CScheduler* self) {
+    CTask* t = malloc(sizeof(CTask));
     if (t == NULL) return t;
     unsigned char* fxs = malloc(1024 * 32 * sizeof(char));
     if (fxs == NULL) {
@@ -39,12 +39,12 @@ task_t* nortask_app_sched(scheduler_t* self) {
         return NULL;
     }
     coro_count += 1;
-    make_task(t, &xsched, share_fact_wrapper, NULL, 1024 * 32, fxs);
+    CreateTask(t, &xsched, share_fact_wrapper, NULL, 1024 * 32, fxs);
     return t;
 }
 
-void common_xtask_idle(scheduler_t* self) {
-    shutdown_scheduler(&xsched);
+void common_xtask_idle(CScheduler* self) {
+    ShutdownScheduler(&xsched);
     printf("%d\n", coro_count);
 }
 
@@ -62,11 +62,11 @@ int main() {
         return 0;
     }
     printf("succsss to set limit heap, exit\n");
-    xstack_app = make_shared_stack(1024 * 32, malloc, free, memcpy);
+    xstack_app = CreateSharedStack(1024 * 32, malloc, free, memcpy);
     printf("succsss to set limit heap, exit\n");
-    make_scheduler(&xsched, xstask_app_sched, common_xtask_idle, 
-                   empty_func_before_after, after_xsched);
-    scheduler_mainloop(&xsched);
-    destroy_shared_stack(xstack_app);
+    CreateScheduler(&xsched, xstask_app_sched, common_xtask_idle, 
+                   EmptyFuncBeforeAfter, after_xsched);
+    SchedulerMainloop(&xsched);
+    DestroySharedStack(xstack_app);
     return 0;
 }

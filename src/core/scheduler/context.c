@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -12,11 +12,11 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 ///
-/// contains makecontext from
+/// contains CreateContext from
 ///
 /* Copyright (c) 2005-2006 Russ Cox, MIT; see COPYRIGHT */
 ///
-/// contains x86-64 swapcontext from
+/// contains x86-64 SwapToContext from
 ///
 /// Copyright 2018 Sen Han <00hnes@gmail.com>
 ///
@@ -32,34 +32,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "core/scheduler/context.h"
-#include <string.h>
+
 #include <stdarg.h>
+#include <string.h>
 
 #if defined(__x86_64__)
-void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...) {
     va_list va;
     memset(ucp->registers, 0, 16 * 8);
-    if(argc != 2) __builtin_trap();
+    if (argc != 2)
+        __builtin_trap();
     va_start(va, argc);
     ucp->registers[14] = va_arg(va, int);
     ucp->registers[15] = va_arg(va, int);
     va_end(va);
-    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size - 
-                    (sizeof(void*) << 1) + 
-                    (uintptr_t)ucp->uc_stack.ss_sp);
+    uintptr_t u_p =
+        (uintptr_t)(ucp->uc_stack.ss_size - (sizeof(void *) << 1) + (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
     ucp->registers[4] = (uintptr_t)(func);
-    ucp->registers[5] = (uintptr_t)(u_p - sizeof(void*));
-    *((void**)(ucp->registers[5])) = (void*)(NULL);
+    ucp->registers[5] = (uintptr_t)(u_p - sizeof(void *));
+    *((void **)(ucp->registers[5])) = (void *)(NULL);
 }
-asm(".text\n\t"
-    ".p2align 5\n\t"
+asm(".text                      \n\t"
+    ".p2align 5                 \n\t"
 #ifdef __APPLE__
-    ".globl _swapcontext     \n\t"
-    "_swapcontext:           \n\t"
+    ".globl _swapcontext        \n\t"
+    "_swapcontext:              \n\t"
 #else
-    ".globl swapcontext      \n\t"
-    "swapcontext:            \n\t"
+    ".globl SwapToContext       \n\t"
+    "SwapToContext:             \n\t"
 #endif
     "movq       (%rsp), %rdx    \n\t"
     "leaq       0x8(%rsp), %rcx \n\t"
@@ -90,25 +91,25 @@ asm(".text\n\t"
     "movq       %rcx, %rsp      \n\t"
     "jmp        *%rax           \n\t");
 #elif defined(__aarch64__)
-void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...) {
     va_list va;
     memset(ucp->registers, 0, 25 * 8);
-    if(argc != 2) __builtin_trap();
+    if (argc != 2)
+        __builtin_trap();
     va_start(va, argc);
     ucp->registers[23] = va_arg(va, uint32_t);
     ucp->registers[24] = va_arg(va, uint32_t);
     va_end(va);
-    uintptr_t u_p = (uintptr_t)(ucp->uc_stack.ss_size -
-		            (sizeof(void*) << 1) + 
-                    (uintptr_t)ucp->uc_stack.ss_sp);
+    uintptr_t u_p =
+        (uintptr_t)(ucp->uc_stack.ss_size - (sizeof(void *) << 1) + (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
     ucp->registers[13] = (uintptr_t)(func);
     ucp->registers[14] = (uintptr_t)(u_p);
 }
 asm(".text                      \n\t"
     ".p2align 5                 \n\t"
-    ".globl swapcontext         \n\t"
-    "swapcontext:               \n\t"
+    ".globl SwapToContext       \n\t"
+    "SwapToContext:             \n\t"
     "stp x16, x17, [x0]         \n\t"
     "stp x19, x20, [x0, #16]    \n\t"
     "stp x21, x22, [x0, #32]    \n\t"
@@ -141,11 +142,10 @@ asm(".text                      \n\t"
     "ldp x0,  x1,  [x2, #184]   \n\t"
     "ret                        \n\t");
 #elif defined(__arm__)
-void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *uc, void (*fn)(void), int argc, ...) {
     va_list arg;
-    uintptr_t u_p = (uintptr_t)(uc->uc_stack.ss_size -
-		            (sizeof(void*) << 1) + 
-                    (uintptr_t)uc->uc_stack.ss_sp);
+    uintptr_t u_p =
+        (uintptr_t)(uc->uc_stack.ss_size - (sizeof(void *) << 1) + (uintptr_t)uc->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
     va_start(arg, argc);
     uc->registers[0] = va_arg(arg, uint32_t);
@@ -156,8 +156,8 @@ void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
 }
 asm(".text\n\t"
     ".p2align 5\n\t"
-    ".globl swapcontext         \n\t"
-    "swapcontext:               \n\t"
+    ".globl SwapToContext       \n\t"
+    "SwapToContext:             \n\t"
     "stmia  r0, {r0-r14}        \n\t"
     "ldr    r0, [r1]            \n\t"
     "add    r1, r1, #8          \n\t"
@@ -167,15 +167,14 @@ asm(".text\n\t"
     "bx     lr                  \n\t");
 #elif defined(__mips__)
 #error "not implemented yet"
-void makecontext(jam_ucontext_t *uc, void (*fn)(void), int argc, ...) {
-	int i, *sp;
-	va_list arg;
-	va_start(arg, argc);
-	sp = (int*)uc->uc_stack.ss_sp+uc->uc_stack.ss_size/4;
-	for(i=0; i<4 && i<argc; i++)
-		uc->uc_mcontext.mc_regs[i+4] = va_arg(arg, int);
-	va_end(arg);
-	uc->uc_mcontext.mc_regs[29] = (int)sp;
-	uc->uc_mcontext.mc_regs[31] = (int)fn;
+void CreateContext(JAMScriptUserContext *uc, void (*fn)(void), int argc, ...) {
+    int i, *sp;
+    va_list arg;
+    va_start(arg, argc);
+    sp = (int *)uc->uc_stack.ss_sp + uc->uc_stack.ss_size / 4;
+    for (i = 0; i < 4 && i < argc; i++) uc->uc_mcontext.mc_regs[i + 4] = va_arg(arg, int);
+    va_end(arg);
+    uc->uc_mcontext.mc_regs[29] = (int)sp;
+    uc->uc_mcontext.mc_regs[31] = (int)fn;
 }
 #endif

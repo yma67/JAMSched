@@ -21,22 +21,22 @@ int CiteLabAdditionFunction(int a, char b, float c, short d, double e, long f, s
 }
 
 int main() {
-    jamscript::c_side_scheduler jamc_sched({ { 0, 30 * 1000, 0 } }, { { 0, 30 * 1000, 0 } }, 888, 1024 * 256, nullptr, [] (task_t* self, void* args) {
+    JAMScript::Scheduler jamc_sched({ { 0, 30 * 1000, 0 } }, { { 0, 30 * 1000, 0 } }, 888, 1024 * 256, nullptr, [] (CTask* self, void* args) {
         std::cout << "aaaa" << std::endl;
-        auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>(self->scheduler->get_scheduler_data(self->scheduler));
-        auto res = scheduler_ptr->add_local_named_task_async<int>(uint64_t(30 * 1000), uint64_t(500), "citelab", 1, 2, 0.5, 3, 1.25, 4, std::string("120.531.254"));
-        get_future(res.get());
-        assert(res->status == ack_finished);
+        auto* scheduler_ptr = static_cast<JAMScript::Scheduler*>(self->scheduler->GetSchedulerData(self->scheduler));
+        auto res = scheduler_ptr->CreateLocalNamedTaskAsync<int>(uint64_t(30 * 1000), uint64_t(500), "citelab", 1, 2, 0.5, 3, 1.25, 4, std::string("120.531.254"));
+        WaitForValueFromFuture(res.get());
+        assert(res->status == ACK_FINISHED);
         std::cout << *static_cast<int*>(res->data) << std::endl;
         assert(*static_cast<int*>(res->data) == 10);
         delete static_cast<int*>(res->data);
-        scheduler_ptr->exit();
-        finish_task(self, 0);
+        scheduler_ptr->Exit();
+        FinishTask(self, 0);
     });
-    jamc_sched.register_named_execution(
+    jamc_sched.RegisterNamedExecution(
         "citelab", 
         reinterpret_cast<void*>(CiteLabAdditionFunction)
     );
-    jamc_sched.run();
+    jamc_sched.Run();
     return 0;
 }

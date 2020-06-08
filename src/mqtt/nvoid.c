@@ -18,11 +18,12 @@
  *              See the License for the specific language governing permissions and
  *              limitations under the License.
  */
-#include "nvoid.h"
+#include "mqtt/nvoid.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdint.h>
 
 nvoid_t *nvoid_new(void *data, int len)
 {

@@ -35,7 +35,7 @@ typedef struct nvoid_t {
 /**
  * Memory block creator
  * @param data: data that initializes the memory block
- * @param len: length of the data (size of the memory block)
+ * @param len: length of the data (NumberOfTaskReady of the memory block)
  * @warning DO NOT USE a NULL in the data field 
  * @see    use nvoid_null() to create NULL memory block
  * @return NULL if not possible to allocate memory, or memory block, otherwise

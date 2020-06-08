@@ -8,32 +8,32 @@
 #include <jamscript-impl/jamscript-time.hh>
 
 struct task_data_transfer {
-    uint32_t task_id, exec_count;
+    uint32_t taskId, exec_count;
     uint64_t task_sleep;
-    jamscript::c_side_scheduler* scheduler;
-    jamscript::ctask_types task_type;
+    JAMScript::Scheduler* scheduler;
+    JAMScript::CTaskType taskType;
     task_data_transfer() : 
-    task_id(0), task_sleep(0), scheduler(nullptr), 
-    task_type(jamscript::real_time_task_t), exec_count(0) {}
-    task_data_transfer(uint32_t task_id, uint64_t task_sleep, 
-                       jamscript::c_side_scheduler* scheduler, 
-                       jamscript::ctask_types task_type) : 
-    task_id(task_id), task_sleep(task_sleep), scheduler(scheduler), 
-    task_type(task_type), exec_count(0) {}
+    taskId(0), task_sleep(0), scheduler(nullptr), 
+    taskType(JAMScript::REAL_TIME_TASK_T), exec_count(0) {}
+    task_data_transfer(uint32_t taskId, uint64_t task_sleep, 
+                       JAMScript::Scheduler* scheduler, 
+                       JAMScript::CTaskType taskType) : 
+    taskId(taskId), task_sleep(task_sleep), scheduler(scheduler), 
+    taskType(taskType), exec_count(0) {}
 };
 
 struct bi_dto {
-    std::vector<std::pair<uint64_t, jamscript::interactive_extender>>* 
+    std::vector<std::pair<uint64_t, JAMScript::InteractiveTaskExtender>>* 
     pinteractive_tasks;
     std::vector<std::pair<uint64_t, uint64_t>>* pbatch_tasks;
-    bi_dto(std::vector<std::pair<uint64_t, jamscript::interactive_extender>>* 
+    bi_dto(std::vector<std::pair<uint64_t, JAMScript::InteractiveTaskExtender>>* 
            pi, std::vector<std::pair<uint64_t, uint64_t>>* pb) : 
            pinteractive_tasks(pi), pbatch_tasks(pb) {}
 };
 
 int nrounds, batch_count = 0, interactive_count = 0, preempt_tslice = 0, 
     _bc, _ic;
-std::vector<jamscript::task_schedule_entry> normal_sched, greedy_sched;
+std::vector<JAMScript::RealTimeTaskScheduleEntry> normal_sched, greedy_sched;
 
 int main(int argc, char *argv[]) {
     // both of the followings are fine
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     uint32_t id;
     std::vector<uint64_t> tasks, tasks_exec_count;
     std::vector<task_data_transfer> task_dtos;
-    std::vector<std::pair<uint64_t, jamscript::interactive_extender>> 
+    std::vector<std::pair<uint64_t, JAMScript::InteractiveTaskExtender>> 
     interactive_tasks;
     std::vector<std::pair<uint64_t, uint64_t>> batch_tasks;
     bi_dto pbi({ &interactive_tasks, &batch_tasks });
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
             int arr, ddl, burst;
             trace_file >> arr >> ddl >> burst;
             interactive_tasks.push_back({ 
-                arr, jamscript::interactive_extender(burst, ddl, nullptr)
+                arr, JAMScript::InteractiveTaskExtender(burst, ddl, nullptr)
             });
         }
         trace_file >> nbtask;
@@ -88,35 +88,35 @@ int main(int argc, char *argv[]) {
             batch_tasks.push_back({ arr, burst });
         }
 
-        jamscript::c_side_scheduler jamc_sched(normal_sched, greedy_sched, 
+        JAMScript::Scheduler jamc_sched(normal_sched, greedy_sched, 
                                                0, 1024 * 256, &pbi, 
-                                               [](task_t* self, void* args) {
+                                               [](CTask* self, void* args) {
 
             {
-                auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>
-                    (self->scheduler->get_scheduler_data(self->scheduler));
+                auto* scheduler_ptr = static_cast<JAMScript::Scheduler*>
+                    (self->scheduler->GetSchedulerData(self->scheduler));
                 auto* batch_interactives = static_cast<bi_dto*>(args);
                 auto* interactive_tasks = batch_interactives->
                                           pinteractive_tasks;
                 auto* batch_tasks = batch_interactives->pbatch_tasks;
-                while (scheduler_ptr->get_current_timepoint_in_scheduler() / 1000 < nrounds * normal_sched.back().end_time) {
-                    auto curr_timediff = scheduler_ptr->get_current_timepoint_in_scheduler() / 1000;
+                while (scheduler_ptr->GetCurrentTimepointInScheduler() / 1000 < nrounds * normal_sched.back().endTime) {
+                    auto curr_timediff = scheduler_ptr->GetCurrentTimepointInScheduler() / 1000;
                     for (auto& itask: *interactive_tasks) {
                         if (curr_timediff >= itask.first && 
                             itask.second.handle == nullptr) {
                             itask.second.handle = scheduler_ptr->
-                            add_interactive_task(itask.second.deadline, 
+                            CreateInteractiveTask(itask.second.deadline, 
                                                  itask.second.burst, nullptr, 
-                                                 [](task_t* self, void* args) {
+                                                 [](CTask* self, void* args) {
                                 auto _itask_start = 
                                 std::chrono::high_resolution_clock::now();
                                 auto* extender = 
-                                static_cast<jamscript::interactive_extender*>(
-                                    self->task_fv->get_user_data(self)
+                                static_cast<JAMScript::InteractiveTaskExtender*>(
+                                    self->taskFunctionVector->GetUserData(self)
                                 );
-                                long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
-                                jamscript::jsleep_for(1000);
-                                long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
+                                long long prevns = this_scheduler()->GetCurrentTimepointInScheduler();
+                                JAMScript::SleepFor(1000);
+                                long long currns = this_scheduler()->GetCurrentTimepointInScheduler();
                                 std::cout << ("JSleep jitter in ns: " + std::to_string(currns - prevns - 1000 * 1000)) << std::endl;
                                 while (std::chrono::
                                        duration_cast<std::chrono::nanoseconds>(
@@ -129,30 +129,30 @@ int main(int argc, char *argv[]) {
                                         std::chrono::
                                         nanoseconds(preempt_tslice)
                                     );
-                                    yield_task(self);
+                                    YieldTask(self);
                                 }
                                 interactive_count++;
-                                extender->handle->status = ack_finished;
-                                notify_future(extender->handle.get());
-                                finish_task(self, 0);
+                                extender->handle->status = ACK_FINISHED;
+                                NotifyFinishOfFuture(extender->handle.get());
+                                FinishTask(self, 0);
                             });
                         }
                     }
                     for (auto& btask: *batch_tasks) {
                         if (curr_timediff >= btask.first) {
-                            scheduler_ptr->add_batch_task(btask.second, 
+                            scheduler_ptr->CreateBatchTask(btask.second, 
                                                           nullptr, 
-                                                          [](task_t* self, 
+                                                          [](CTask* self, 
                                                              void* args) {
                                 auto _btask_start = 
                                 std::chrono::high_resolution_clock::now();
                                 auto* extender = 
-                                static_cast<jamscript::batch_extender*>(
-                                    self->task_fv->get_user_data(self)
+                                static_cast<JAMScript::BatchTaskExtender*>(
+                                    self->taskFunctionVector->GetUserData(self)
                                 );
-                                long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
-                                jamscript::jsleep_for(1000);
-                                long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
+                                long long prevns = this_scheduler()->GetCurrentTimepointInScheduler();
+                                JAMScript::SleepFor(1000);
+                                long long currns = this_scheduler()->GetCurrentTimepointInScheduler();
                                 std::cout << ("JSleep jitter in ns: " + std::to_string(currns - prevns - 1000 * 1000)) << std::endl;
                                 while (std::chrono::
                                        duration_cast<std::chrono::nanoseconds>
@@ -164,10 +164,10 @@ int main(int argc, char *argv[]) {
                                     std::this_thread::sleep_for(
                                         std::chrono::
                                         nanoseconds(preempt_tslice));
-                                    yield_task(self);
+                                    YieldTask(self);
                                 }
                                 batch_count++;
-                                finish_task(self, 0);
+                                FinishTask(self, 0);
                             });
                             btask.first = std::numeric_limits<uint64_t>::max();
                         }
@@ -175,41 +175,41 @@ int main(int argc, char *argv[]) {
                     std::this_thread::sleep_for(
                         std::chrono::nanoseconds(preempt_tslice)
                     );
-                    yield_task(self);
+                    YieldTask(self);
                 }
-                scheduler_ptr->exit();
+                scheduler_ptr->Exit();
             }
-            finish_task(self, EXIT_SUCCESS);
+            FinishTask(self, EXIT_SUCCESS);
         });
         for (uint32_t i = 1; i < tasks.size(); i++) {
             task_dtos[i] = { i, tasks[i], &jamc_sched, 
-                             jamscript::real_time_task_t };
-            jamc_sched.add_real_time_task(i, &(*(task_dtos.begin() + i)), 
-                                          [](task_t* self, void* args) {
+                             JAMScript::REAL_TIME_TASK_T };
+            jamc_sched.CreateRealTimeTask(i, &(*(task_dtos.begin() + i)), 
+                                          [](CTask* self, void* args) {
                 {
                     auto _start_time = std::chrono::
                                        high_resolution_clock::now();
                     auto* pack = static_cast<task_data_transfer*>(args);
-                    if (pack->scheduler->get_num_cycle_finished() >= nrounds) {
-                        pack->scheduler->exit();
-                        finish_task(self, EXIT_SUCCESS);
+                    if (pack->scheduler->GetNumberOfCycleFinished() >= nrounds) {
+                        pack->scheduler->Exit();
+                        FinishTask(self, EXIT_SUCCESS);
                     }
-                    std::cout << "TASK #" << pack->task_id << " " << 
+                    std::cout << "TASK #" << pack->taskId << " " << 
                                  "EXEC"   << std::endl;
                     pack->exec_count++;
-                    pack->scheduler->add_real_time_task(pack->task_id, pack, 
-                                                        self->task_function);
+                    pack->scheduler->CreateRealTimeTask(pack->taskId, pack, 
+                                                        self->TaskFunction);
                     while (std::chrono::duration_cast<std::chrono::nanoseconds>
                            (std::chrono::high_resolution_clock::now() - 
                             _start_time).count() < pack->task_sleep * 1000);
                 }
-                finish_task(self, EXIT_SUCCESS);
+                FinishTask(self, EXIT_SUCCESS);
             });
         }
-        jamc_sched.run();
+        jamc_sched.Run();
         for (uint32_t i = 1; i < task_dtos.size(); i++) {
             std::cout << "TASK #" << i << " EXP: " << 
-                         jamc_sched.get_num_cycle_finished() * tasks_exec_count[i] << " " <<
+                         jamc_sched.GetNumberOfCycleFinished() * tasks_exec_count[i] << " " <<
                          "ACT: "  << task_dtos[i].exec_count << std::endl;
         }
         std::cout << "NORMAL LOWER BOUND: ";
@@ -218,17 +218,17 @@ int main(int argc, char *argv[]) {
         std::chrono::high_resolution_clock::now();
         for (auto& nsc: normal_sched) {
             auto inv_start = std::chrono::high_resolution_clock::now();
-            if (nsc.task_id != 0x0) {
+            if (nsc.taskId != 0x0) {
                 int cj = std::chrono::duration_cast<std::chrono::microseconds>(
                     inv_start - test_start
-                ).count() - nsc.start_time;
+                ).count() - nsc.startTime;
                 std::cout << cj << " ";
                 tacc += std::abs(cj);
                 cacc++;
             }
             while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - inv_start
-                   ).count() < (nsc.end_time - nsc.start_time) * 1000);
+                   ).count() < (nsc.endTime - nsc.startTime) * 1000);
         }
         std::cout << "AVG: " << double(tacc) / cacc << std::endl;
         std::cout << "GREEDY LOWER BOUND: ";
@@ -238,10 +238,10 @@ int main(int argc, char *argv[]) {
             decltype(test_start) inv_start = std::chrono::
                                              high_resolution_clock::now();
             // measure jitter if RT task
-            if (nsc.task_id != 0x0) {
+            if (nsc.taskId != 0x0) {
                 int cj = std::chrono::duration_cast<std::chrono::microseconds>(
                     inv_start - test_start
-                ).count() - nsc.start_time;
+                ).count() - nsc.startTime;
                 std::cout << cj << " ";
                 tacc += std::abs(cj);
                 cacc++;
@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
             // sleep until finishing this interval
             while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - inv_start
-                   ).count() < (nsc.end_time - nsc.start_time) * 1000);
+                   ).count() < (nsc.endTime - nsc.startTime) * 1000);
         }
         std::cout << "AVG: " << double(tacc) / cacc << std::endl;
         std::cout << "TOTAL-I: " << _ic << ", " <<

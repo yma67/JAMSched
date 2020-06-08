@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -12,15 +12,16 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-decider.hh"
-#include "jamscript-impl/jamscript-scheduler.hh"
-#include <vector>
+
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
-#include <algorithm>
 #include <iostream>
+#include <vector>
 
-jamscript::decider::
-decider(c_side_scheduler* sched) : scheduler(sched) {
+#include "jamscript-impl/jamscript-scheduler.hh"
+
+JAMScript::ScheduleDecider::ScheduleDecider(Scheduler *schedule) : scheduler(schedule) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
     srand(0);
 #else
@@ -28,92 +29,82 @@ decider(c_side_scheduler* sched) : scheduler(sched) {
 #endif
 }
 
-void 
-jamscript::decider::
-schedule_change(const std::vector<task_schedule_entry>& normal,
-                const std::vector<task_schedule_entry>& greedy) {
-    normal_ss_acc = calculate_acc(normal);
-    greedy_ss_acc = calculate_acc(greedy);
+void JAMScript::ScheduleDecider::NotifyChangeOfSchedule(
+    const std::vector<RealTimeTaskScheduleEntry> &normal,
+    const std::vector<RealTimeTaskScheduleEntry> &greedy) {
+    normalSpoadicServerAccumulator = CalculateAccumulator(normal);
+    greedySpoadicServerAccumulator = CalculateAccumulator(greedy);
 #ifdef JAMSCRIPT_SCHED_AI_EXP
     std::cout << "GREEDY ACC: ";
-    for (auto& r: greedy_ss_acc) std::cout << r << '\t';
+    for (auto &r : greedySpoadicServerAccumulator) std::cout << r << '\t';
     std::cout << std::endl << "NORMAL ACC: ";
-    for (auto& r: normal_ss_acc) std::cout << r << '\t';
+    for (auto &r : normalSpoadicServerAccumulator) std::cout << r << '\t';
     std::cout << std::endl;
 #endif
 }
 
-std::vector<uint64_t> 
-jamscript::decider::
-calculate_acc(const std::vector<task_schedule_entry>& sched) {
-    std::vector<uint64_t> accv(sched.back().end_time / 1000 + 1, 0);
-    uint64_t prev_time = 0, prev_acc = 0;
-    for (auto& entry: sched) {
-        if (entry.task_id == 0x0) {
-            for (uint64_t i = prev_time; i < entry.start_time / 1000; i++) {
-                accv[i] = prev_acc;
+std::vector<uint64_t> JAMScript::ScheduleDecider::CalculateAccumulator(
+    const std::vector<RealTimeTaskScheduleEntry> &schedule) {
+    std::vector<uint64_t> accv(schedule.back().endTime / 1000 + 1, 0);
+    uint64_t prevTime = 0, prevAcc = 0;
+    for (auto &entry : schedule) {
+        if (entry.taskId == 0x0) {
+            for (uint64_t i = prevTime; i < entry.startTime / 1000; i++) {
+                accv[i] = prevAcc;
             }
-            if (entry.end_time - entry.start_time < 1000) {
-                if (entry.end_time / 1000 != entry.start_time / 1000) {
-                    accv[entry.start_time / 1000] = prev_acc;
-                    accv[entry.end_time / 1000] = prev_acc + 
-                                    (entry.end_time / 1000) * 1000 - 
-                                     entry.start_time;
-                    prev_time = entry.end_time / 1000 + 1;
-                    prev_acc = accv[prev_time - 1] + 
-                           entry.end_time - (entry.end_time / 1000) * 1000;
+            if (entry.endTime - entry.startTime < 1000) {
+                if (entry.endTime / 1000 != entry.startTime / 1000) {
+                    accv[entry.startTime / 1000] = prevAcc;
+                    accv[entry.endTime / 1000] =
+                        prevAcc + (entry.endTime / 1000) * 1000 - entry.startTime;
+                    prevTime = entry.endTime / 1000 + 1;
+                    prevAcc = accv[prevTime - 1] + entry.endTime - (entry.endTime / 1000) * 1000;
                 } else {
-                    accv[entry.start_time / 1000] = prev_acc;
-                    prev_time = entry.end_time / 1000 + 1;
-                    prev_acc = accv[prev_time - 1] + 
-                           entry.end_time - entry.start_time;
+                    accv[entry.startTime / 1000] = prevAcc;
+                    prevTime = entry.endTime / 1000 + 1;
+                    prevAcc = accv[prevTime - 1] + entry.endTime - entry.startTime;
                 }
                 continue;
             }
-            for (uint64_t i = entry.start_time / 1000; 
-                          i < entry.end_time / 1000; i++) {
-                accv[i] = prev_acc + (i * 1000 - entry.start_time);
+            for (uint64_t i = entry.startTime / 1000; i < entry.endTime / 1000; i++) {
+                accv[i] = prevAcc + (i * 1000 - entry.startTime);
             }
-            prev_time = entry.end_time / 1000;
-            prev_acc = accv[prev_time - 1] + 1000;
+            prevTime = entry.endTime / 1000;
+            prevAcc = accv[prevTime - 1] + 1000;
         }
     }
-    accv[prev_time] = prev_acc;
+    accv[prevTime] = prevAcc;
     return accv;
 }
 
-void 
-jamscript::decider::record_interac(const interactive_extender& irecord) {
-    interactive_record.push_back(irecord);
+void JAMScript::ScheduleDecider::RecordInteractiveJobArrival(
+    const InteractiveTaskExtender &aInteractiveTaskRecord) {
+    interactiveTaskRecord.push_back(aInteractiveTaskRecord);
 }
 
-bool 
-jamscript::decider::decide() {
-if (interactive_record.empty()) {
+bool JAMScript::ScheduleDecider::DecideNextScheduleToRun() {
+    if (interactiveTaskRecord.empty()) {
         return rand() % 2 == 0;
     }
-    std::sort(interactive_record.begin(), interactive_record.end(), 
-              [](const interactive_extender& e1, 
-                 const interactive_extender& e2) {
-        return e1.deadline < e2.deadline;
-    });
-    uint64_t acc_normal = 0, currt_normal = 0, success_count_normal = 0, 
-             acc_greedy = 0, currt_greedy = 0, success_count_greedy = 0;
-    std::vector<interactive_extender> scg, scn;
-    for (auto& r: interactive_record) {
+    std::sort(interactiveTaskRecord.begin(), interactiveTaskRecord.end(),
+              [](const InteractiveTaskExtender &e1, const InteractiveTaskExtender &e2) {
+                  return e1.deadline < e2.deadline;
+              });
+    uint64_t acc_normal = 0, currt_normal = 0, success_count_normal = 0, acc_greedy = 0,
+             currt_greedy = 0, success_count_greedy = 0;
+    std::vector<InteractiveTaskExtender> scg, scn;
+    for (auto &r : interactiveTaskRecord) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "b: " << r.burst << ", acc: " << acc_normal << ", ddl: " << 
-                     r.deadline << std::endl;
+        std::cout << "b: " << r.burst << ", acc: " << acc_normal << ", ddl: " << r.deadline
+                  << std::endl;
 #endif
-        if (scheduler->multiplier * 
-            scheduler->normal_schedule.back().end_time <= r.deadline &&
-            r.deadline <= (scheduler->multiplier + 1) * 
-            scheduler->normal_schedule.back().end_time && 
-	        r.burst + acc_normal <= normal_ss_acc[
-                (r.deadline - 
-                 scheduler->multiplier * 
-                 scheduler->normal_schedule.back().end_time) / 1000
-            ]) {
+        if (scheduler->multiplier * scheduler->normalSchedule.back().endTime <= r.deadline &&
+            r.deadline <= (scheduler->multiplier + 1) * scheduler->normalSchedule.back().endTime &&
+            r.burst + acc_normal <=
+                normalSpoadicServerAccumulator[(r.deadline -
+                                                scheduler->multiplier *
+                                                    scheduler->normalSchedule.back().endTime) /
+                                               1000]) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
             std::cout << "accept" << std::endl;
 #endif
@@ -122,20 +113,18 @@ if (interactive_record.empty()) {
             scn.push_back(r);
         }
     }
-    for (auto& r: interactive_record) {
+    for (auto &r : interactiveTaskRecord) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "b: " << r.burst << ", acc: " << acc_greedy << ", ddl: " << 
-                     r.deadline << std::endl;
+        std::cout << "b: " << r.burst << ", acc: " << acc_greedy << ", ddl: " << r.deadline
+                  << std::endl;
 #endif
-        if (scheduler->multiplier * 
-            scheduler->greedy_schedule.back().end_time <= r.deadline &&
-            r.deadline <= (scheduler->multiplier + 1) * 
-            scheduler->greedy_schedule.back().end_time && 
-            r.burst + acc_greedy <= greedy_ss_acc[
-                (r.deadline - 
-                 scheduler->multiplier * 
-                 scheduler->greedy_schedule.back().end_time) / 1000
-            ]) {
+        if (scheduler->multiplier * scheduler->greedySchedule.back().endTime <= r.deadline &&
+            r.deadline <= (scheduler->multiplier + 1) * scheduler->greedySchedule.back().endTime &&
+            r.burst + acc_greedy <=
+                greedySpoadicServerAccumulator[(r.deadline -
+                                                scheduler->multiplier *
+                                                    scheduler->greedySchedule.back().endTime) /
+                                               1000]) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
             std::cout << "accept" << std::endl;
 #endif
@@ -146,16 +135,14 @@ if (interactive_record.empty()) {
     }
 #ifdef JAMSCRIPT_SCHED_AI_EXP
     std::cout << "greedy success: " << success_count_greedy << std::endl;
-    for (auto& r: scn) 
-        std::cout << "(" << r.burst << ", " << r.deadline << "), ";
+    for (auto &r : scn) std::cout << "(" << r.burst << ", " << r.deadline << "), ";
     std::cout << std::endl;
     std::cout << "normal success: " << success_count_normal << std::endl;
-    for (auto& r: scg) 
-        std::cout << "(" << r.burst << ", " << r.deadline << "), ";
+    for (auto &r : scg) std::cout << "(" << r.burst << ", " << r.deadline << "), ";
     std::cout << std::endl;
     std::cout << "=> ";
 #endif
-    interactive_record.clear();
+    interactiveTaskRecord.clear();
     if (success_count_greedy == success_count_normal) {
         return rand() % 2 == 0;
     } else if (success_count_greedy < success_count_normal) {

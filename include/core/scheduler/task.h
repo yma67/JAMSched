@@ -32,19 +32,19 @@ extern "C" {
 #include "core/scheduler/context.h"
 
 /**
- * @typedef scheduler_t
- * @brief  Definition of Scheduler
+ * @typedef CScheduler
+ * @brief  Definition of CScheduler
  */
-typedef struct scheduler_t scheduler_t;
+typedef struct CScheduler CScheduler;
 
 /**
- * @typedef task_t
- * @brief  Definition of Task
+ * @typedef CTask
+ * @brief  Definition of CTask
  */
-typedef struct task_t task_t;
+typedef struct CTask CTask;
 
 /**
- * @brief State Machine for Task
+ * @brief State Machine for CTask
  * @details upon a task established, it is READY
  * @details a task could be set to PENDING by user, either explicitly or using yield
  * @warning a PENDING task will not be executed, even if it is dispatched by scheduler
@@ -55,10 +55,10 @@ typedef enum {
     TASK_READY = 0, 
     TASK_PENDING = 1, 
     TASK_FINISHED
-} task_status_t;
+} TaskStatus;
 
 /**
- * @brief Exception for Task
+ * @brief Exception for CTask
  */
 typedef enum {
     SUCCESS_TASK,
@@ -68,164 +68,164 @@ typedef enum {
     ERROR_TASK_CONTEXT_SWITCH, 
     ERROR_TASK_WRONG_TYPE, 
     ERROR_TASK_CANCELLED
-} task_return_t;
+} TaskReturn;
 
-typedef struct task_fvt {
-    void (*resume_task)(task_t*);                               /// function for resuming a task, switch from scheduler to task
-    void (*yield_task_)(task_t*);                               /// function for ending a task, switch from task to scheduler
-    void*(*get_user_data)(task_t*);                             /// getter for user_data, useful when writing extension component based on task_t
-    void (*set_user_data)(task_t*, void*);                      /// setter for user_data, useful when writing extension component based on task_t
-} task_fvt;
+typedef struct TaskFunctions {
+    void (*ResumeTask)(CTask*);                  /// function for resuming a task, switch from scheduler to task
+    void (*YieldTask_)(CTask*);                  /// function for ending a task, switch from task to scheduler
+    void*(*GetUserData)(CTask*);                 /// getter for userData, useful when writing extension component based on CTask
+    void (*SetUserData)(CTask*, void*);          /// setter for userData, useful when writing extension component based on CTask
+} TaskFunctions;
 
-struct task_t {
-    task_status_t task_status;                                  /// state machine of a task
-    scheduler_t* scheduler;                                     /// scheduler of the task
-    jam_ucontext_t context;                                     /// context store for this task, could be use to restore its execution
-    unsigned int task_id;                                       /// id of the task, auto incremented
-    void (*task_function)(task_t*, void*);                      /// function to be executed as the task
-    void *task_args;                                            /// argument that WILL be passed into task function along with task itself
-    void *user_data;                                            /// argument that WILLNOT be passed into task function along with task itself
-    int return_value;                                           /// undefined until call finish_task
-    unsigned char *stack;                                       /// stack pointer to an allocated stack for this task, may NOT be null
-    unsigned int stack_size;                                    /// size of stack, used for check
-    task_fvt* task_fv;
+struct CTask {
+    TaskStatus taskStatus;                       /// state machine of a task
+    CScheduler* scheduler;                       /// scheduler of the task
+    JAMScriptUserContext context;                /// context store for this task, could be use to restore its execution
+    unsigned int taskId;                         /// id of the task, auto incremented
+    void (*TaskFunction)(CTask*, void*);         /// function to be executed as the task
+    void *taskArgs;                              /// argument that WILL be passed into task function along with task itself
+    void *userData;                              /// argument that WILLNOT be passed into task function along with task itself
+    int returnValue;                             /// undefined until call FinishTask
+    unsigned char *stack;                        /// stack pointer to an allocated stack for this task, may NOT be null
+    unsigned int stackSize;                      /// NumberOfTaskReady of stack, used for check
+    TaskFunctions* taskFunctionVector;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     unsigned long v_stack_id;
 #endif
 };
 
-struct scheduler_t {
-    unsigned int task_id_counter;                               /// auto-incremented task id generator
-    jam_ucontext_t scheduler_context;                           /// context store for scheduler, used to switch back to scheduler
-    task_t* (*next_task)(scheduler_t*);                         /// feed scheduler the next task to run
-    void (*idle_task)(scheduler_t*);                            /// activities to do if there is no task to run
-    void (*before_each)(task_t*);                               /// activities to do before executing ANY task
-    void (*after_each)(task_t*);                                /// activities to do after executing ANY task
-    void*(*get_scheduler_data)(scheduler_t*);                   /// getter for scheduler_data, useful when writing extension component based on scheduler_t
-    void (*set_scheduler_data)(scheduler_t*, void*);            /// getter for scheduler_data, useful when writing extension component based on scheduler_t
-    volatile int cont;                                          /// flag, used to determine whether scheduler continues to run
-    void* scheduler_data;                                       /// user defined data for scheduler, useful when building an extension of the scheduler
+struct CScheduler {
+    unsigned int taskIdCounter;                  /// auto-incremented task id generator
+    JAMScriptUserContext schedulerContext;       /// context store for scheduler, used to switch back to scheduler
+    CTask* (*NextTask)(CScheduler*);             /// feed scheduler the next task to run
+    void (*IdleTask)(CScheduler*);               /// activities to do if there is no task to run
+    void (*BeforeEach)(CTask*);                  /// activities to do before executing ANY task
+    void (*AfterEach)(CTask*);                   /// activities to do after executing ANY task
+    void*(*GetSchedulerData)(CScheduler*);       /// getter for schedulerData, useful when writing extension component based on CScheduler
+    void (*SetSchedulerData)(CScheduler*, void*);/// getter for schedulerData, useful when writing extension component based on CScheduler
+    volatile int isSchedulerContinue;            /// flag, used to determine whether scheduler continues to run
+    void* schedulerData;                         /// user defined data for scheduler, useful when building an extension of the scheduler
 };
 
-extern __thread task_t* current_task;
+extern __thread CTask* currentTask;
 
 /**
- * Task Initializer
- * @param task_bytes: memory allocated for a task,
+ * CTask Initializer
+ * @param taskBytes: memory allocated for a task,
  * @param scheduler: scheduler of the task
- * @param task_function: function to be executed as the task
- * @param task_args: argument that WILL be passed into task function along with task itself
- * @param stack_size: size of coroutine/task stack
+ * @param TaskFunction: function to be executed as the task
+ * @param taskArgs: argument that WILL be passed into task function along with task itself
+ * @param stackSize: NumberOfTaskReady of coroutine/task stack
  * @param stack: pointer to stack allocated for coroutine/task
  * @warning due to the dependency injection nature of the framework, caller is responsible for 
- *          allocating and initializing memory with proper size and content, it is suggested to 
- *          be set to 0 using memset. this is valid on, but not limited to task_bytes
- * @warning task_bytes, scheduler, task_function, should NOT be NULL
+ *          allocating and initializing memory with proper NumberOfTaskReady and content, it is suggested to 
+ *          be set to 0 using memset. this is valid on, but not limited to taskBytes
+ * @warning taskBytes, scheduler, TaskFunction, should NOT be NULL
  * @warning not thread safe
- * @remark  user is responsible of parsing user_data and task_args
- * @remark  user is responsible of setting user_data 
- * @remark  task_function is not executed atomically/transactionally
+ * @remark  user is responsible of parsing userData and taskArgs
+ * @remark  user is responsible of setting userData 
+ * @remark  TaskFunction is not executed atomically/transactionally
  * @remark  task is READY after function returns
- * @details sanity checks, setup task_t, initialize coroutine context, make task to be READY
+ * @details sanity checks, setup CTask, initialize coroutine context, make task to be READY
  * @return  SUCCESS_TASK if success, otherwise ERROR_TASK_INVALID_ARGUMENT
  */
-extern task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, 
-                               void (*task_function)(task_t*, void*), 
-                               void* task_args, unsigned int stack_size, 
+extern TaskReturn CreateTask(CTask* taskBytes, CScheduler* scheduler, 
+                               void (*TaskFunction)(CTask*, void*), 
+                               void* taskArgs, unsigned int stackSize, 
                                unsigned char* stack);
 
 /**
- * Scheduler Initializer
- * @param scheduler_bytes: memory allocated for a scheduler,
- * @param next_task: feed scheduler the next task to run
- * @param idle_task: activities to do if there is no task to run
- * @param before_each: activities to do before executing ANY task
- * @param after_each: activities to do after executing ANY task
+ * CScheduler Initializer
+ * @param schedulerBytes: memory allocated for a scheduler,
+ * @param NextTask: feed scheduler the next task to run
+ * @param IdleTask: activities to do if there is no task to run
+ * @param BeforeEach: activities to do before executing ANY task
+ * @param AfterEach: activities to do after executing ANY task
  * @warning due to the dependency injection nature of the framework, caller is responsible for 
- *          allocating and initializing memory with proper size and content, it is suggested to 
- *          be set to 0 using memset. this is valid on, but not limited to scheduler_bytes
- * @warning next_task, idle_task, before_each, after_each should NOT be NULL
+ *          allocating and initializing memory with proper NumberOfTaskReady and content, it is suggested to 
+ *          be set to 0 using memset. this is valid on, but not limited to schedulerBytes
+ * @warning NextTask, IdleTask, BeforeEach, AfterEach should NOT be NULL
  * @warning not thread safe
- * @remark  before_each, after_each could be a setup/cleanup
+ * @remark  BeforeEach, AfterEach could be a setup/cleanup
  * @return  SUCCESS_TASK if success, otherwise ERROR_TASK_INVALID_ARGUMENT
  */
-extern task_return_t make_scheduler(scheduler_t* scheduler_bytes, 
-                                    task_t* (*next_task)(scheduler_t* self), 
-                                    void (*idle_task)(scheduler_t* self), 
-                                    void (*before_each)(task_t*), 
-                                    void (*after_each)(task_t*));
+extern TaskReturn CreateScheduler(CScheduler* schedulerBytes, 
+                                    CTask* (*NextTask)(CScheduler* self), 
+                                    void (*IdleTask)(CScheduler* self), 
+                                    void (*BeforeEach)(CTask*), 
+                                    void (*AfterEach)(CTask*));
 
 /**
- * Shutdown Scheduler
+ * Shutdown CScheduler
  * @param scheduler: scheduler to be shut down
  * @warning schedluer may not be null
  * @warning this is not synchronized, the time of effect depends on task and all other functions
- * @warning this is not atomic and value of scheduler_t::cont may be unexpected due to DATA RACE
+ * @warning this is not atomic and value of CScheduler::isSchedulerContinue may be unexpected due to DATA RACE
  * @details break the while loop of the scheduler for its NEXT cycle
  * @return  SUCCESS_TASK if success, otherwise ERROR_TASK_INVALID_ARGUMENT
  */
-extern task_return_t shutdown_scheduler(scheduler_t* scheduler);
+extern TaskReturn ShutdownScheduler(CScheduler* scheduler);
 
 /**
- * Yield Task
- * @param yielding_task: task to give up its context
+ * Yield CTask
+ * @param yieldingTask: task to give up its context
  * @warning this is NOT an atomic operation, and it is subject to DATA RACE
  * @warning will fail if stack overflow detected
  * @return void
  */
-#define yield_task(yielding_task)                                              \
-    if (yielding_task == NULL) __builtin_trap();                               \
-    yielding_task->task_fv->yield_task_(yielding_task);
+#define YieldTask(yieldingTask)\
+    if (yieldingTask == NULL) __builtin_trap();\
+    yieldingTask->taskFunctionVector->YieldTask_(yieldingTask);
 
 /**
- * Finish Task
- * @param finishing_task: task to declare a finish of task, and a task MUST declare a finish 
- * @param finishing_task_return_value: return value of the task function, could be retrieved later on
- * @warning: this write is NOT atomic, and may not be propergated to other cores in a 
+ * Finish CTask
+ * @param finishingTask: task to declare a finish of task, and a task MUST declare a finish
+ * @param finishingTaskReturnValue: return value of the task function, could be retrieved later on
+ * @warning: this write is NOT atomic, and may not be propergated to other cores in a
  *           multiprocessor program
  * @warning: a finished task could not be restored
- * @warning: USE THIS VERY CAREFULLY IN C++, add an extra {} to wrap all your code in the task_function
- *           before invoking this macro at the end
+ * @warning: USE THIS VERY CAREFULLY IN C++, CreateRIBTask an extra {} to wrap all your code in the
+ * TaskFunction before invoking this macro at the end
  * @return not meaningful
  */
-#define finish_task(finishing_task, finishing_task_return_value)               \
-    finishing_task->task_status = TASK_FINISHED;                               \
-    finishing_task->return_value = finishing_task_return_value;                \
-    yield_task(finishing_task);
+#define FinishTask(finishingTask, finishingTaskReturnValue)\
+    finishingTask->taskStatus = TASK_FINISHED;\
+    finishingTask->returnValue = finishingTaskReturnValue;\
+    YieldTask(finishingTask);
 
-#define this_task() (current_task)
+#define ThisTask() (currentTask)
 
 /**
- * Scheduler Mainloop
+ * CScheduler Mainloop
  * @param scheduler: scheduler to start
  * @remark  this is the start of execution of scheduling framework where we proudly 
  *          accept your flow of execution until you order shutdown
- * @details executes the following functions in order: before_each, task, after_each if there is 
- *          a task, otherwise, idle_task
+ * @details executes the following functions in order: BeforeEach, task, AfterEach if there is 
+ *          a task, otherwise, IdleTask
  * @remark  these functions could fully cover all possible points of injecting codes into scheduler
  *          loop, and is running in context of SCHEDULER, not TASK
  * @remark  these functions are not atomic/executed transactionally
- * @remark  to enable a common teardown for idle_task and after_each, call a common function within
- *          idle_task and after_each
+ * @remark  to EnableTask a common teardown for IdleTask and AfterEach, call a common function within
+ *          IdleTask and AfterEach
  * @return  void
  */
-extern void scheduler_mainloop(scheduler_t* scheduler);
+extern void SchedulerMainloop(CScheduler* scheduler);
 
 /**
- * function placeholder for next_task and idle_task
+ * function placeholder for NextTask and IdleTask
  * @param   self: scheduler to be scheduled
  * @details this function does nothing and returns nothing
  * @return  void
  */
-extern void empty_func_next_idle(scheduler_t* self);
+extern void EmptyFuncNextIdle(CScheduler* self);
 
 /**
- * function placeholder for before_each and after_each
+ * function placeholder for BeforeEach and AfterEach
  * @param   self: task to be cleaned up
  * @details this function does nothing and returns nothing
  * @return  void
  */
-extern void empty_func_before_after(task_t* self);
+extern void EmptyFuncBeforeAfter(CTask* self);
 
 #ifdef __cplusplus
 }

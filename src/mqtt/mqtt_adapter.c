@@ -26,8 +26,8 @@
 #include <stdlib.h>
 #include <MQTTAsync.h>
 #include <string.h>
-#include "nvoid.h"
-#include "mqtt_adapter.h"
+#include "mqtt/nvoid.h"
+#include "mqtt/mqtt_adapter.h"
 
 void mqtt_default_conn_lost(void *ctx, char *cause)
 {

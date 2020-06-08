@@ -13,41 +13,41 @@
 #include <core/scheduler/task.h>
 #include <jamscript-impl/jamscript-future.hh>
 
-namespace jamscript {
+namespace JAMScript {
 
-class invalid_argument_exception: public std::exception {
+class InvalidArgumentException: public std::exception {
 private:
     std::string message_;
 public:
-    explicit invalid_argument_exception(const std::string& message) : 
+    explicit InvalidArgumentException(const std::string& message) : 
     message_(message) {};
     virtual const char* what() const throw() {
         return message_.c_str();
     }
 };
 
-class remote_handler {
+class RemoteExecutionAgent {
 public:
     void operator()(const std::function<bool()>& predicate);
-    bool notify_local(uint64_t id, ack_types status, 
-                       const nlohmann::json& return_val);
-    remote_handler();
+    bool NotifyLocalTaskRemoteFinish(uint64_t id, Ack status, 
+                       const nlohmann::json& returnValue);
+    RemoteExecutionAgent();
 private:
-    std::recursive_mutex pool_mutex;
-    std::uint64_t exec_id_generator;
-    std::deque<nlohmann::json> to_send_pool;
+    std::recursive_mutex poolMutex;
+    std::uint64_t executionIdGenerator;
+    std::deque<nlohmann::json> toSendPool;
     std::unordered_map<std::uint64_t, 
-                       std::shared_ptr<future<nlohmann::json>>> to_wait_pool;
+                       std::shared_ptr<Future<nlohmann::json>>> toWaitPool;
 public:
     template <typename... Args>
-    std::shared_ptr<future<nlohmann::json>>
-    register_remote(const std::string& remote_function_name, 
+    std::shared_ptr<Future<nlohmann::json>>
+    RegisterRemoteExecution(const std::string& remoteFunctionName, 
                     const std::string& condstr, uint32_t condvec, 
                     Args&& ...args) {
-        auto f = std::make_shared<future<nlohmann::json>>();
-        nlohmann::json rexec_json = {
+        auto f = std::make_shared<Future<nlohmann::json>>();
+        nlohmann::json rexecJSON = {
             { 
-                "func_name", remote_function_name 
+                "func_name", remoteFunctionName 
             }, 
             { 
                 "args", 
@@ -61,21 +61,21 @@ public:
             }
         };
         {
-            std::lock_guard<std::recursive_mutex> lock(pool_mutex);
-            auto id = exec_id_generator++;
-            rexec_json.push_back({ "exec_id", id });
-            to_send_pool.push_back(rexec_json);
-            to_wait_pool.insert({ id, f });
+            std::lock_guard<std::recursive_mutex> lock(poolMutex);
+            auto id = executionIdGenerator++;
+            rexecJSON.push_back({ "exec_id", id });
+            toSendPool.push_back(rexecJSON);
+            toWaitPool.insert({ id, f });
         }
         return f;
     }
 };
 
 template <typename Tr>
-const Tr extract_local_named_exec(const std::shared_ptr<jamfuture_t>& f) {
-    get_future(f.get());
-    if (f->status != ack_finished) {
-        throw invalid_argument_exception("value not ready");
+const Tr ExtractValueFromLocalNamedExecution(const std::shared_ptr<CFuture>& f) {
+    WaitForValueFromFuture(f.get());
+    if (f->status != ACK_FINISHED) {
+        throw InvalidArgumentException("value not SetTaskReady");
     }
     auto* pr = static_cast<Tr*>(f->data);
     const auto r = std::move(*pr);
@@ -84,14 +84,14 @@ const Tr extract_local_named_exec(const std::shared_ptr<jamfuture_t>& f) {
 }
 
 template <typename Tr>
-Tr extract_local_named_exec(const std::shared_ptr<future<Tr>>& f) {
-    return f->get();
+Tr ExtractValueFromLocalNamedExecution(const std::shared_ptr<Future<Tr>>& f) {
+    return f->Get();
 }
 
 template <typename Tr>
 Tr 
-extract_remote_named_exec(const std::shared_ptr<future<nlohmann::json>>& f) {
-    return f->get()["return_val"].get<Tr>();
+ExtractValueFromRemoteNamedExecution(const std::shared_ptr<Future<nlohmann::json>>& f) {
+    return f->Get()["returnValue"].get<Tr>();
 }
 
 }

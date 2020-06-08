@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -12,108 +12,104 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "core/scheduler/task.h"
+
 #include <stdint.h>
 
 #define TASK_STACK_MIN 256
 #ifndef NULL
-#define NULL ((void *)0)
+#define NULL ((void*)0)
 #endif
 
-__thread task_t* current_task;
+__thread CTask* currentTask;
 
-void empty_func_next_idle(scheduler_t* self) {}
-void empty_func_before_after(task_t* self) {}
-void* get_user_data(task_t* t) { return t->user_data; }
-void  set_user_data(task_t* t, void* pudata) { t->user_data = pudata; }
-void* get_scheduler_data(scheduler_t* s) { return s->scheduler_data; }
-void  set_scheduler_data(scheduler_t* s, void* psdata) { 
-    s->scheduler_data = psdata;
+void EmptyFuncNextIdle(CScheduler* self) {}
+void EmptyFuncBeforeAfter(CTask* self) {}
+void* GetUserData(CTask* t) { return t->userData; }
+void SetUserData(CTask* t, void* pudata) { t->userData = pudata; }
+void* GetSchedulerData(CScheduler* s) { return s->schedulerData; }
+void SetSchedulerData(CScheduler* s, void* psdata) { s->schedulerData = psdata; }
+
+static void StartTask(unsigned int taskAddressLower32Bits, unsigned int taskAddressUpper32Bits) {
+    CTask* task =
+        (CTask*)(taskAddressLower32Bits | (((unsigned long)taskAddressUpper32Bits << 16) << 16));
+    task->TaskFunction(task, task->taskArgs);
+    task->taskStatus = TASK_FINISHED;
+    YieldTask(task);
 }
 
-void start_task(unsigned int task_addr_lower, unsigned int task_addr_upper) {
-	task_t *task = (task_t*)(task_addr_lower | 
-                   (((unsigned long)task_addr_upper << 16) << 16));
-	task->task_function(task, task->task_args);
-	task->task_status = TASK_FINISHED;
-    yield_task(task);
+void ResumeRegularTask(CTask* self) {
+    currentTask = self;
+    SwapToContext(&self->scheduler->schedulerContext, &self->context);
 }
 
-void resume_regular_task(task_t* self) {
-    current_task = self;
-    swapcontext(&self->scheduler->scheduler_context, &self->context);
+void YieldRegularTask(CTask* task) {
+    if (task == NULL)
+        return;
+    SwapToContext(&task->context, &task->scheduler->schedulerContext);
 }
 
-void yield_regular_task(task_t* task) {
-    if (task == NULL) return;
-    swapcontext(&task->context, &task->scheduler->scheduler_context);
-}
+TaskFunctions regular_task_fv = {.ResumeTask = ResumeRegularTask,
+                                 .YieldTask_ = YieldRegularTask,
+                                 .GetUserData = GetUserData,
+                                 .SetUserData = SetUserData};
 
-task_fvt regular_task_fv = {
-    .resume_task   = resume_regular_task,
-    .yield_task_   = yield_regular_task, 
-    .get_user_data = get_user_data,
-    .set_user_data = set_user_data
-};
-
-task_return_t make_task(task_t* task_bytes, scheduler_t* scheduler, 
-                        void (*task_function)(task_t*, void*), void* task_args,
-                        unsigned int stack_size, unsigned char* stack) {
+TaskReturn CreateTask(CTask* taskBytes, CScheduler* scheduler, void (*TaskFunction)(CTask*, void*),
+                      void* taskArgs, unsigned int stackSize, unsigned char* stack) {
     // init task injected
-    if (task_bytes == NULL || scheduler == NULL || task_function == NULL) {
+    if (taskBytes == NULL || scheduler == NULL || TaskFunction == NULL) {
         return ERROR_TASK_INVALID_ARGUMENT;
     }
-    task_bytes->stack_size = stack_size;
-    task_bytes->task_id = scheduler->task_id_counter;
-    task_bytes->task_function = task_function;
-    task_bytes->task_args = task_args;
-    task_bytes->scheduler = scheduler;
-    task_bytes->stack = stack;
-    scheduler->task_id_counter = scheduler->task_id_counter + 1;
-    task_bytes->task_fv = &regular_task_fv;
-    task_bytes->context.uc_stack.ss_sp = task_bytes->stack;
-    task_bytes->context.uc_stack.ss_size = task_bytes->stack_size;
-    makecontext(&task_bytes->context, (void(*)())start_task, 2, 
-                (uint32_t)((uintptr_t)task_bytes), 
-                (uint32_t)(((uintptr_t)task_bytes >> 16) >> 16));
-    task_bytes->task_status = TASK_READY;
+    taskBytes->stackSize = stackSize;
+    taskBytes->taskId = scheduler->taskIdCounter;
+    taskBytes->TaskFunction = TaskFunction;
+    taskBytes->taskArgs = taskArgs;
+    taskBytes->scheduler = scheduler;
+    taskBytes->stack = stack;
+    scheduler->taskIdCounter = scheduler->taskIdCounter + 1;
+    taskBytes->taskFunctionVector = &regular_task_fv;
+    taskBytes->context.uc_stack.ss_sp = taskBytes->stack;
+    taskBytes->context.uc_stack.ss_size = taskBytes->stackSize;
+    CreateContext(&taskBytes->context, (void (*)())StartTask, 2, (uint32_t)((uintptr_t)taskBytes),
+                  (uint32_t)(((uintptr_t)taskBytes >> 16) >> 16));
+    taskBytes->taskStatus = TASK_READY;
     return SUCCESS_TASK;
 }
 
-task_return_t make_scheduler(scheduler_t* scheduler_bytes, 
-                             task_t* (*next_task)(scheduler_t* self), 
-                             void (*idle_task)(scheduler_t* self), 
-                             void (*before_each)(task_t*), 
-                             void (*after_each)(task_t*)) {
-    if (scheduler_bytes == NULL || next_task == NULL || idle_task == NULL || 
-        before_each == NULL || after_each == NULL) 
+TaskReturn CreateScheduler(CScheduler* schedulerBytes, CTask* (*NextTask)(CScheduler* self),
+                           void (*IdleTask)(CScheduler* self), void (*BeforeEach)(CTask*),
+                           void (*AfterEach)(CTask*)) {
+    if (schedulerBytes == NULL || NextTask == NULL || IdleTask == NULL || BeforeEach == NULL ||
+        AfterEach == NULL)
         return ERROR_TASK_INVALID_ARGUMENT;
-    scheduler_bytes->task_id_counter = 0;
-    scheduler_bytes->next_task = next_task;
-    scheduler_bytes->idle_task = idle_task;
-    scheduler_bytes->before_each = before_each;
-    scheduler_bytes->after_each = after_each;
-    scheduler_bytes->cont = 1;
-    scheduler_bytes->get_scheduler_data = get_scheduler_data;
-    scheduler_bytes->set_scheduler_data = set_scheduler_data;
+    schedulerBytes->taskIdCounter = 0;
+    schedulerBytes->NextTask = NextTask;
+    schedulerBytes->IdleTask = IdleTask;
+    schedulerBytes->BeforeEach = BeforeEach;
+    schedulerBytes->AfterEach = AfterEach;
+    schedulerBytes->isSchedulerContinue = 1;
+    schedulerBytes->GetSchedulerData = GetSchedulerData;
+    schedulerBytes->SetSchedulerData = SetSchedulerData;
     return SUCCESS_TASK;
 }
 
-task_return_t shutdown_scheduler(scheduler_t* scheduler) {
-    if (scheduler == NULL) return ERROR_TASK_INVALID_ARGUMENT;
-    scheduler->cont = 0;
+TaskReturn ShutdownScheduler(CScheduler* scheduler) {
+    if (scheduler == NULL)
+        return ERROR_TASK_INVALID_ARGUMENT;
+    scheduler->isSchedulerContinue = 0;
     return SUCCESS_TASK;
 }
 
-void scheduler_mainloop(scheduler_t* scheduler) {
-    if (scheduler == NULL) return;
-    while (scheduler->cont) {
-        task_t* to_run = scheduler->next_task(scheduler);
-        if (to_run != NULL && to_run->task_status == TASK_READY) {
-            scheduler->before_each(to_run);
-            to_run->task_fv->resume_task(to_run);
-            scheduler->after_each(to_run);
+void SchedulerMainloop(CScheduler* scheduler) {
+    if (scheduler == NULL)
+        return;
+    while (scheduler->isSchedulerContinue) {
+        CTask* to_run = scheduler->NextTask(scheduler);
+        if (to_run != NULL && to_run->taskStatus == TASK_READY) {
+            scheduler->BeforeEach(to_run);
+            to_run->taskFunctionVector->ResumeTask(to_run);
+            scheduler->AfterEach(to_run);
         } else {
-            scheduler->idle_task(scheduler);
+            scheduler->IdleTask(scheduler);
         }
     }
 }

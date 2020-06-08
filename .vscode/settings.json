@@ -66,5 +66,6 @@
         "shared_mutex": "cpp",
         "forward_list": "cpp"
     },
+    "C_Cpp.errorSquiggles": "Enabled",
     
 }

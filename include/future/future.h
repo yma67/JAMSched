@@ -1,27 +1,28 @@
 /**
- * @file        future.h 
+ * @file        future.h
  * @brief       async await protocol in JAMScript
- * @warning     DO NOT USE STACK LOCAL VARIABLE AS jamfuture_t OR data
- *              since get_future involves context switching
- * @warning     this implementation is abstract and minimal, but guarantees that 
+ * @warning     DO NOT USE STACK LOCAL VARIABLE AS CFuture OR data
+ *              since WaitForValueFromFuture involves context switching
+ * @warning     this implementation is abstract and minimal, but guarantees that
  *              a waiting task WILL NOT BE SCHEDULED, please avoid deadlock
- * @warning     althouth we chages task status and lock words atomically, 
- *              notify_future is not considered atomic because invocation of 
- *              post_future_callback is neither atomic nor synchronized
- * @warning     please avoid access of jamfuture_t::lock_word and task_t::task_status 
- *              by thread other than wakers and sleeper, otherwise, regular wakeup or sleep is not guaranteed
- * @remark      mechanism of avoiding a task to not being scheduled is simple 
+ * @warning     althouth we chages task status and lock words atomically,
+ *              NotifyFinishOfFuture is not considered atomic because invocation of
+ *              PostFutureCallback is neither atomic nor synchronized
+ * @warning     please avoid access of CFuture::lockWord and CTask::taskStatus
+ *              by thread other than wakers and sleeper, otherwise, regular wakeup or sleep is not
+ * guaranteed
+ * @remark      mechanism of avoiding a task to not being scheduled is simple
  *              by just marking the task as TASK_PENDING, but user may define other
- *              actions in post_future_callback, but this function is not atomic
- * @copyright 
- *              Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
- * 
+ *              actions in PostFutureCallback, but this function is not atomic
+ * @copyright
+ *              Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
+ *
  *              Licensed under the Apache License, Version 2.0 (the "License");
  *              you may not use this file except in compliance with the License.
  *              You may obtain a copy of the License at
- * 
+ *
  *                  http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  *              Unless required by applicable law or agreed to in writing, software
  *              distributed under the License is distributed on an "AS IS" BASIS,
  *              WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,67 +35,68 @@
 extern "C" {
 #endif
 
+#include <core/scheduler/task.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <core/scheduler/task.h>
 
-typedef struct jamfuture_t jamfuture_t;
-typedef enum { ack_finished, ack_cancelled, ack_failed } ack_types;
+typedef struct CFuture CFuture;
+typedef enum { ACK_FINISHED, ACK_CANCELLED, ACK_FAILED } Ack;
 
 /**
- * @struct jamfuture_t
- * @brief  await semantic for jamscript scheduler
- * @remarks used along with task_t, compatible with xtask 
+ * @struct CFuture
+ * @brief  await semantic for JAMScript scheduler
+ * @remarks used along with CTask, compatible with xtask
  * @details spin wait, then sleep
- * @warning DO NOT USE STACK LOCAL VARIABLE AS jamfuture_t OR data
- *          since get_future involves context switching
- * @warning please avoid access to jamfuture_t::lock_word and task_t::task_status 
- *          by thread other than wakers and sleeper, 
+ * @warning DO NOT USE STACK LOCAL VARIABLE AS CFuture OR data
+ *          since WaitForValueFromFuture involves context switching
+ * @warning please avoid access to CFuture::lockWord and CTask::taskStatus
+ *          by thread other than wakers and sleeper,
  *          otherwise, regular wakeup or sleep is not guaranteed
  */
-struct jamfuture_t {
-    uint32_t lock_word;                             /// spin lock for spin+sleep
-    void* data;                                     /// future data
-    task_t* owner_task;                             /// task that sleeps/wakeups
-    uint32_t spin_rounds;                           /// number of spin rounds
-    void (*post_future_callback)(jamfuture_t*);     /// cleanup after value prepared (make schedulable)
-    ack_types status;
+struct CFuture {
+    uint32_t lockWord;                     /// spin lock for spin+sleep
+    void* data;                            /// future data
+    CTask* ownerTask;                      /// task that sleeps/wakeups
+    uint32_t numberOfSpinRounds;           /// number of spin rounds
+    void (*PostFutureCallback)(CFuture*);  /// cleanup after value prepared (make schedulable)
+    Ack status;
 };
 
 /**
- * Future Initiallizer
+ * CFuture Initiallizer
  * @param future: memory buffer used for constructing the future
- * @param waiter: coroutine that waits while the future value not ready
+ * @param waiter: coroutine that waits while the future value not SetTaskReady
  * @param data: pointer to data buffer
- * @param post_future_callback: cleanup after future value ready, e.g. make the coroutine available for scheduling in scheduler::next_task
- * @warning post_future_callback will be an empty function if you set it to be NULL
+ * @param PostFutureCallback: cleanup after future value SetTaskReady, e.g. make the coroutine
+ * available for scheduling in scheduler::NextTask
+ * @warning PostFutureCallback will be an empty function if you set it to be NULL
  * @warning no atomicitiy guarantee
- * @see scheduler::next_task in task.h
+ * @see scheduler::NextTask in task.h
  */
-int make_future(jamfuture_t* future, task_t* waiter, void* data, 
-                void (*post_future_callback)(jamfuture_t*));
+int CreateFuture(CFuture* future, CTask* waiter, void* data, void (*PostFutureCallback)(CFuture*));
 
 /**
- * Get Future
+ * Get CFuture
  * @param future: data in this parameter will be retrieved
  * @warning DOES NOT USE STACK LOCAL VARIABLE with xtask
- * @warning this will make future->owner_task become unschedulable, i.e. status be changed to TASK_PENDING, which will NOT run by sheduler
+ * @warning this will make future->ownerTask become unschedulable, i.e. status be changed to
+ * TASK_PENDING, which will NOT run by sheduler
  */
-void get_future(jamfuture_t* future);
+void WaitForValueFromFuture(CFuture* future);
 
 /**
- * Notify Future
+ * Notify CFuture
  * @param future: data in this parameter will be retrieved
  * @warning DOES NOT USE STACK LOCAL VARIABLE with xtask
- * @warning this will call post_future_callback after future->owner_task being set to TASK_READY
+ * @warning this will call PostFutureCallback after future->ownerTask being set to TASK_READY
  */
-void notify_future(jamfuture_t* future);
+void NotifyFinishOfFuture(CFuture* future);
 
 /**
- * Placeholder for post_future_callback
+ * Placeholder for PostFutureCallback
  * @brief an empty function
  */
-void empty_func_post_future_callback(jamfuture_t* future);
+void EmptyFuncPostFutureCallback(CFuture* future);
 
 #ifdef __cplusplus
 }

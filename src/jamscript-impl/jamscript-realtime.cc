@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -12,88 +12,76 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-realtime.hh"
-#include "jamscript-impl/jamscript-tasktype.hh"
-#include "jamscript-impl/jamscript-scheduler.hh"
+
 #include <cstring>
 
-jamscript::realtime_manager::
-realtime_manager(c_side_scheduler* scheduler, uint32_t stack_size) : 
-scheduler(scheduler){
-    c_shared_stack = make_shared_stack(stack_size, malloc, free, memcpy);
-    task_map[0x0] = {};
+#include "jamscript-impl/jamscript-scheduler.hh"
+#include "jamscript-impl/jamscript-tasktype.hh"
+
+JAMScript::RealTimeTaskManager::RealTimeTaskManager(Scheduler *scheduler, uint32_t stackSize)
+    : scheduler(scheduler) {
+    cSharedStack = CreateSharedStack(stackSize, malloc, free, memcpy);
+    taskMap[0x0] = {};
 }
 
-jamscript::realtime_manager::
-~realtime_manager(){
+JAMScript::RealTimeTaskManager::~RealTimeTaskManager() {
     std::lock_guard<std::mutex> lock(m);
-    for (auto& [id, tasks]: task_map) {
+    for (auto &[id, tasks] : taskMap) {
         while (!tasks.empty()) {
-            task_t* task = tasks.back();
-            delete static_cast<real_time_extender*>(
-                    task->task_fv->get_user_data(task)
-            );
-            destroy_shared_stack_task(task);
+            CTask *task = tasks.back();
+            delete static_cast<RealTimeTaskExtender *>(task->taskFunctionVector->GetUserData(task));
+            DestroySharedStackTask(task);
             tasks.pop_back();
         }
     }
-    destroy_shared_stack(c_shared_stack);
+    DestroySharedStack(cSharedStack);
 }
 
-task_t* 
-jamscript::realtime_manager::
-add(uint32_t id, void* args, void(*func)(task_t *, void*)) {
-    if (c_shared_stack->is_allocatable) {
-        task_t* new_xtask = make_shared_stack_task(scheduler->c_scheduler,
-                                                   func, args,
-                                                   c_shared_stack);
-        if (new_xtask == nullptr) throw std::bad_alloc();
-        new_xtask->task_fv->set_user_data(new_xtask, 
-                                          new real_time_extender(id));
+CTask *JAMScript::RealTimeTaskManager::CreateRIBTask(uint32_t id, void *args,
+                                                     void (*func)(CTask *, void *)) {
+    if (cSharedStack->isAllocatable) {
+        CTask *new_xtask = CreateSharedStackTask(scheduler->cScheduler, func, args, cSharedStack);
+        if (new_xtask == nullptr)
+            throw std::bad_alloc();
+        new_xtask->taskFunctionVector->SetUserData(new_xtask, new RealTimeTaskExtender(id));
         {
             std::lock_guard<std::mutex> lock(m);
-            task_map[id].push_back(new_xtask);
+            taskMap[id].push_back(new_xtask);
             return new_xtask;
         }
-        delete static_cast<real_time_extender*>(
-            new_xtask->task_fv->get_user_data(new_xtask)
-        );
-        destroy_shared_stack_task(new_xtask);
+        delete static_cast<RealTimeTaskExtender *>(
+            new_xtask->taskFunctionVector->GetUserData(new_xtask));
+        DestroySharedStackTask(new_xtask);
         return nullptr;
     }
     return nullptr;
 }
 
-void 
-jamscript::realtime_manager::remove(task_t* to_remove) {
-    auto* traits2 = static_cast<real_time_extender*>(
-        to_remove->task_fv->get_user_data(to_remove)
-    );
+void JAMScript::RealTimeTaskManager::RemoveTask(CTask *to_remove) {
+    auto *traits2 =
+        static_cast<RealTimeTaskExtender *>(to_remove->taskFunctionVector->GetUserData(to_remove));
     delete traits2;
-    destroy_shared_stack_task(to_remove);
+    DestroySharedStackTask(to_remove);
 }
 
-task_t* 
-jamscript::realtime_manager::dispatch(uint32_t id) {
+CTask *JAMScript::RealTimeTaskManager::DispatchTask(uint32_t id) {
     std::lock_guard<std::mutex> lock(m);
-    if (task_map.find(id) != task_map.end()) {
-        auto& l = task_map[id];
-        if (l.empty()) return nullptr;
-        task_t* to_dispatch = l.front();
+    if (taskMap.find(id) != taskMap.end()) {
+        auto &l = taskMap[id];
+        if (l.empty())
+            return nullptr;
+        CTask *to_dispatch = l.front();
         l.pop_front();
         return to_dispatch;
     }
     return nullptr;
 }
 
-void 
-jamscript::realtime_manager::spin_until_end() {
-    while (scheduler->get_current_timepoint_in_cycle() < 
-           scheduler->current_schedule->
-           at(scheduler->current_schedule_slot).end_time * 1000) {
+void JAMScript::RealTimeTaskManager::SpinUntilEndOfCurrentInterval() {
+    while (scheduler->GetCurrentTimepointInCycle() <
+           scheduler->currentSchedule->at(scheduler->currentScheduleSlot).endTime * 1000) {
 #if defined(JAMSCRIPT_RT_SPINWAIT_DELTA) && JAMSCRIPT_RT_SPINWAIT_DELTA > 0
-        std::this_thread::sleep_for(
-            std::chrono::nanoseconds(JAMSCRIPT_RT_SPINWAIT_DELTA)
-        );
+        std::this_thread::sleep_for(std::chrono::nanoseconds(JAMSCRIPT_RT_SPINWAIT_DELTA));
 #endif
     }
 }

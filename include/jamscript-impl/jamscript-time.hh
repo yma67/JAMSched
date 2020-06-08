@@ -6,25 +6,25 @@
 #include "jamscript-impl/timeout.h"
 #include "jamscript-impl/jamscript-remote.hh"
 
-namespace jamscript {
-class c_side_scheduler;
+namespace JAMScript {
+class Scheduler;
 class JAMTimer {
 public:
-    friend class c_side_scheduler;
-    friend task_t* jamscript::next_task_jam_impl(scheduler_t *self_c);
-    JAMTimer(c_side_scheduler* scheduler);
+    friend class Scheduler;
+    friend CTask* NextTaskJAMScriptImpl(CScheduler *self_c);
+    JAMTimer(Scheduler* scheduler);
     ~JAMTimer();
     void NotifyAllTimeouts();
     void ZeroTimeout();
     void UpdateTimeout();
-    void SetContinueOnTimeoutFor(task_t* task, uint64_t t_ns);
-    void SetContinueOnTimeoutUntil(task_t* task, uint64_t t_ns);
-    static void jamscript_timeout_callback(void *args);
+    void SetContinueOnTimeoutFor(CTask* task, uint64_t t_ns);
+    void SetContinueOnTimeoutUntil(CTask* task, uint64_t t_ns);
+    static void TimeoutCallback(void *args);
 protected:
     JAMTimer() = delete;
     struct timeouts *timingWheelPtr;
-    c_side_scheduler* scheduler;
-    void SetContinueOnTimeout(task_t* task, uint64_t t_ns, bool isAbsolute);
+    Scheduler* scheduler;
+    void SetContinueOnTimeout(CTask* task, uint64_t t_ns, bool isAbsolute);
     JAMTimer (const JAMTimer &) = delete;
     JAMTimer & operator = (const JAMTimer &) = delete;
 };

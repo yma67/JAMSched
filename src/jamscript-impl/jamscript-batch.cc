@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -12,125 +12,97 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-batch.hh"
-#include "jamscript-impl/jamscript-tasktype.hh"
+
 #include "jamscript-impl/jamscript-scheduler.hh"
+#include "jamscript-impl/jamscript-tasktype.hh"
 
-jamscript::batch_manager::
-batch_manager(c_side_scheduler* scheduler, uint32_t stack_size) : 
-sporadic_manager(scheduler, stack_size) {
+JAMScript::BatchTaskManager::BatchTaskManager(Scheduler *scheduler, uint32_t stackSize)
+    : SporadicTaskManager(scheduler, stackSize) {}
 
-}
-
-jamscript::batch_manager::
-~batch_manager() {
+JAMScript::BatchTaskManager::~BatchTaskManager() {
     std::lock_guard<std::mutex> lock(m);
-    for (auto task: batch_queue) {
+    for (auto task : batchQueue) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
         delete[] task->stack;
-        delete static_cast<batch_extender*>(
-                task->task_fv->get_user_data(task)
-        );
+        delete static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
-    for (auto task: batch_wait) {
+    for (auto task : batchWait) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
         delete[] task->stack;
-        delete static_cast<batch_extender*>(
-                task->task_fv->get_user_data(task)
-        );
+        delete static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
 }
 
-task_t*
-jamscript::batch_manager::
-add(uint64_t burst, void* args, void (*batch_fn)(task_t*, void*)) {
-    auto* batch_task = new task_t;
-    auto* batch_task_stack = new unsigned char[stack_size];
+CTask *JAMScript::BatchTaskManager::CreateRIBTask(uint64_t burst, void *args,
+                                                  void (*BatchTaskFunction)(CTask *, void *)) {
+    auto *batchTask = new CTask;
+    auto *batchTaskStack = new unsigned char[stackSize];
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-    batch_task->v_stack_id = VALGRIND_STACK_REGISTER(
-        batch_task_stack, 
-        (void*)((uintptr_t)batch_task_stack + stack_size)
-    );
+    batchTask->v_stack_id =
+        VALGRIND_STACK_REGISTER(batchTaskStack, (void *)((uintptr_t)batchTaskStack + stackSize));
 #endif
-    make_task(batch_task, scheduler->c_scheduler, batch_fn,
-              args, stack_size, batch_task_stack);
-    batch_task->task_fv->set_user_data(batch_task, new batch_extender(burst));
+    CreateTask(batchTask, scheduler->cScheduler, BatchTaskFunction, args, stackSize,
+               batchTaskStack);
+    batchTask->taskFunctionVector->SetUserData(batchTask, new BatchTaskExtender(burst));
     {
         std::unique_lock<std::mutex> lock(m);
-        batch_queue.push_back(batch_task);
+        batchQueue.push_back(batchTask);
     }
-    return batch_task;
+    return batchTask;
 }
 
-task_t* 
-jamscript::batch_manager::
-add(task_t *parent, uint64_t deadline, uint64_t burst,
-    void *args, void (*func)(task_t *, void *)) {
-    return add(burst, args, func);
+CTask *JAMScript::BatchTaskManager::CreateRIBTask(CTask *parent, uint64_t deadline, uint64_t burst,
+                                                  void *args, void (*func)(CTask *, void *)) {
+    return CreateRIBTask(burst, args, func);
 }
 
-task_t* 
-jamscript::batch_manager::dispatch() {
+CTask *JAMScript::BatchTaskManager::DispatchTask() {
     std::lock_guard<std::mutex> lock(m);
-    if (batch_queue.empty()) return nullptr;
-    task_t* to_return = batch_queue.front();
-    batch_queue.pop_front();
+    if (batchQueue.empty())
+        return nullptr;
+    CTask *to_return = batchQueue.front();
+    batchQueue.pop_front();
     return to_return;
 }
 
-const uint32_t 
-jamscript::batch_manager::size() const {
-    return batch_queue.size();
+const uint32_t JAMScript::BatchTaskManager::NumberOfTaskReady() const { return batchQueue.size(); }
+
+void JAMScript::BatchTaskManager::PauseTask(CTask *task) {
+    std::lock_guard<std::mutex> lock(m);
+    batchWait.insert(task);
 }
 
-void 
-jamscript::batch_manager::pause(task_t* task) {
+bool JAMScript::BatchTaskManager::SetTaskReady(CTask *task) {
     std::lock_guard<std::mutex> lock(m);
-    batch_wait.insert(task);
-}
-
-bool 
-jamscript::batch_manager::ready(task_t* task) {
-    auto* cpp_task_traits2 = static_cast<interactive_extender*>(
-                task->task_fv->get_user_data(task)
-            );
-    std::lock_guard<std::mutex> lock(m);
-    if (batch_wait.find(task) != batch_wait.end()) {
-        batch_wait.erase(task);
-        batch_queue.push_back(task);
+    if (batchWait.find(task) != batchWait.end()) {
+        batchWait.erase(task);
+        batchQueue.push_back(task);
         return true;
     }
     return false;
 }
 
-void 
-jamscript::batch_manager::enable(task_t* task) {
+void JAMScript::BatchTaskManager::EnableTask(CTask *task) {
     std::lock_guard<std::mutex> lock(m);
-    batch_queue.push_back(task);
+    batchQueue.push_back(task);
 }
 
-void
-jamscript::batch_manager::remove(task_t* to_remove) {
+void JAMScript::BatchTaskManager::RemoveTask(CTask *to_remove) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     VALGRIND_STACK_DEREGISTER(to_remove->v_stack_id);
 #endif
     delete[] to_remove->stack;
-    delete static_cast<batch_extender*>(
-            to_remove->task_fv->get_user_data(to_remove)
-    );
+    delete static_cast<BatchTaskExtender *>(to_remove->taskFunctionVector->GetUserData(to_remove));
     delete to_remove;
 }
 
-void 
-jamscript::batch_manager::
-update_burst(task_t* task, uint64_t burst) {
-    auto* traits = static_cast<batch_extender*>(
-        task->task_fv->get_user_data(task)
-    );
+void JAMScript::BatchTaskManager::UpdateBurstToTask(CTask *task, uint64_t burst) {
+    auto *traits = static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
     traits->burst -= burst;
 }

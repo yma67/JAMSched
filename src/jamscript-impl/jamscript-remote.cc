@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -13,68 +13,45 @@
 /// limitations under the License.
 #include "jamscript-impl/jamscript-remote.hh"
 
-jamscript::remote_handler::remote_handler() : exec_id_generator(0) {
+JAMScript::RemoteExecutionAgent::RemoteExecutionAgent() : executionIdGenerator(0) {}
 
-}
-
-void jamscript::remote_handler::
-operator()(const std::function<bool()>& predicate) {
+void JAMScript::RemoteExecutionAgent::operator()(const std::function<bool()> &predicate) {
     while (predicate()) {
-        std::unique_lock<std::recursive_mutex> lock(pool_mutex);
-        if (!to_send_pool.empty()) {
-            std::cout << to_send_pool.front() << std::endl;
-            uint64_t id = to_send_pool.front()["exec_id"].get<uint64_t>();
-            if (to_send_pool.front()["condstr"].get<std::string>() == "this == fog" && 
-                to_send_pool.front()["condvec"].get<uint32_t>() == 1) {
-                notify_local(
-                    id, ack_finished, { { 
-                        "return_val", 
-                        "command, condvec, and fmask!" 
-                    } 
-                });
+        std::unique_lock<std::recursive_mutex> lock(poolMutex);
+        if (!toSendPool.empty()) {
+            std::cout << toSendPool.front() << std::endl;
+            uint64_t id = toSendPool.front()["exec_id"].get<uint64_t>();
+            if (toSendPool.front()["condstr"].get<std::string>() == "this == fog" &&
+                toSendPool.front()["condvec"].get<uint32_t>() == 1) {
+                NotifyLocalTaskRemoteFinish(id, ACK_FINISHED,
+                                            {{"returnValue", "command, condvec, and fmask!"}});
             } else {
-                notify_local(
-                    id, ack_failed, { { 
-                        "return_exception", 
-                        "wrong device, should be fog only" 
-                    } 
-                });
+                NotifyLocalTaskRemoteFinish(
+                    id, ACK_FAILED, {{"return_exception", "wrong device, should be fog only"}});
             }
-            to_send_pool.pop_front();
+            toSendPool.pop_front();
         }
     }
 }
 
-bool jamscript::remote_handler::
-notify_local(uint64_t id, ack_types status, 
-              const nlohmann::json& return_val) {
-    std::lock_guard<std::recursive_mutex> lock(pool_mutex);
-    if (to_wait_pool.find(id) != to_wait_pool.end()) {
-        auto f = to_wait_pool[id];
-        if (return_val.contains("return_val") && status == ack_finished) {
-            f->set_value(return_val);
-        } else if (return_val.contains("return_exception") && 
-                   status != ack_finished) {
-            f->set_exception(
-                std::make_exception_ptr(
-                    invalid_argument_exception(
-                        return_val["return_exception"].get<std::string>()
-                    )
-                )
-            );
+bool JAMScript::RemoteExecutionAgent::NotifyLocalTaskRemoteFinish(
+    uint64_t id, Ack status, const nlohmann::json &returnValue) {
+    std::lock_guard<std::recursive_mutex> lock(poolMutex);
+    if (toWaitPool.find(id) != toWaitPool.end()) {
+        auto f = toWaitPool[id];
+        if (returnValue.contains("returnValue") && status == ACK_FINISHED) {
+            f->SetValue(returnValue);
+        } else if (returnValue.contains("return_exception") && status != ACK_FINISHED) {
+            f->SetException(std::make_exception_ptr(
+                InvalidArgumentException(returnValue["return_exception"].get<std::string>())));
         } else {
-            f->set_exception(
-                std::make_exception_ptr(
-                    invalid_argument_exception(
-                        "format of response incorrect"
-                    )
-                )
-            );
+            f->SetException(
+                std::make_exception_ptr(InvalidArgumentException("format of response incorrect")));
         }
-        to_wait_pool.erase(id);
+        toWaitPool.erase(id);
         return true;
     } else {
-        throw invalid_argument_exception("not found");
+        throw InvalidArgumentException("not found");
     }
     return false;
 }

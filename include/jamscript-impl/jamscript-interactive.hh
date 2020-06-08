@@ -10,42 +10,42 @@
 #include <xtask/shared-stack-task.h>
 #include "jamscript-impl/jamscript-sporadic.hh"
 
-namespace jamscript {
+namespace JAMScript {
 
-static std::function<bool(const std::pair<uint64_t, task_t*>&,
-                          const std::pair<uint64_t, task_t*>&)> edf_cmp =
-                                  [] (const std::pair<uint64_t, task_t*>& p1,
-                                      const std::pair<uint64_t, task_t*>& p2) {
+static std::function<bool(const std::pair<uint64_t, CTask*>&,
+                          const std::pair<uint64_t, CTask*>&)> edf_cmp =
+                                  [] (const std::pair<uint64_t, CTask*>& p1,
+                                      const std::pair<uint64_t, CTask*>& p2) {
     return p1.first > p2.first;
 };
 
-class c_side_scheduler;
-class task_schedule_entry;
+class Scheduler;
+class RealTimeTaskScheduleEntry;
 
-class interactive_manager : public sporadic_manager {
+class InteractiveTaskManager : public SporadicTaskManager {
 public:
-    friend class c_side_scheduler;
-    task_t* dispatch() override;
-    void pause(task_t* task) override;
-    bool ready(task_t* task) override;
-    void remove(task_t* task) override;
-    void enable(task_t* task) override;
-    const uint32_t size() const override;
-    void update_burst(task_t* task, uint64_t burst) override;
-    task_t* add(uint64_t burst, void *args, 
-                void (*func)(task_t *, void *)) override;
-    task_t* add(task_t *parent, uint64_t deadline, uint64_t burst,
-                void *args, void (*func)(task_t *, void *)) override;
-    interactive_manager(c_side_scheduler* scheduler, uint32_t stack_size);
-    ~interactive_manager() override;
+    friend class Scheduler;
+    CTask* DispatchTask() override;
+    void PauseTask(CTask* task) override;
+    bool SetTaskReady(CTask* task) override;
+    void RemoveTask(CTask* task) override;
+    void EnableTask(CTask* task) override;
+    const uint32_t NumberOfTaskReady() const override;
+    void UpdateBurstToTask(CTask* task, uint64_t burst) override;
+    CTask* CreateRIBTask(uint64_t burst, void *args, 
+                void (*func)(CTask *, void *)) override;
+    CTask* CreateRIBTask(CTask *parent, uint64_t deadline, uint64_t burst,
+                void *args, void (*func)(CTask *, void *)) override;
+    InteractiveTaskManager(Scheduler* scheduler, uint32_t stackSize);
+    ~InteractiveTaskManager() override;
 private:
-    std::deque<task_t*> interactive_stack;
-    std::unordered_set<task_t*> interactive_wait;
+    std::deque<CTask*> interactiveTask;
+    std::unordered_set<CTask*> interactiveWait;
     std::priority_queue<
-        std::pair<uint64_t, task_t*>,
-        std::vector<std::pair<uint64_t, task_t*>>, 
+        std::pair<uint64_t, CTask*>,
+        std::vector<std::pair<uint64_t, CTask*>>, 
         decltype(edf_cmp)
-    > interactive_queue;
+    > interactiveQueue;
 };
 
 }

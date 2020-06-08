@@ -1,16 +1,16 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
-typedef struct sigaltstack {
-	void *ss_sp;
-	int ss_flags;
-	size_t ss_size;
-} jam_stack_t;
+typedef struct _JAMScriptStack {
+    void *ss_sp;
+    int ss_flags;
+    size_t ss_size;
+} JAMScriptStack;
 
-struct jam_ucontext{
+struct JAMScriptUContext {
 #if defined(__x86_64__)
     uintptr_t registers[16];
 #elif defined(__aarch64__)
@@ -23,11 +23,11 @@ struct jam_ucontext{
 #else
 #error "platform not supported"
 #endif
-    jam_stack_t	uc_stack;
+    JAMScriptStack uc_stack;
 };
 
-typedef struct jam_ucontext jam_ucontext_t;
-extern int swapcontext(jam_ucontext_t*, jam_ucontext_t*);
-extern void makecontext(jam_ucontext_t *ucp, void (*func)(void), int argc, ...);
+typedef struct JAMScriptUContext JAMScriptUserContext;
+extern int SwapToContext(JAMScriptUserContext *, JAMScriptUserContext *);
+extern void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...);
 
 #endif

@@ -10,52 +10,52 @@
 
 struct timespec diff(struct timespec start, struct timespec end);
 
-scheduler_t sched;
+CScheduler schedule;
 unsigned char the_only_task_stack[256 * 1024];
-task_t the_only_task;
+CTask the_only_task;
 int tick = 0;
 unsigned long long int time_count_ctx_switch = 0;
 struct timespec time1, time2;
 
-task_t* next_task(scheduler_t* self) {
-    if (the_only_task.task_status == TASK_READY) {
+CTask* NextTask(CScheduler* self) {
+    if (the_only_task.taskStatus == TASK_READY) {
         clock_gettime(CLOCK_MONOTONIC, &time1);
         return &the_only_task;
     }
     return NULL;
 }
 
-void idle_task(scheduler_t* self) {
+void IdleTask(CScheduler* self) {
     // printf("executing idle task\n");
     // sleep(2);
 }
 
-void before_each(task_t* self) {
+void BeforeEach(CTask* self) {
 
 }
 
-void after_each(task_t* self) {
+void AfterEach(CTask* self) {
 
 }
 
-void only_task_f(task_t* self, void* args) {
+void only_task_f(CTask* self, void* args) {
     int* tickk = args;
     while ((*tickk) < 10000) {
         clock_gettime(CLOCK_MONOTONIC, &time2);
         time_count_ctx_switch += diff(time1, time2).tv_nsec;
         *tickk = *tickk + 1;
-        yield_task(self);
+        YieldTask(self);
     }
-    self->scheduler->cont = 0;
-    finish_task(self, 0);
+    self->scheduler->isSchedulerContinue = 0;
+    FinishTask(self, 0);
 }
 
 
 int main() {
     printf("tick is initially %d\n", tick);
-    make_scheduler(&sched, next_task, idle_task, before_each, after_each);
-    make_task(&the_only_task, &sched, only_task_f, &tick, 1024 * 256, the_only_task_stack);
-    scheduler_mainloop(&sched);
+    CreateScheduler(&schedule, NextTask, IdleTask, BeforeEach, AfterEach);
+    CreateTask(&the_only_task, &schedule, only_task_f, &tick, 1024 * 256, the_only_task_stack);
+    SchedulerMainloop(&schedule);
     printf("tick is finally %d, avg ctx switch time is %lld ns\n", tick, time_count_ctx_switch / 10000);
     return 0;
 }

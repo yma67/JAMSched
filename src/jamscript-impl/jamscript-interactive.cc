@@ -1,4 +1,4 @@
-/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran 
+/// Copyright 2020 Yuxiang Ma, Muthucumaru Maheswaran
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -12,182 +12,153 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-interactive.hh"
-#include "jamscript-impl/jamscript-tasktype.hh"
+
 #include "jamscript-impl/jamscript-scheduler.hh"
+#include "jamscript-impl/jamscript-tasktype.hh"
 
-jamscript::interactive_manager::
-interactive_manager(c_side_scheduler* scheduler, uint32_t stack_size) :
-sporadic_manager(scheduler, stack_size), interactive_queue(jamscript::edf_cmp) {
+JAMScript::InteractiveTaskManager::InteractiveTaskManager(Scheduler *scheduler, uint32_t stackSize)
+    : SporadicTaskManager(scheduler, stackSize), interactiveQueue(JAMScript::edf_cmp) {}
 
-}
-
-jamscript::interactive_manager::
-~interactive_manager() {
+JAMScript::InteractiveTaskManager::~InteractiveTaskManager() {
     std::lock_guard<std::mutex> lock(m);
-    while (!interactive_queue.empty()) {
-        auto [ddl, task] = interactive_queue.top();
+    while (!interactiveQueue.empty()) {
+        auto [ddl, task] = interactiveQueue.top();
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
         delete[] task->stack;
-        delete static_cast<interactive_extender*>(
-                task->task_fv->get_user_data(task)
-        );
+        delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
-        interactive_queue.pop();
+        interactiveQueue.pop();
     }
-    for (auto task: interactive_wait) {
+    for (auto task : interactiveWait) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
         delete[] task->stack;
-        delete static_cast<interactive_extender*>(
-                task->task_fv->get_user_data(task)
-        );
+        delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
-    for (auto task: interactive_stack) {
+    for (auto task : interactiveTask) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
         delete[] task->stack;
-        delete static_cast<interactive_extender*>(
-                task->task_fv->get_user_data(task)
-        );
+        delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
 }
 
-task_t*
-jamscript::interactive_manager::
-add(uint64_t burst, void *args, void (*func)(task_t *, void *)) {
-    auto* int_task = new task_t;
-    auto* int_task_stack = new unsigned char[stack_size];
+CTask *JAMScript::InteractiveTaskManager::CreateRIBTask(uint64_t burst, void *args,
+                                                        void (*func)(CTask *, void *)) {
+    auto *int_task = new CTask;
+    auto *int_task_stack = new unsigned char[stackSize];
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-        int_task->v_stack_id = VALGRIND_STACK_REGISTER(
-            int_task_stack, 
-            (void*)((uintptr_t)int_task_stack + stack_size)
-        );
+    int_task->v_stack_id =
+        VALGRIND_STACK_REGISTER(int_task_stack, (void *)((uintptr_t)int_task_stack + stackSize));
 #endif
-    make_task(int_task, scheduler->c_scheduler, func,
-              args, stack_size, int_task_stack);
+    CreateTask(int_task, scheduler->cScheduler, func, args, stackSize, int_task_stack);
     return int_task;
 }
 
-task_t*
-jamscript::interactive_manager::
-add(task_t *parent, uint64_t deadline, uint64_t burst, 
-    void *args, void (*func)(task_t *, void *)) {
-    auto int_task_handle = std::make_shared<jamfuture_t>();
-    make_future(int_task_handle.get(), parent, nullptr,
-                jamscript::interactive_task_handle_post_callback);
-    int_task_handle->lock_word = 0x0;
-    auto* iext = 
-    new jamscript::interactive_extender(burst, deadline, int_task_handle);
-    task_t* int_task = add(burst, args, func);
-    int_task->task_fv->
-    set_user_data(int_task, iext);
+CTask *JAMScript::InteractiveTaskManager::CreateRIBTask(CTask *parent, uint64_t deadline,
+                                                        uint64_t burst, void *args,
+                                                        void (*func)(CTask *, void *)) {
+    auto int_task_handle = std::make_shared<CFuture>();
+    CreateFuture(int_task_handle.get(), parent, nullptr,
+                 JAMScript::InteractiveTaskHandlePostCallback);
+    int_task_handle->lockWord = 0x0;
+    auto *iext = new JAMScript::InteractiveTaskExtender(burst, deadline, int_task_handle);
+    CTask *int_task = CreateRIBTask(burst, args, func);
+    int_task->taskFunctionVector->SetUserData(int_task, iext);
     {
         std::lock_guard<std::mutex> lock(m);
-        interactive_queue.push({ deadline, int_task });
+        interactiveQueue.push({deadline, int_task});
     }
-    scheduler->dec.record_interac({ *iext });
+    scheduler->decider.RecordInteractiveJobArrival({*iext});
     return int_task;
 }
 
-task_t* 
-jamscript::interactive_manager::dispatch() {
+CTask *JAMScript::InteractiveTaskManager::DispatchTask() {
     std::lock_guard<std::mutex> lock(m);
-    interactive_extender* to_cancel_ext;
-    task_t* to_return;
-    while (!interactive_queue.empty()) {
-        to_return = interactive_queue.top().second;
-        to_cancel_ext = static_cast<interactive_extender*>(
-                    to_return->task_fv->get_user_data(to_return)
-                );
-        if ((to_cancel_ext->deadline - to_cancel_ext->burst) <= 
-            scheduler->get_current_timepoint_in_scheduler() / 1000) {
-            interactive_stack.push_back(to_return);
-            while (interactive_stack.size() > 3) {
-                task_t* to_drop = interactive_stack.front();
-                auto* to_drop_ext = static_cast<interactive_extender*>(
-                    to_drop->task_fv->get_user_data(to_drop)
-                );
-                to_drop_ext->handle->status = ack_cancelled;
-                notify_future(to_drop_ext->handle.get());
-                remove(to_drop);
-                interactive_stack.pop_front();
+    InteractiveTaskExtender *to_cancel_ext;
+    CTask *to_return;
+    while (!interactiveQueue.empty()) {
+        to_return = interactiveQueue.top().second;
+        to_cancel_ext = static_cast<InteractiveTaskExtender *>(
+            to_return->taskFunctionVector->GetUserData(to_return));
+        if ((to_cancel_ext->deadline - to_cancel_ext->burst) <=
+            scheduler->GetCurrentTimepointInScheduler() / 1000) {
+            interactiveTask.push_back(to_return);
+            while (interactiveTask.size() > 3) {
+                CTask *to_drop = interactiveTask.front();
+                auto *to_drop_ext = static_cast<InteractiveTaskExtender *>(
+                    to_drop->taskFunctionVector->GetUserData(to_drop));
+                to_drop_ext->handle->status = ACK_CANCELLED;
+                NotifyFinishOfFuture(to_drop_ext->handle.get());
+                RemoveTask(to_drop);
+                interactiveTask.pop_front();
             }
-            interactive_queue.pop();
+            interactiveQueue.pop();
         } else {
             break;
         }
     }
-    if (interactive_queue.empty()) {
-        if (interactive_stack.empty()) {
+    if (interactiveQueue.empty()) {
+        if (interactiveTask.empty()) {
             return nullptr;
         } else {
-            to_return = interactive_stack.back();
-            interactive_stack.pop_back();
+            to_return = interactiveTask.back();
+            interactiveTask.pop_back();
             return to_return;
         }
     } else {
-        to_return = interactive_queue.top().second;
-        interactive_queue.pop();
+        to_return = interactiveQueue.top().second;
+        interactiveQueue.pop();
         return to_return;
     }
 }
 
-const uint32_t jamscript::interactive_manager::size() const {
-    return interactive_queue.size();
+const uint32_t JAMScript::InteractiveTaskManager::NumberOfTaskReady() const {
+    return interactiveQueue.size();
 }
 
-void 
-jamscript::interactive_manager::pause(task_t* task) {
+void JAMScript::InteractiveTaskManager::PauseTask(CTask *task) {
     std::lock_guard<std::mutex> lock(m);
-    interactive_wait.insert(task);
+    interactiveWait.insert(task);
 }
 
-bool 
-jamscript::interactive_manager::ready(task_t* task) {
-    auto* cpp_task_traits2 = static_cast<interactive_extender*>(
-                task->task_fv->get_user_data(task)
-            );
+bool JAMScript::InteractiveTaskManager::SetTaskReady(CTask *task) {
+    auto *taskTraits2 =
+        static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
     std::lock_guard<std::mutex> lock(m);
-    if (interactive_wait.find(task) != interactive_wait.end()) {
-        interactive_wait.erase(task);
-        interactive_queue.push({ cpp_task_traits2->deadline, task });
+    if (interactiveWait.find(task) != interactiveWait.end()) {
+        interactiveWait.erase(task);
+        interactiveQueue.push({taskTraits2->deadline, task});
         return true;
     }
     return false;
 }
 
-void 
-jamscript::interactive_manager::enable(task_t* task) {
-    auto* cpp_task_traits2 = static_cast<interactive_extender*>(
-                task->task_fv->get_user_data(task)
-            );
+void JAMScript::InteractiveTaskManager::EnableTask(CTask *task) {
+    auto *taskTraits2 =
+        static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
     std::lock_guard<std::mutex> lock(m);
-    interactive_queue.push({ cpp_task_traits2->deadline, task });
+    interactiveQueue.push({taskTraits2->deadline, task});
 }
 
-void
-jamscript::interactive_manager::remove(task_t* to_remove) {
+void JAMScript::InteractiveTaskManager::RemoveTask(CTask *to_remove) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     VALGRIND_STACK_DEREGISTER(to_remove->v_stack_id);
 #endif
     delete[] to_remove->stack;
-    delete static_cast<interactive_extender*>(
-            to_remove->task_fv->get_user_data(to_remove)
-    );
+    delete static_cast<InteractiveTaskExtender *>(
+        to_remove->taskFunctionVector->GetUserData(to_remove));
     delete to_remove;
 }
 
-void 
-jamscript::interactive_manager::
-update_burst(task_t* task, uint64_t burst) {
-    auto* traits = static_cast<interactive_extender*>(
-        task->task_fv->get_user_data(task)
-    );
+void JAMScript::InteractiveTaskManager::UpdateBurstToTask(CTask *task, uint64_t burst) {
+    auto *traits =
+        static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
     traits->burst -= burst;
 }

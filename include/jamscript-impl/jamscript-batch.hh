@@ -8,29 +8,29 @@
 #include <core/scheduler/task.h>
 #include "jamscript-impl/jamscript-sporadic.hh"
 
-namespace jamscript {
+namespace JAMScript {
 
-class c_side_scheduler;
+class Scheduler;
 
-class batch_manager : public sporadic_manager {
+class BatchTaskManager : public SporadicTaskManager {
 public:
-    friend class c_side_scheduler;
-    task_t* dispatch() override;
-    void pause(task_t* task) override;
-    bool ready(task_t* task) override;
-    void remove(task_t* task) override;
-    void enable(task_t* task) override;
-    const uint32_t size() const override;
-    void update_burst(task_t* task, uint64_t burst) override;
-    task_t* add(uint64_t burst, void *args, 
-                void (*func)(task_t *, void *)) override;
-    task_t* add(task_t *parent, uint64_t deadline, uint64_t burst, void *args,
-                void (*func)(task_t *, void *)) override;
-    batch_manager(c_side_scheduler* scheduler, uint32_t stack_size);
-    ~batch_manager() override;
+    friend class Scheduler;
+    CTask* DispatchTask() override;
+    void PauseTask(CTask* task) override;
+    bool SetTaskReady(CTask* task) override;
+    void RemoveTask(CTask* task) override;
+    void EnableTask(CTask* task) override;
+    const uint32_t NumberOfTaskReady() const override;
+    void UpdateBurstToTask(CTask* task, uint64_t burst) override;
+    CTask* CreateRIBTask(uint64_t burst, void *args, 
+                void (*func)(CTask *, void *)) override;
+    CTask* CreateRIBTask(CTask *parent, uint64_t deadline, uint64_t burst, void *args,
+                void (*func)(CTask *, void *)) override;
+    BatchTaskManager(Scheduler* scheduler, uint32_t stackSize);
+    ~BatchTaskManager() override;
 private:
-    std::deque<task_t*> batch_queue;
-    std::unordered_set<task_t*> batch_wait;
+    std::deque<CTask*> batchQueue;
+    std::unordered_set<CTask*> batchWait;
 };
 
 }

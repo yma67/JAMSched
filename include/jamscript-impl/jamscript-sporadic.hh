@@ -6,42 +6,42 @@
 #include <xtask/shared-stack-task.h>
 #include "jamscript-impl/jamscript-tasktype.hh"
 
-namespace jamscript {
+namespace JAMScript {
 
-class c_side_scheduler;
+class Scheduler;
 
-class sporadic_manager {
+class SporadicTaskManager {
 public:
-    friend class c_side_scheduler;
-    friend void before_each_jam_impl(task_t *);
-    friend void after_each_jam_impl(task_t *);
-    friend task_t* next_task_jam_impl(scheduler_t *);
-    friend void idle_task_jam_impl(scheduler_t *);
-    friend void interactive_task_handle_post_callback(jamfuture_t *);
-    virtual task_t* dispatch() = 0;
-    virtual void pause(task_t* task) = 0;
-    virtual bool ready(task_t* task) = 0;
-    virtual void remove(task_t* task) = 0;
-    virtual void enable(task_t* task) = 0;
-    virtual const uint32_t size() const = 0;
-    virtual void update_burst(task_t* task, uint64_t burst) = 0;
-    virtual task_t* add(uint64_t burst, void *args, 
-                        void (*func)(task_t *, void *)) = 0;
-    virtual task_t* add(task_t *parent, uint64_t deadline, uint64_t burst,
-                        void *args, void (*func)(task_t *, void *)) = 0;
-    sporadic_manager(c_side_scheduler* scheduler, uint32_t stack_size) : 
-    scheduler(scheduler), stack_size(stack_size) {
+    friend class Scheduler;
+    friend void BeforeEachJAMScriptImpl(CTask *);
+    friend void AfterEachJAMScriptImpl(CTask *);
+    friend CTask* NextTaskJAMScriptImpl(CScheduler *);
+    friend void IdleTaskJAMScriptImpl(CScheduler *);
+    friend void InteractiveTaskHandlePostCallback(CFuture *);
+    virtual CTask* DispatchTask() = 0;
+    virtual void PauseTask(CTask* task) = 0;
+    virtual bool SetTaskReady(CTask* task) = 0;
+    virtual void RemoveTask(CTask* task) = 0;
+    virtual void EnableTask(CTask* task) = 0;
+    virtual const uint32_t NumberOfTaskReady() const = 0;
+    virtual void UpdateBurstToTask(CTask* task, uint64_t burst) = 0;
+    virtual CTask* CreateRIBTask(uint64_t burst, void *args, 
+                        void (*func)(CTask *, void *)) = 0;
+    virtual CTask* CreateRIBTask(CTask *parent, uint64_t deadline, uint64_t burst,
+                        void *args, void (*func)(CTask *, void *)) = 0;
+    SporadicTaskManager(Scheduler* scheduler, uint32_t stackSize) : 
+    scheduler(scheduler), stackSize(stackSize) {
 
     }
-    virtual ~sporadic_manager() {}
+    virtual ~SporadicTaskManager() {}
 protected:
     std::mutex m;
-    c_side_scheduler* scheduler;
-    uint32_t stack_size;
-    sporadic_manager(sporadic_manager const&) = delete;
-    sporadic_manager(sporadic_manager &&) = delete;
-    sporadic_manager& operator=(sporadic_manager const&) = delete;
-    sporadic_manager& operator=(sporadic_manager &&) = delete;
+    Scheduler* scheduler;
+    uint32_t stackSize;
+    SporadicTaskManager(SporadicTaskManager const&) = delete;
+    SporadicTaskManager(SporadicTaskManager &&) = delete;
+    SporadicTaskManager& operator=(SporadicTaskManager const&) = delete;
+    SporadicTaskManager& operator=(SporadicTaskManager &&) = delete;
 };
 
 }

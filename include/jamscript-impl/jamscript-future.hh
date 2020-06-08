@@ -15,23 +15,23 @@
 #include "future/future.h"
 #include "core/scheduler/task.h"
 
-namespace jamscript {
+namespace JAMScript {
 
-void interactive_task_handle_post_callback(jamfuture_t *self);
+void InteractiveTaskHandlePostCallback(CFuture *self);
 
 using std::future_status;
 
 template <typename T>
-struct late_initialized {
+struct LateInitialized {
 public:
-    late_initialized() = default;
-    late_initialized(late_initialized&&) = delete;
-    late_initialized& operator=(late_initialized&&) = delete;
-    ~late_initialized() {
+    LateInitialized() = default;
+    LateInitialized(LateInitialized&&) = delete;
+    LateInitialized& operator=(LateInitialized&&) = delete;
+    ~LateInitialized() {
         if(initialized) ptr()->~T(); 
     }
     template <typename... Args>
-    void initialize(Args&&... args) {
+    void Initialize(Args&&... args) {
         ::new(ptr()) T(std::forward<Args>(args)...);
         initialized = true;
     }
@@ -47,49 +47,49 @@ private:
     T const* ptr() const { 
         return static_cast<T*>(static_cast<void*>(&storage)); 
     }
-    using storage_type = 
+    using StorageType = 
     typename std::aligned_storage<sizeof(T), alignof(T)>::type;
     bool initialized = false;
-    storage_type storage;
+    StorageType storage;
 };
 
 template <typename T>
-struct future : public std::enable_shared_from_this<future<T>> {
+struct Future : public std::enable_shared_from_this<Future<T>> {
 public:
-    future() : f(std::make_unique<jamfuture_t>()) {
-        make_future(f.get(), this_task(), nullptr, 
-                    interactive_task_handle_post_callback);
+    Future() : f(std::make_unique<CFuture>()) {
+        CreateFuture(f.get(), ThisTask(), nullptr, 
+                    InteractiveTaskHandlePostCallback);
     }
-    void wait() const {
-        get_future(f.get());
+    void Wait() const {
+        WaitForValueFromFuture(f.get());
     }
-    T& get() {
-        get_future(f.get());
-        if (error || f->status != ack_finished) 
+    T& Get() {
+        WaitForValueFromFuture(f.get());
+        if (error || f->status != ACK_FINISHED) 
             std::rethrow_exception(error);
         if (state) return *state;
         throw std::runtime_error("abnormal");
     }
     template <typename U>
-    void set_value(U&& value) {
-        state.initialize(std::forward<U>(value));
+    void SetValue(U&& value) {
+        state.Initialize(std::forward<U>(value));
         notify_all();
     }
-    void set_exception(std::exception_ptr e) {
+    void SetException(std::exception_ptr e) {
         error = e;
-        f->status = ack_failed;
+        f->status = ACK_FAILED;
         notify_all();
     }
-    std::shared_ptr<future<T>> getptr() {
+    std::shared_ptr<Future<T>> getptr() {
         return this->shared_from_this();
     }
 private:
-    mutable std::unique_ptr<jamfuture_t> f;
-    late_initialized<T> state;
+    mutable std::unique_ptr<CFuture> f;
+    LateInitialized<T> state;
     std::exception_ptr error;
     void notify_all() {
-        f->status = ack_finished;
-        notify_future(f.get());
+        f->status = ACK_FINISHED;
+        NotifyFinishOfFuture(f.get());
     }
 };
     

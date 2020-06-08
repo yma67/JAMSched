@@ -154,7 +154,7 @@ TIMEOUT_PUBLIC bool timeout_expired(struct timeout *);
 /* true if on expired queue, false otherwise */
 
 TIMEOUT_PUBLIC void timeout_del(struct timeout *);
-/* remove timeout from any timing wheel (okay if not member of any) */
+/* RemoveTask timeout from any timing wheel (okay if not member of any) */
 #endif
 
 /*
@@ -183,10 +183,10 @@ TIMEOUT_PUBLIC timeout_t timeouts_timeout(struct timeouts *);
 /* return interval to next required update */
 
 TIMEOUT_PUBLIC void timeouts_add(struct timeouts *, struct timeout *, timeout_t);
-/* add timeout to timing wheel */
+/* CreateRIBTask timeout to timing wheel */
 
 TIMEOUT_PUBLIC void timeouts_del(struct timeouts *, struct timeout *);
-/* remove timeout from any timing wheel or expired queue (okay if on neither) */
+/* RemoveTask timeout from any timing wheel or expired queue (okay if on neither) */
 
 TIMEOUT_PUBLIC struct timeout *timeouts_get(struct timeouts *);
 /* return any expired timeout (caller should loop until NULL-return) */

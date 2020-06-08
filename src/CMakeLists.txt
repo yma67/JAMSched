@@ -14,7 +14,6 @@ file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "$
 set(JAMCOMPONENTS_SOURCES_LIST "")
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
     list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
-    message(${jamcomponent_source})
 endforeach(jamcomponent_source ${JAMTEST_SOURCES})
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/jamscript-impl/jamscript-time.cc")
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")

@@ -3,26 +3,26 @@
 #include <vector>
 #include <cstdint>
 
-namespace jamscript {
+namespace JAMScript {
 
-class c_side_scheduler;
-class task_schedule_entry;
-class interactive_extender;
+class Scheduler;
+class RealTimeTaskScheduleEntry;
+class InteractiveTaskExtender;
 
-class decider {
+class ScheduleDecider {
 public:
-    void schedule_change(const std::vector<task_schedule_entry>& normal,
-                         const std::vector<task_schedule_entry>& greedy);
-    bool decide();
-    void record_interac(const interactive_extender& irecord);
-    decider(c_side_scheduler* sched);
+    void NotifyChangeOfSchedule(const std::vector<RealTimeTaskScheduleEntry>& normal,
+                         const std::vector<RealTimeTaskScheduleEntry>& greedy);
+    bool DecideNextScheduleToRun();
+    void RecordInteractiveJobArrival(const InteractiveTaskExtender& aInteractiveTaskRecord);
+    ScheduleDecider(Scheduler* schedule);
 private:
-    decider() = delete;
-    c_side_scheduler* scheduler;
-    std::vector<uint64_t> normal_ss_acc, greedy_ss_acc;
-    std::vector<interactive_extender> interactive_record;
-    std::vector<uint64_t> calculate_acc(
-        const std::vector<task_schedule_entry>& sched
+    ScheduleDecider() = delete;
+    Scheduler* scheduler;
+    std::vector<uint64_t> normalSpoadicServerAccumulator, greedySpoadicServerAccumulator;
+    std::vector<InteractiveTaskExtender> interactiveTaskRecord;
+    std::vector<uint64_t> CalculateAccumulator(
+        const std::vector<RealTimeTaskScheduleEntry>& schedule
     );
 };
 
