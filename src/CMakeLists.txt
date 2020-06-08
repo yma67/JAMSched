@@ -13,7 +13,10 @@ endif()
 file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 set(JAMCOMPONENTS_SOURCES_LIST "")
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
-    if ((NOT ${jamcomponent_source} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/*.c"))
+    if ((NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/testers/mqtt_tester.c") AND 
+        (NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/testers/nvoid_tester.c") AND 
+        (NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/mqtt_adapter.c") AND 
+        (NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/nvoid.c"))
         list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
     endif((NOT ${jamcomponent_source} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/*.c"))
 endforeach(jamcomponent_source ${JAMTEST_SOURCES})
