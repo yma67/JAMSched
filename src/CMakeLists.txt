@@ -12,13 +12,9 @@ endif()
 
 file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 set(JAMCOMPONENTS_SOURCES_LIST "")
+message(${JAMCOMPONENTS_SOURCES})
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
-    if ((NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/testers/mqtt_tester.c") AND 
-        (NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/testers/nvoid_tester.c") AND 
-        (NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/mqtt_adapter.c") AND 
-        (NOT ${jamcomponent_source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/nvoid.c"))
-        list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
-    endif((NOT ${jamcomponent_source} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/*.c"))
+    list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
 endforeach(jamcomponent_source ${JAMTEST_SOURCES})
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/jamscript-impl/jamscript-time.cc")
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
