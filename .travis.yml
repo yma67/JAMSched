@@ -20,11 +20,7 @@ install:
     tar -xf	cmake-3.17.0-rc3-Linux-x86_64.tar.gz
     sudo ln -s ${TRAVIS_BUILD_DIR}/cmake-3.17.0-rc3-Linux-x86_64/bin/cmake /home/travis/bin/cmake
     sudo ln -s ${TRAVIS_BUILD_DIR}/cmake-3.17.0-rc3-Linux-x86_64/bin/ctest /home/travis/bin/ctest
-  - |
-    git clone https://github.com/eclipse/paho.mqtt.c.git
-    cd org.eclipse.paho.mqtt.c.git
-    make
-    sudo make install
+
 before_script:
   - mkdir build
   - cd build
