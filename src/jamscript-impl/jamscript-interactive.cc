@@ -12,7 +12,6 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-interactive.hh"
-
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-tasktype.hh"
 #include "jamscript-impl/jamscript-worksteal.hh"
@@ -25,30 +24,14 @@ JAMScript::InteractiveTaskManager::~InteractiveTaskManager() { ClearAllTasks(); 
 void JAMScript::InteractiveTaskManager::ClearAllTasks() {
     std::lock_guard<std::mutex> lock(m);
     while (!interactiveQueue.empty()) {
-        auto [ddl, task] = interactiveQueue.top();
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
-#endif
-        delete[] task->stack;
-        delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
-        delete task;
+        RemoveTask(interactiveQueue.top().second);
         interactiveQueue.pop();
     }
     for (auto task : interactiveWait) {
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
-#endif
-        delete[] task->stack;
-        delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
-        delete task;
+        RemoveTask(task);
     }
     for (auto task : interactiveStack) {
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
-#endif
-        delete[] task->stack;
-        delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
-        delete task;
+        RemoveTask(task);
     }
     interactiveWait.clear();
     interactiveStack.clear();
@@ -118,7 +101,6 @@ CTask *JAMScript::InteractiveTaskManager::DispatchTask() {
         toReturn->actualScheduler = scheduler->cScheduler;
         return toReturn;
     }
-    cv.notify_one();
 }
 
 const uint32_t JAMScript::InteractiveTaskManager::NumberOfTaskReady() const {

@@ -25,9 +25,9 @@
 #include <valgrind/valgrind.h>
 #endif
 #include <thread>
-#include "jamscript-impl/jamscript-time.hh"
 #include "jamscript-impl/jamscript-future.hh"
 #include "jamscript-impl/jamscript-scheduler.hh"
+#include "jamscript-impl/jamscript-time.hh"
 #include "jamscript-impl/jamscript-worksteal.hh"
 
 JAMScript::Scheduler::Scheduler(std::vector<RealTimeTaskScheduleEntry> normalSchedule,
@@ -140,10 +140,11 @@ void JAMScript::IdleTaskJAMScriptImpl(CScheduler *selfCScheduler) {
     auto *self = static_cast<Scheduler *>(selfCScheduler->GetSchedulerData(selfCScheduler));
     uint64_t timeDiff = self->currentSchedule->at(self->currentScheduleSlot).endTime * 1000 -
                         self->GetCurrentTimepointInCycle();
-    if (timeDiff > JAMSCRIPT_RT_SPIN_LIMIT_NS) {
+    uint32_t id = self->currentSchedule->at(self->currentScheduleSlot).taskId;
+    if (id != 0 && timeDiff > JAMSCRIPT_RT_SPIN_LIMIT_NS) {
         std::this_thread::sleep_for(
             std::chrono::nanoseconds(timeDiff - JAMSCRIPT_RT_SPIN_LIMIT_NS));
-    } else {
+    } else if (id != 0) {
         self->realTimeTaskManager.SpinUntilEndOfCurrentInterval();
     }
 }

@@ -12,8 +12,8 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-realtime.hh"
-#include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-tasktype.hh"
+#include "jamscript-impl/jamscript-scheduler.hh"
 #include <cstring>
 
 JAMScript::RealTimeTaskManager::RealTimeTaskManager(Scheduler *scheduler, uint32_t stackSize)
@@ -26,9 +26,7 @@ JAMScript::RealTimeTaskManager::~RealTimeTaskManager() {
     std::lock_guard<std::mutex> lock(m);
     for (auto &[id, tasks] : taskMap) {
         while (!tasks.empty()) {
-            CTask *task = tasks.back();
-            delete static_cast<RealTimeTaskExtender *>(task->taskFunctionVector->GetUserData(task));
-            DestroySharedStackTask(task);
+            RemoveTask(tasks.back());
             tasks.pop_back();
         }
     }
@@ -56,7 +54,8 @@ CTask *JAMScript::RealTimeTaskManager::CreateRIBTask(uint32_t id, void *args,
 }
 
 void JAMScript::RealTimeTaskManager::RemoveTask(CTask *to_remove) {
-    delete static_cast<RealTimeTaskExtender *>(to_remove->taskFunctionVector->GetUserData(to_remove));
+    delete static_cast<RealTimeTaskExtender *>(
+        to_remove->taskFunctionVector->GetUserData(to_remove));
     DestroySharedStackTask(to_remove);
 }
 

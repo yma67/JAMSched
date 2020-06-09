@@ -24,20 +24,10 @@ JAMScript::BatchTaskManager::~BatchTaskManager() { ClearAllTasks(); }
 void JAMScript::BatchTaskManager::ClearAllTasks() {
     std::lock_guard<std::mutex> lock(m);
     for (auto task : batchQueue) {
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
-#endif
-        delete[] task->stack;
-        delete static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
-        delete task;
+        RemoveTask(task);
     }
     for (auto task : batchWait) {
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-        VALGRIND_STACK_DEREGISTER(task->v_stack_id);
-#endif
-        delete[] task->stack;
-        delete static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
-        delete task;
+        RemoveTask(task);
     }
     batchQueue.clear();
     batchWait.clear();

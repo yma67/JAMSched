@@ -1,8 +1,8 @@
-#include "core/scheduler/task.h"
 #include "jamscript-impl/jamscript-worksteal.hh"
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-sporadic.hh"
 #include "jamscript-impl/jamscript-tasktype.hh"
+#include "core/scheduler/task.h"
 #ifdef JAMSCRIPT_SCHED_AI_EXP
 #include <iostream>
 #endif
@@ -37,15 +37,11 @@ void JAMScript::TaskStealWorker::Detach() {
 
 CTask *JAMScript::TaskStealWorker::NextTaskWorkStealBatch(CScheduler *scheduler) {
     auto *self = static_cast<TaskStealWorker *>(scheduler->GetSchedulerData(scheduler));
-    auto *parentScheduler =
-        static_cast<Scheduler *>(self->sporadicManagers[BATCH_TASK_T]->scheduler);
     return self->sporadicManagers[BATCH_TASK_T]->StealTask(self);
 }
 
 CTask *JAMScript::TaskStealWorker::NextTaskWorkStealInteractive(CScheduler *scheduler) {
     auto *self = static_cast<TaskStealWorker *>(scheduler->GetSchedulerData(scheduler));
-    auto *parentScheduler =
-        static_cast<Scheduler *>(self->sporadicManagers[INTERACTIVE_TASK_T]->scheduler);
     return self->sporadicManagers[INTERACTIVE_TASK_T]->StealTask(self);
 }
 

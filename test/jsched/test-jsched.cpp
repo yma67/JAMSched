@@ -46,23 +46,24 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                 self->scheduler->GetSchedulerData(self->scheduler));
             for (int v = 0; v < 2; v++) {
                 std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
-                std::shared_ptr<CFuture> handle_interactive1 = schedulerPointer->CreateInteractiveTask(
-                    30 * 1000, 500, &i1c, [](CTask* self, void* args) {
-                        {
-                            REQUIRE(self == ThisTask());
-                            auto* i1cp = static_cast<bool*>(args);
-                            auto* self_cpp = static_cast<JAMScript::InteractiveTaskExtender*>(
-                                self->taskFunctionVector->GetUserData(self));
-                            *i1cp = true;
-                            std::cout << "INTERAC" << std::endl;
-                            for (int i = 0; i < 100; i++) {
-                                std::this_thread::sleep_for(std::chrono::microseconds(5));
-                                YieldTask(self);
+                std::shared_ptr<CFuture> handle_interactive1 =
+                    schedulerPointer->CreateInteractiveTask(
+                        30 * 1000, 500, &i1c, [](CTask* self, void* args) {
+                            {
+                                REQUIRE(self == ThisTask());
+                                auto* i1cp = static_cast<bool*>(args);
+                                auto* self_cpp = static_cast<JAMScript::InteractiveTaskExtender*>(
+                                    self->taskFunctionVector->GetUserData(self));
+                                *i1cp = true;
+                                std::cout << "INTERAC" << std::endl;
+                                for (int i = 0; i < 100; i++) {
+                                    std::this_thread::sleep_for(std::chrono::microseconds(5));
+                                    YieldTask(self);
+                                }
+                                NotifyFinishOfFuture(self_cpp->handle.get());
                             }
-                            NotifyFinishOfFuture(self_cpp->handle.get());
-                        }
-                        FinishTask(self, EXIT_SUCCESS);
-                    });
+                            FinishTask(self, EXIT_SUCCESS);
+                        });
                 std::cout << "FINISHED PSEUDO PREEMPT B" << std::endl;
                 schedulerPointer->CreateBatchTask(500, &sleep_time, [](CTask* self, void* args) {
                     REQUIRE(self == ThisTask());
@@ -84,9 +85,9 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                 std::this_thread::sleep_for(std::chrono::microseconds(1));
                 YieldTask(self);
             }
-            
+
             schedulerPointer->Exit();
-            
+
             FinishTask(self, EXIT_SUCCESS);
         });
     auto rt1 = [](CTask* self, void* args) {
@@ -192,11 +193,18 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
 
 int CiteLabAdditionFunctionNotifier(std::shared_ptr<JAMScript::Future<std::string>> secret_arch,
                                     std::string validator) {
-    long long prevns = this_scheduler()->GetCurrentTimepointInScheduler();
-    JAMScript::SleepFor(200);
-    long long currns = this_scheduler()->GetCurrentTimepointInScheduler();
-    REQUIRE(currns >= prevns + 200 * 1000);
-    WARN("JSleep jitter in ns: " + std::to_string(currns - prevns - 200 * 1000));
+    auto prevns = std::chrono::steady_clock::now();
+    JAMScript::SleepFor(1000);
+    auto currns = std::chrono::steady_clock::now();
+    std::cout
+        << ("JSleep jitter in ns: " +
+            std::to_string(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(currns - prevns).count() -
+                1000 * 1000))
+        << std::endl;
+    REQUIRE(currns > prevns);
+    if (ThisTask()->scheduler != ThisTask()->actualScheduler)
+        WARN("TASK STOLEN");
     secret_arch->SetValue(validator);
     return 888888;
 }

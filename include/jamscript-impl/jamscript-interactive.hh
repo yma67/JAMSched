@@ -29,6 +29,7 @@ namespace JAMScript {
         friend class TaskStealWorker;
         CTask* DispatchTask() override;
         CTask* StealTask(TaskStealWorker* thief) override;
+        CTask* StealTaskFromPriorityQueue(TaskStealWorker* thief);
         void PauseTask(CTask* task) override;
         bool SetTaskReady(CTask* task) override;
         void RemoveTask(CTask* task) override;
