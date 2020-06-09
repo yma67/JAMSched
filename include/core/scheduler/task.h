@@ -71,8 +71,8 @@ typedef enum {
 } TaskReturn;
 
 typedef struct TaskFunctions {
-    void (*ResumeTask)(CTask*);                  /// function for resuming a task, switch from scheduler to task
-    void (*YieldTask_)(CTask*);                  /// function for ending a task, switch from task to scheduler
+    void (*TaskResume)(CTask*);                  /// function for resuming a task, switch from scheduler to task
+    void (*TaskYield_)(CTask*);                  /// function for ending a task, switch from task to scheduler
     void*(*GetUserData)(CTask*);                 /// getter for userData, useful when writing extension component based on CTask
     void (*SetUserData)(CTask*, void*);          /// setter for userData, useful when writing extension component based on CTask
 } TaskFunctions;
@@ -173,9 +173,9 @@ extern TaskReturn ShutdownScheduler(CScheduler* scheduler);
  * @warning will fail if stack overflow detected
  * @return void
  */
-#define YieldTask(yieldingTask)\
+#define TaskYield(yieldingTask)\
     if (yieldingTask == NULL) __builtin_trap();\
-    yieldingTask->taskFunctionVector->YieldTask_(yieldingTask);
+    yieldingTask->taskFunctionVector->TaskYield_(yieldingTask);
 
 /**
  * Finish CTask
@@ -191,9 +191,9 @@ extern TaskReturn ShutdownScheduler(CScheduler* scheduler);
 #define FinishTask(finishingTask, finishingTaskReturnValue)\
     finishingTask->taskStatus = TASK_FINISHED;\
     finishingTask->returnValue = finishingTaskReturnValue;\
-    YieldTask(finishingTask);
+    TaskYield(finishingTask);
 
-#define ThisTask() (currentTask)
+#define GetCurrentTaskRunning() (currentTask)
 
 /**
  * CScheduler Mainloop

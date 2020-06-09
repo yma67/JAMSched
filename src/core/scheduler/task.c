@@ -34,7 +34,7 @@ static void StartTask(unsigned int taskAddressLower32Bits, unsigned int taskAddr
         (CTask*)(taskAddressLower32Bits | (((unsigned long)taskAddressUpper32Bits << 16) << 16));
     task->TaskFunction(task, task->taskArgs);
     task->taskStatus = TASK_FINISHED;
-    YieldTask(task);
+    TaskYield(task);
 }
 
 void ResumeRegularTask(CTask* self) {
@@ -51,8 +51,8 @@ void YieldRegularTask(CTask* task) {
     SwapToContext(&task->context, &task->actualScheduler->schedulerContext);
 }
 
-TaskFunctions regular_task_fv = {.ResumeTask = ResumeRegularTask,
-                                 .YieldTask_ = YieldRegularTask,
+TaskFunctions regular_task_fv = {.TaskResume = ResumeRegularTask,
+                                 .TaskYield_ = YieldRegularTask,
                                  .GetUserData = GetUserData,
                                  .SetUserData = SetUserData};
 
@@ -107,7 +107,7 @@ void SchedulerMainloop(CScheduler* scheduler) {
         CTask* to_run = scheduler->NextTask(scheduler);
         if (to_run != NULL && to_run->taskStatus == TASK_READY) {
             scheduler->BeforeEach(to_run);
-            to_run->taskFunctionVector->ResumeTask(to_run);
+            to_run->taskFunctionVector->TaskResume(to_run);
             scheduler->AfterEach(to_run);
         } else {
             scheduler->IdleTask(scheduler);

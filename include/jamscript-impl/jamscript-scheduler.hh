@@ -74,9 +74,9 @@ namespace JAMScript {
     void IdleTaskJAMScriptImpl(CScheduler* self);
     void InteractiveTaskHandlePostCallback(CFuture* self);
 
-#define this_scheduler()                 \
+#define GetCurrentSchedulerRunning()                 \
     (static_cast<JAMScript::Scheduler*>( \
-        ThisTask()->scheduler->GetSchedulerData(ThisTask()->scheduler)))
+        GetCurrentTaskRunning()->scheduler->GetSchedulerData(GetCurrentTaskRunning()->scheduler)))
 
     class ScheduleDecider;
     class BatchTaskManager;
@@ -218,12 +218,12 @@ namespace JAMScript {
     };
 
     inline void SleepFor(uint64_t dms) {
-        this_scheduler()->jamscriptTimer.UpdateTimeout();
-        this_scheduler()->jamscriptTimer.SetContinueOnTimeoutFor(ThisTask(), dms * 1000);
+        GetCurrentSchedulerRunning()->jamscriptTimer.UpdateTimeout();
+        GetCurrentSchedulerRunning()->jamscriptTimer.SetContinueOnTimeoutFor(GetCurrentTaskRunning(), dms * 1000);
     }
 
     inline void SleepUntil(uint64_t dms) {
-        this_scheduler()->jamscriptTimer.SetContinueOnTimeoutUntil(ThisTask(), dms);
+        GetCurrentSchedulerRunning()->jamscriptTimer.SetContinueOnTimeoutUntil(GetCurrentTaskRunning(), dms);
     }
 
 }  // namespace JAMScript

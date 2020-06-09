@@ -17,7 +17,7 @@ int naive_fact(int x) {
 void share_fact_wrapper(CTask* self, void* args) {
     int axe[1024];
     memset(axe, '\0' + 1, sizeof(int) * 1024);
-    YieldTask(self);
+    TaskYield(self);
 }
 
 void after_xsched(CTask* self) {

@@ -148,8 +148,8 @@ void shared_stack_task_yield(CTask* xself) {
     }
 }
 
-TaskFunctions shared_stack_task_fv = {.ResumeTask = shared_stack_task_resume,
-                                      .YieldTask_ = shared_stack_task_yield,
+TaskFunctions shared_stack_task_fv = {.TaskResume = shared_stack_task_resume,
+                                      .TaskYield_ = shared_stack_task_yield,
                                       .GetUserData = get_shared_stack_task_user_data,
                                       .SetUserData = set_shared_stack_task_user_data};
 

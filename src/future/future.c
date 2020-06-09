@@ -40,7 +40,7 @@ void WaitForValueFromFuture(CFuture* self) {
                self->numberOfSpinRounds)
             ;
         while (__atomic_load_n(&(self->lockWord), __ATOMIC_ACQUIRE) < 0x80000000) {
-            YieldTask(self->ownerTask);
+            TaskYield(self->ownerTask);
         }
     }
     __atomic_fetch_or(&(self->lockWord), 0x80000000, __ATOMIC_SEQ_CST);

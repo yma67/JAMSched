@@ -44,7 +44,7 @@ void only_task_f(CTask* self, void* args) {
         clock_gettime(CLOCK_MONOTONIC, &time2);
         time_count_ctx_switch += diff(time1, time2).tv_nsec;
         *tickk = *tickk + 1;
-        YieldTask(self);
+        TaskYield(self);
     }
     self->scheduler->isSchedulerContinue = 0;
     FinishTask(self, 0);

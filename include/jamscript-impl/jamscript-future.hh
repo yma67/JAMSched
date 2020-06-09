@@ -52,7 +52,7 @@ namespace JAMScript {
     struct Future : public std::enable_shared_from_this<Future<T>> {
     public:
         Future() : f(std::make_unique<CFuture>()) {
-            CreateFuture(f.get(), ThisTask(), nullptr, InteractiveTaskHandlePostCallback);
+            CreateFuture(f.get(), GetCurrentTaskRunning(), nullptr, InteractiveTaskHandlePostCallback);
         }
         void Wait() const { WaitForValueFromFuture(f.get()); }
         T& Get() {

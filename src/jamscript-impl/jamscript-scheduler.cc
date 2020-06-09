@@ -165,7 +165,7 @@ std::shared_ptr<CFuture> JAMScript::Scheduler::CreateInteractiveTask(
     if (!realTimeTaskManager.cSharedStack->isAllocatable)
         return nullptr;
     CTask *handle = sporadicManagers[INTERACTIVE_TASK_T]->CreateRIBTask(
-        ThisTask(), deadline, burst, interactiveTaskArgs, InteractiveTaskFunction);
+        GetCurrentTaskRunning(), deadline, burst, interactiveTaskArgs, InteractiveTaskFunction);
     if (handle == nullptr) {
         realTimeTaskManager.cSharedStack->isAllocatable = 0;
         return nullptr;
@@ -222,7 +222,7 @@ void JAMScript::Scheduler::Run() {
 bool JAMScript::Scheduler::IsSchedulerRunning() { return cScheduler->isSchedulerContinue != 0; }
 
 void JAMScript::Scheduler::Exit() {
-    if (ThisTask()->scheduler != cScheduler)
+    if (GetCurrentTaskRunning()->scheduler != cScheduler)
         return;
     this->cScheduler->isSchedulerContinue = 0;
     stealer.interactiveScheduler->isSchedulerContinue = 0;

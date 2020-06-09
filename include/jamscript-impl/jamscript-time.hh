@@ -30,8 +30,8 @@ namespace JAMScript {
         void SetContinueOnTimeout(CTask* task, uint64_t t_ns, bool isAbsolute);
         JAMTimer(JAMTimer const&) = delete;
         JAMTimer(JAMTimer&&) = delete;
-        JAMTimer& operator=(JAMTimer const&) = delete;
-        JAMTimer& operator=(JAMTimer&&) = delete;
+        JAMTimer& operator=(JAMTimer const&) = default;
+        JAMTimer& operator=(JAMTimer&&) = default;
     };
 }  // namespace JAMScript
 #endif

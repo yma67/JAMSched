@@ -12,6 +12,7 @@
 #include <jamscript-impl/jamscript-future.hh>
 #include <jamscript-impl/jamscript-remote.hh>
 #include <jamscript-impl/jamscript-scheduler.hh>
+#include <jamscript-impl/jamscript-localstore.hh>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -41,7 +42,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
          {26 * 1000, 27 * 1000, 1}, {27 * 1000, 30 * 1000, 0}},
         0, 1024 * 256, nullptr, [](CTask* self, void* args) {
             std::cout << "LOCAL START" << std::endl;
-            YieldTask(self);
+            TaskYield(self);
             auto* schedulerPointer = static_cast<JAMScript::Scheduler*>(
                 self->scheduler->GetSchedulerData(self->scheduler));
             for (int v = 0; v < 2; v++) {
@@ -50,7 +51,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                     schedulerPointer->CreateInteractiveTask(
                         30 * 1000, 500, &i1c, [](CTask* self, void* args) {
                             {
-                                REQUIRE(self == ThisTask());
+                                REQUIRE(self == GetCurrentTaskRunning());
                                 auto* i1cp = static_cast<bool*>(args);
                                 auto* self_cpp = static_cast<JAMScript::InteractiveTaskExtender*>(
                                     self->taskFunctionVector->GetUserData(self));
@@ -58,7 +59,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                                 std::cout << "INTERAC" << std::endl;
                                 for (int i = 0; i < 100; i++) {
                                     std::this_thread::sleep_for(std::chrono::microseconds(5));
-                                    YieldTask(self);
+                                    TaskYield(self);
                                 }
                                 NotifyFinishOfFuture(self_cpp->handle.get());
                             }
@@ -66,15 +67,15 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                         });
                 std::cout << "FINISHED PSEUDO PREEMPT B" << std::endl;
                 schedulerPointer->CreateBatchTask(500, &sleep_time, [](CTask* self, void* args) {
-                    REQUIRE(self == ThisTask());
+                    REQUIRE(self == GetCurrentTaskRunning());
                     for (int i = 0; i < 100; i++) {
                         std::this_thread::sleep_for(
                             std::chrono::microseconds(*static_cast<uint32_t*>(args) / 200));
-                        YieldTask(self);
+                        TaskYield(self);
                     }
                     b1c = true;
                     std::cout << "BATCH" << std::endl;
-                    YieldTask(self);
+                    TaskYield(self);
                 });
                 WaitForValueFromFuture(handle_interactive1.get());
                 std::cout << "GOT HANDLE" << std::endl;
@@ -83,7 +84,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
             }
             while (schedulerPointer->GetCurrentTimepointInScheduler() / 1000 < 3 * 30 * 1000) {
                 std::this_thread::sleep_for(std::chrono::microseconds(1));
-                YieldTask(self);
+                TaskYield(self);
             }
 
             schedulerPointer->Exit();
@@ -93,7 +94,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     auto rt1 = [](CTask* self, void* args) {
         {
             auto pack = *static_cast<std::pair<int*, JAMScript::Scheduler*>*>(args);
-            REQUIRE(self == ThisTask());
+            REQUIRE(self == GetCurrentTaskRunning());
             std::this_thread::sleep_for(std::chrono::microseconds(900));
             std::cout << "TASK1 EXEC" << std::endl;
             (*(pack.first))++;
@@ -105,7 +106,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         {
             auto pack = *static_cast<std::pair<int*, JAMScript::Scheduler*>*>(args);
             std::this_thread::sleep_for(std::chrono::microseconds(900));
-            REQUIRE(self == ThisTask());
+            REQUIRE(self == GetCurrentTaskRunning());
             std::cout << "TASK2 EXEC" << std::endl;
             (*(pack.first))++;
             pack.second->CreateRealTimeTask(2, args, self->TaskFunction);
@@ -116,7 +117,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         {
             auto pack = *static_cast<std::pair<int*, JAMScript::Scheduler*>*>(args);
             std::this_thread::sleep_for(std::chrono::microseconds(900));
-            REQUIRE(self == ThisTask());
+            REQUIRE(self == GetCurrentTaskRunning());
             std::cout << "TASK3 EXEC" << std::endl;
             (*(pack.first))++;
             pack.second->CreateRealTimeTask(3, args, self->TaskFunction);
@@ -127,7 +128,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         {
             auto pack = *static_cast<std::pair<int*, JAMScript::Scheduler*>*>(args);
             std::this_thread::sleep_for(std::chrono::microseconds(1900));
-            REQUIRE(self == ThisTask());
+            REQUIRE(self == GetCurrentTaskRunning());
             std::cout << "TASK4 EXEC" << std::endl;
             (*(pack.first))++;
             pack.second->CreateRealTimeTask(4, args, self->TaskFunction);
@@ -155,8 +156,32 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
 #endif
 }
 
+struct A {
+    static JAMScript::TaskLS<int> i;
+    int b, c;
+    A (int b_, int c_) : b(b_), c(c_) {}
+};
+
+JAMScript::TaskLS<int> A::i = CreateTaskLS(int, 8);
+
+auto xglb = CreateTaskLS(int, 84);
+
+void CheckTLS() {
+    WARN(xglb);
+    REQUIRE(xglb == 84);
+    int r = rand() % 10000, org = A::i;
+    A::i += r;
+    REQUIRE(A::i == (org + r));
+}
+
 int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e, long f,
                                        std::string validator) {
+    auto xa = CreateTaskLS(A, 3, 2);
+    REQUIRE(A::i == 8);
+    A::i += 10;
+    REQUIRE(A::i == 18);
+    int rr = rand() % 10;
+    for (int x = 0; x < rr; x++) CheckTLS();
     REQUIRE(1 == a);
     REQUIRE(2 == b);
     REQUIRE(Approx(0.5) == c);
@@ -169,6 +194,12 @@ int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e
 
 int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, long f,
                                     std::string validator) {
+    auto xa = CreateTaskLS(A, 4, 5);
+    REQUIRE(A::i == 8);
+    A::i += 13;
+    REQUIRE(A::i == 21);
+    int rr = rand() % 10;
+    for (int x = 0; x < rr; x++) CheckTLS();
     REQUIRE(1 == a);
     REQUIRE(2 == b);
     REQUIRE(Approx(0.5) == c);
@@ -181,6 +212,10 @@ int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, l
 
 int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long f,
                                  std::string validator) {
+    int& xa = CreateTaskLS(int, 5), &xb = CreateTaskLS(int, 6), &xc = CreateTaskLS(int, 7);
+    REQUIRE(5 == xa);
+    REQUIRE(6 == xb);
+    REQUIRE(7 == xc);
     REQUIRE(1 == a);
     REQUIRE(2 == b);
     REQUIRE(Approx(0.5) == c);
@@ -193,6 +228,8 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
 
 int CiteLabAdditionFunctionNotifier(std::shared_ptr<JAMScript::Future<std::string>> secret_arch,
                                     std::string validator) {
+    int rr = rand() % 10;
+    for (int x = 0; x < rr; x++) CheckTLS();
     auto prevns = std::chrono::steady_clock::now();
     JAMScript::SleepFor(1000);
     auto currns = std::chrono::steady_clock::now();
@@ -203,7 +240,7 @@ int CiteLabAdditionFunctionNotifier(std::shared_ptr<JAMScript::Future<std::strin
                 1000 * 1000))
         << std::endl;
     REQUIRE(currns > prevns);
-    if (ThisTask()->scheduler != ThisTask()->actualScheduler)
+    if (GetCurrentTaskRunning()->scheduler != GetCurrentTaskRunning()->actualScheduler)
         WARN("TASK STOLEN");
     secret_arch->SetValue(validator);
     return 888888;

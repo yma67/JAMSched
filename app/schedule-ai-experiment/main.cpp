@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
                                             static_cast<JAMScript::InteractiveTaskExtender*>(
                                                 self->taskFunctionVector->GetUserData(self));
                                         std::cout << "I Task Start on "
-                                                  << (ThisTask()->scheduler == self->scheduler)
+                                                  << (GetCurrentTaskRunning()->scheduler == self->scheduler)
                                                   << std::endl;
 
                                         auto prevns = std::chrono::high_resolution_clock::now();
@@ -135,7 +135,7 @@ int main(int argc, char* argv[]) {
                                             if (preempt_tslice > 0)
                                                 std::this_thread::sleep_for(
                                                     std::chrono::nanoseconds(preempt_tslice));
-                                            YieldTask(self);
+                                            TaskYield(self);
                                         }
                                         interactive_count++;
                                         extender->handle->status = ACK_FINISHED;
@@ -153,13 +153,13 @@ int main(int argc, char* argv[]) {
                                         auto* extender = static_cast<JAMScript::BatchTaskExtender*>(
                                             self->taskFunctionVector->GetUserData(self));
                                         std::cout << "B Task Start on "
-                                                  << (ThisTask()->scheduler == self->scheduler)
+                                                  << (GetCurrentTaskRunning()->scheduler == self->scheduler)
                                                   << std::endl;
                                         long long prevns =
-                                            this_scheduler()->GetCurrentTimepointInScheduler();
+                                            GetCurrentSchedulerRunning()->GetCurrentTimepointInScheduler();
                                         JAMScript::SleepFor(1000);
                                         long long currns =
-                                            this_scheduler()->GetCurrentTimepointInScheduler();
+                                            GetCurrentSchedulerRunning()->GetCurrentTimepointInScheduler();
                                         std::cout << ("JSleep jitter in ns: " +
                                                       std::to_string(currns - prevns - 1000 * 1000))
                                                   << std::endl;
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
                                             if (preempt_tslice > 0)
                                                 std::this_thread::sleep_for(
                                                     std::chrono::nanoseconds(preempt_tslice));
-                                            YieldTask(self);
+                                            TaskYield(self);
                                         }
                                         batch_count++;
                                         FinishTask(self, 0);
@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
                             }
                         }
                         std::this_thread::sleep_for(std::chrono::nanoseconds(preempt_tslice));
-                        YieldTask(self);
+                        TaskYield(self);
                     }
                     schedulerPointer->Exit();
                 }
