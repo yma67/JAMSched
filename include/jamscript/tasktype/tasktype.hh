@@ -1,5 +1,6 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_TASKTYPE_H
 #define JAMSCRIPT_JAMSCRIPT_TASKTYPE_H
+#include "jamscript/worksteal/worksteal.hh"
 #include <future/future.h>
 #include <unordered_map>
 #include <cstdint>
@@ -10,13 +11,17 @@ namespace JAMScript {
     class JTLSMap;
     using JTLSLocation = void**;
 
+    std::unordered_map<JTLSLocation, std::any>* GetGlobalJTLSMap();
+
     enum CTaskType { INTERACTIVE_TASK_T = 0, BATCH_TASK_T = 1, REAL_TIME_TASK_T };
 
     struct CTaskExtender {
         CTaskType taskType;
         std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         std::unordered_map<JTLSLocation, std::any>* GetTaskLocalStoragePool() { return &taskLocalStoragePool; }
-        CTaskExtender(CTaskType taskType) : taskType(taskType) {}
+        CTaskExtender(CTaskType taskType) : taskType(taskType) {
+            taskLocalStoragePool = *GetGlobalJTLSMap();
+        }
 
     private:
         CTaskExtender() = delete;

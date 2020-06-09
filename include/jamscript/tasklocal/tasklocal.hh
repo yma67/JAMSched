@@ -8,7 +8,7 @@
 namespace JAMScript {
 
     using JTLSLocation = void**;
-    extern std::unordered_map<JTLSLocation, std::any>* GetThreadLocalJTLSMap();
+    extern std::unordered_map<JTLSLocation, std::any>* GetGlobalJTLSMap();
     template <typename T, typename... Args>
     T& GetByJTLSLocation(JTLSLocation location, Args&&... args) {
         std::unordered_map<JTLSLocation, std::any>* taskLocalPool = nullptr;
@@ -17,11 +17,8 @@ namespace JAMScript {
                                 GetCurrentTaskRunning()->taskFunctionVector->GetUserData(
                                     GetCurrentTaskRunning()))
                                 ->GetTaskLocalStoragePool();
-            if (taskLocalPool->empty()) {
-                (*taskLocalPool) = (*GetThreadLocalJTLSMap());
-            }
         } else {
-            taskLocalPool = GetThreadLocalJTLSMap();
+            taskLocalPool = GetGlobalJTLSMap();
         }
         if (taskLocalPool->find(location) == taskLocalPool->end())
             taskLocalPool->insert({location, std::any()});
