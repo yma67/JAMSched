@@ -42,11 +42,11 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
         0, 1024 * 256, nullptr, [](CTask* self, void* args) {
             std::cout << "LOCAL START" << std::endl;
             YieldTask(self);
-            auto* scheduler_ptr = static_cast<JAMScript::Scheduler*>(
+            auto* schedulerPointer = static_cast<JAMScript::Scheduler*>(
                 self->scheduler->GetSchedulerData(self->scheduler));
             for (int v = 0; v < 2; v++) {
                 std::cout << "FINISHED PSEUDO PREEMPT A" << std::endl;
-                std::shared_ptr<CFuture> handle_interactive1 = scheduler_ptr->CreateInteractiveTask(
+                std::shared_ptr<CFuture> handle_interactive1 = schedulerPointer->CreateInteractiveTask(
                     30 * 1000, 500, &i1c, [](CTask* self, void* args) {
                         {
                             REQUIRE(self == ThisTask());
@@ -64,7 +64,7 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                         FinishTask(self, EXIT_SUCCESS);
                     });
                 std::cout << "FINISHED PSEUDO PREEMPT B" << std::endl;
-                scheduler_ptr->CreateBatchTask(500, &sleep_time, [](CTask* self, void* args) {
+                schedulerPointer->CreateBatchTask(500, &sleep_time, [](CTask* self, void* args) {
                     REQUIRE(self == ThisTask());
                     for (int i = 0; i < 100; i++) {
                         std::this_thread::sleep_for(
@@ -80,11 +80,13 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
                 if (handle_interactive1->status == ACK_CANCELLED)
                     i1c = true;
             }
-            while (scheduler_ptr->GetCurrentTimepointInScheduler() / 1000 < 3 * 30 * 1000) {
+            while (schedulerPointer->GetCurrentTimepointInScheduler() / 1000 < 3 * 30 * 1000) {
                 std::this_thread::sleep_for(std::chrono::microseconds(1));
                 YieldTask(self);
             }
-            scheduler_ptr->Exit();
+            
+            schedulerPointer->Exit();
+            
             FinishTask(self, EXIT_SUCCESS);
         });
     auto rt1 = [](CTask* self, void* args) {
@@ -138,6 +140,8 @@ TEST_CASE("Scheduling-Paper-Sanity", "[jsched]") {
     jamc_sched.CreateRealTimeTask(3, &pack3, rt3);
     jamc_sched.CreateRealTimeTask(4, &pack4, rt4);
     jamc_sched.Run();
+    std::cout << "After Run" << std::endl;
+
     REQUIRE(i1c);
 #ifndef JAMSCRIPT_ENABLE_VALGRIND
 #ifdef __x86_64__
@@ -210,17 +214,17 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
         {{0, 10 * 1000, 0}, {0, 20 * 1000, 1}, {0, 30 * 1000, 0}},
         {{0, 10 * 1000, 0}, {0, 20 * 1000, 1}, {0, 30 * 1000, 0}}, 888, 1024 * 256, nullptr,
         [](CTask* self, void* args) {
-            auto* scheduler_ptr = static_cast<JAMScript::Scheduler*>(
+            auto* schedulerPointer = static_cast<JAMScript::Scheduler*>(
                 self->scheduler->GetSchedulerData(self->scheduler));
             {
-                auto res = scheduler_ptr->CreateLocalNamedTaskAsync<int>(
+                auto res = schedulerPointer->CreateLocalNamedTaskAsync<int>(
                     uint64_t(30 * 1000), uint64_t(500), "citelab i", 1, 2, float(0.5), 3,
                     double(1.25), 4, std::string("citelab loves java interactive"));
 
-                auto resrt = scheduler_ptr->CreateLocalNamedTaskAsync<int>(
+                auto resrt = schedulerPointer->CreateLocalNamedTaskAsync<int>(
                     uint32_t(1), "citelab r", 1, 2, float(0.5), 3, double(1.25), 4,
                     std::string("citelab loves java real time"));
-                auto resb = scheduler_ptr->CreateLocalNamedTaskAsync<int>(
+                auto resb = schedulerPointer->CreateLocalNamedTaskAsync<int>(
                     uint64_t(5), "citelab b", 1, 2, float(0.5), 3, double(1.25), 4,
                     std::string("citelab loves java batch"));
                 // assume fogonly
@@ -235,16 +239,16 @@ TEST_CASE("CreateLocalNamedTaskAsync", "[jsched]") {
                         "command, condvec, and fmask!");
                 auto p = std::make_shared<JAMScript::Future<std::string>>();
                 REQUIRE(JAMScript::ExtractValueFromLocalNamedExecution<int>(
-                            scheduler_ptr->CreateLocalNamedTaskAsync<int>(
+                            schedulerPointer->CreateLocalNamedTaskAsync<int>(
                                 uint64_t(30 * 1000), uint64_t(500), "citelab n", p,
                                 std::string("aarch64"))) == 888888);
                 REQUIRE(JAMScript::ExtractValueFromLocalNamedExecution<int>(
-                            scheduler_ptr->CreateLocalNamedTaskAsync<int>(
+                            schedulerPointer->CreateLocalNamedTaskAsync<int>(
                                 uint64_t(5), "citelab w", p, std::string("aarch64"))) == 233333);
                 REQUIRE_THROWS_WITH(JAMScript::ExtractValueFromRemoteNamedExecution<int>(resrm2),
                                     Catch::Contains("wrong device, should be fog only"));
             }
-            scheduler_ptr->Exit();
+            schedulerPointer->Exit();
             FinishTask(self, 0);
         });
     jamc_sched.RegisterNamedExecution("citelab i",

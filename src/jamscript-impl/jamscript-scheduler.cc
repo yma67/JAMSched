@@ -24,9 +24,12 @@
 #include <valgrind/helgrind.h>
 #include <valgrind/valgrind.h>
 #endif
+#include <thread>
+#include "jamscript-impl/jamscript-time.hh"
 #include "jamscript-impl/jamscript-future.hh"
 #include "jamscript-impl/jamscript-scheduler.hh"
-#include "jamscript-impl/jamscript-time.hh"
+#include "jamscript-impl/jamscript-worksteal.hh"
+
 JAMScript::Scheduler::Scheduler(std::vector<RealTimeTaskScheduleEntry> normalSchedule,
                                 std::vector<RealTimeTaskScheduleEntry> greedySchedule,
                                 uint32_t deviceId, uint32_t stackSize, void *localAppArgs,
@@ -42,8 +45,9 @@ JAMScript::Scheduler::Scheduler(std::vector<RealTimeTaskScheduleEntry> normalSch
       cycleStartTime(taskStartTime),
       normalSchedule(std::move(normalSchedule)),
       greedySchedule(std::move(greedySchedule)),
-      sporadicManagers{std::make_unique<InteractiveTaskManager>(this, stackSize),
-                       std::make_unique<BatchTaskManager>(this, stackSize)},
+      FutureWaitable({std::make_shared<InteractiveTaskManager>(this, stackSize),
+                      std::make_shared<BatchTaskManager>(this, stackSize)}),
+      stealer(this->sporadicManagers),
       decider(this) {
     cScheduler = new CScheduler;
     CreateScheduler(cScheduler, NextTaskJAMScriptImpl, IdleTaskJAMScriptImpl,
@@ -60,57 +64,58 @@ JAMScript::Scheduler::Scheduler(std::vector<RealTimeTaskScheduleEntry> normalSch
 JAMScript::Scheduler::~Scheduler() { delete cScheduler; }
 
 void JAMScript::BeforeEachJAMScriptImpl(CTask *self) {
-    auto *self_task = static_cast<CTaskExtender *>(self->taskFunctionVector->GetUserData(self));
-    auto *self_sched = static_cast<Scheduler *>(self->scheduler->GetSchedulerData(self->scheduler));
-    self_sched->taskStartTime = std::chrono::high_resolution_clock::now();
-    if (self_task->taskType == JAMScript::REAL_TIME_TASK_T) {
-        self_sched->totalJitter.push_back(
-            std::abs((long long)self_sched->GetCurrentTimepointInCycle() / 1000 -
-                     (long long)(self_sched->currentSchedule->at(self_sched->currentScheduleSlot)
-                                     .startTime)));
+    auto *selfTask = static_cast<CTaskExtender *>(self->taskFunctionVector->GetUserData(self));
+    auto *selfScheduler =
+        static_cast<Scheduler *>(self->scheduler->GetSchedulerData(self->scheduler));
+    selfScheduler->taskStartTime = std::chrono::high_resolution_clock::now();
+    if (selfTask->taskType == JAMScript::REAL_TIME_TASK_T) {
+        selfScheduler->totalJitter.push_back(std::abs(
+            (long long)selfScheduler->GetCurrentTimepointInCycle() / 1000 -
+            (long long)(selfScheduler->currentSchedule->at(selfScheduler->currentScheduleSlot)
+                            .startTime)));
     }
 }
 
 void JAMScript::AfterEachJAMScriptImpl(CTask *self) {
     auto *traits = static_cast<CTaskExtender *>(self->taskFunctionVector->GetUserData(self));
-    auto *scheduler_ptr =
+    auto *schedulerPointer =
         static_cast<Scheduler *>(self->scheduler->GetSchedulerData(self->scheduler));
-    auto actual_exec_time = scheduler_ptr->GetCurrentTimepointInTask();
-    if (traits->taskType != JAMScript::REAL_TIME_TASK_T) {
-        scheduler_ptr->virtualClock[traits->taskType] += actual_exec_time / 1000;
-        scheduler_ptr->sporadicManagers[traits->taskType]->UpdateBurstToTask(
-            self, actual_exec_time / 1000);
-        {
-            std::lock_guard<std::mutex> l(scheduler_ptr->futureMutex);
-            TaskStatus st = __atomic_load_n(&(self->taskStatus), __ATOMIC_ACQUIRE);
-            if (st == TASK_READY) {
-                scheduler_ptr->sporadicManagers[traits->taskType]->EnableTask(self);
-            } else if (st == TASK_PENDING) {
-                scheduler_ptr->sporadicManagers[traits->taskType]->PauseTask(self);
-            }
-        }
-    } else {
-        scheduler_ptr->realTimeTaskManager.SpinUntilEndOfCurrentInterval();
-    }
+    auto actualExecutionTime = schedulerPointer->GetCurrentTimepointInTask();
     if (self->taskStatus == TASK_FINISHED) {
         if (self->returnValue == ERROR_TASK_STACK_OVERFLOW) {
-            scheduler_ptr->realTimeTaskManager.cSharedStack->isAllocatable = 0;
+            schedulerPointer->realTimeTaskManager.cSharedStack->isAllocatable = 0;
         }
         if (traits->taskType == JAMScript::REAL_TIME_TASK_T) {
-            scheduler_ptr->realTimeTaskManager.RemoveTask(self);
+            schedulerPointer->realTimeTaskManager.RemoveTask(self);
         } else {
-            scheduler_ptr->sporadicManagers[traits->taskType]->RemoveTask(self);
+            schedulerPointer->sporadicManagers[traits->taskType]->RemoveTask(self);
+        }
+        return;
+    }
+    if (traits->taskType != JAMScript::REAL_TIME_TASK_T) {
+        schedulerPointer->virtualClock[traits->taskType] += actualExecutionTime / 1000;
+        schedulerPointer->sporadicManagers[traits->taskType]->UpdateBurstToTask(
+            self, actualExecutionTime / 1000);
+        {
+            std::lock_guard<std::mutex> l(schedulerPointer->futureMutex);
+            TaskStatus st = __atomic_load_n(&(self->taskStatus), __ATOMIC_ACQUIRE);
+            if (st == TASK_READY) {
+                schedulerPointer->sporadicManagers[traits->taskType]->EnableTask(self);
+            } else if (st == TASK_PENDING) {
+                schedulerPointer->sporadicManagers[traits->taskType]->PauseTask(self);
+            }
         }
     }
 }
 
-CTask *JAMScript::NextTaskJAMScriptImpl(CScheduler *self_c) {
-    auto *self = static_cast<Scheduler *>(self_c->GetSchedulerData(self_c));
+CTask *JAMScript::NextTaskJAMScriptImpl(CScheduler *selfCScheduler) {
+    auto *self = static_cast<Scheduler *>(selfCScheduler->GetSchedulerData(selfCScheduler));
     self->MoveSchedulerSlot();
     self->jamscriptTimer.NotifyAllTimeouts();
-    CTask *to_dispatch = self->realTimeTaskManager.DispatchTask(
+    CTask *toDispatch = self->realTimeTaskManager.DispatchTask(
         self->currentSchedule->at(self->currentScheduleSlot).taskId);
-    if (to_dispatch == nullptr) {
+    if (self->currentSchedule->at(self->currentScheduleSlot).taskId == 0x0 &&
+        toDispatch == nullptr) {
         if (self->sporadicManagers[INTERACTIVE_TASK_T]->NumberOfTaskReady() == 0 &&
             self->sporadicManagers[BATCH_TASK_T]->NumberOfTaskReady() == 0) {
             return nullptr;
@@ -128,27 +133,38 @@ CTask *JAMScript::NextTaskJAMScriptImpl(CScheduler *self_c) {
                 ->DispatchTask();
         }
     }
-    return to_dispatch;
+    return toDispatch;
 }
 
-void JAMScript::IdleTaskJAMScriptImpl(CScheduler *) {}
+void JAMScript::IdleTaskJAMScriptImpl(CScheduler *selfCScheduler) {
+    auto *self = static_cast<Scheduler *>(selfCScheduler->GetSchedulerData(selfCScheduler));
+    uint64_t timeDiff = self->currentSchedule->at(self->currentScheduleSlot).endTime * 1000 -
+                        self->GetCurrentTimepointInCycle();
+    if (timeDiff > JAMSCRIPT_RT_SPIN_LIMIT_NS) {
+        std::this_thread::sleep_for(
+            std::chrono::nanoseconds(timeDiff - JAMSCRIPT_RT_SPIN_LIMIT_NS));
+    } else {
+        self->realTimeTaskManager.SpinUntilEndOfCurrentInterval();
+    }
+}
 
 void JAMScript::InteractiveTaskHandlePostCallback(CFuture *self) {
-    auto *cpp_task_traits = static_cast<CTaskExtender *>(
+    auto *taskExtender = static_cast<CTaskExtender *>(
         self->ownerTask->taskFunctionVector->GetUserData(self->ownerTask));
-    auto *cpp_scheduler = static_cast<Scheduler *>(
+    auto *futureWaitable = static_cast<FutureWaitable *>(
         self->ownerTask->scheduler->GetSchedulerData(self->ownerTask->scheduler));
-    std::lock_guard<std::mutex> lock(cpp_scheduler->futureMutex);
-    cpp_scheduler->sporadicManagers[cpp_task_traits->taskType]->SetTaskReady(self->ownerTask);
+    if (self->ownerTask->scheduler->taskRunning == self->ownerTask)
+        std::lock_guard<std::mutex> lock(futureWaitable->futureMutex);
+    futureWaitable->sporadicManagers[taskExtender->taskType]->SetTaskReady(self->ownerTask);
 }
 
 std::shared_ptr<CFuture> JAMScript::Scheduler::CreateInteractiveTask(
-    uint64_t deadline, uint64_t burst, void *interactive_task_args,
-    void (*interactive_task_fn)(CTask *, void *)) {
+    uint64_t deadline, uint64_t burst, void *interactiveTaskArgs,
+    void (*InteractiveTaskFunction)(CTask *, void *)) {
     if (!realTimeTaskManager.cSharedStack->isAllocatable)
         return nullptr;
     CTask *handle = sporadicManagers[INTERACTIVE_TASK_T]->CreateRIBTask(
-        ThisTask(), deadline, burst, interactive_task_args, interactive_task_fn);
+        ThisTask(), deadline, burst, interactiveTaskArgs, InteractiveTaskFunction);
     if (handle == nullptr) {
         realTimeTaskManager.cSharedStack->isAllocatable = 0;
         return nullptr;
@@ -170,10 +186,10 @@ bool JAMScript::Scheduler::CreateBatchTask(uint32_t burst, void *args,
 }
 
 bool JAMScript::Scheduler::CreateRealTimeTask(uint32_t taskId, void *args,
-                                              void (*real_time_task_fn)(CTask *, void *)) {
+                                              void (*RealTimeTaskFunction)(CTask *, void *)) {
     if (!realTimeTaskManager.cSharedStack->isAllocatable)
         return false;
-    CTask *handle = realTimeTaskManager.CreateRIBTask(taskId, args, real_time_task_fn);
+    CTask *handle = realTimeTaskManager.CreateRIBTask(taskId, args, RealTimeTaskFunction);
     if (handle == nullptr) {
         realTimeTaskManager.cSharedStack->isAllocatable = 0;
         return false;
@@ -191,17 +207,29 @@ std::vector<JAMScript::RealTimeTaskScheduleEntry> *JAMScript::Scheduler::DecideN
 
 void JAMScript::Scheduler::Run() {
     {
-        std::lock_guard<std::recursive_mutex> l(timeMutex);
+        std::lock_guard<std::mutex> l(timeMutex);
         schedulerStartTime = std::chrono::high_resolution_clock::now();
         cycleStartTime = std::chrono::high_resolution_clock::now();
         jamscriptTimer.ZeroTimeout();
     }
+#if defined(JAMSCRIPT_ENABLE_WORKSTEAL) && JAMSCRIPT_ENABLE_WORKSTEAL == 1
+    stealer.Run();
+#endif
     SchedulerMainloop(cScheduler);
 }
 
 bool JAMScript::Scheduler::IsSchedulerRunning() { return cScheduler->isSchedulerContinue != 0; }
 
-void JAMScript::Scheduler::Exit() { cScheduler->isSchedulerContinue = 0; }
+void JAMScript::Scheduler::Exit() {
+    if (ThisTask()->scheduler != cScheduler)
+        return;
+    this->cScheduler->isSchedulerContinue = 0;
+    stealer.interactiveScheduler->isSchedulerContinue = 0;
+    stealer.batchScheduler->isSchedulerContinue = 0;
+    for (auto &x : {INTERACTIVE_TASK_T, BATCH_TASK_T}) {
+        sporadicManagers[x]->ClearAllTasks();
+    }
+}
 
 uint32_t JAMScript::Scheduler::GetNumberOfCycleFinished() { return multiplier; }
 
@@ -210,7 +238,6 @@ void JAMScript::Scheduler::DownloadSchedule() {
 }
 
 void JAMScript::Scheduler::MoveSchedulerSlot() {
-    std::lock_guard<std::recursive_mutex> l(timeMutex);
     while (!(currentSchedule->at(currentScheduleSlot).inside(GetCurrentTimepointInCycle()))) {
         currentScheduleSlot = currentScheduleSlot + 1;
         if (currentScheduleSlot >= currentSchedule->size()) {
@@ -239,21 +266,21 @@ void JAMScript::Scheduler::RegisterNamedExecution(std::string name, void *fp) {
 }
 
 uint64_t JAMScript::Scheduler::GetCurrentTimepointInCycle() {
-    std::lock_guard<std::recursive_mutex> l(timeMutex);
+    std::lock_guard<std::mutex> l(timeMutex);
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                std::chrono::high_resolution_clock::now() - cycleStartTime)
         .count();
 }
 
 uint64_t JAMScript::Scheduler::GetCurrentTimepointInScheduler() {
-    std::lock_guard<std::recursive_mutex> l(timeMutex);
+    std::lock_guard<std::mutex> l(timeMutex);
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                std::chrono::high_resolution_clock::now() - schedulerStartTime)
         .count();
 }
 
 uint64_t JAMScript::Scheduler::GetCurrentTimepointInTask() {
-    std::lock_guard<std::recursive_mutex> l(timeMutex);
+    std::lock_guard<std::mutex> l(timeMutex);
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                std::chrono::high_resolution_clock::now() - taskStartTime)
         .count();

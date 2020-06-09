@@ -39,13 +39,16 @@ static void StartTask(unsigned int taskAddressLower32Bits, unsigned int taskAddr
 
 void ResumeRegularTask(CTask* self) {
     currentTask = self;
-    SwapToContext(&self->scheduler->schedulerContext, &self->context);
+    self->actualScheduler->taskRunning = self;
+    SwapToContext(&self->actualScheduler->schedulerContext, &self->context);
 }
 
 void YieldRegularTask(CTask* task) {
     if (task == NULL)
         return;
-    SwapToContext(&task->context, &task->scheduler->schedulerContext);
+    task->actualScheduler->taskRunning = NULL;
+    currentTask = NULL;
+    SwapToContext(&task->context, &task->actualScheduler->schedulerContext);
 }
 
 TaskFunctions regular_task_fv = {.ResumeTask = ResumeRegularTask,
@@ -60,12 +63,11 @@ TaskReturn CreateTask(CTask* taskBytes, CScheduler* scheduler, void (*TaskFuncti
         return ERROR_TASK_INVALID_ARGUMENT;
     }
     taskBytes->stackSize = stackSize;
-    taskBytes->taskId = scheduler->taskIdCounter;
     taskBytes->TaskFunction = TaskFunction;
     taskBytes->taskArgs = taskArgs;
     taskBytes->scheduler = scheduler;
+    taskBytes->actualScheduler = scheduler;
     taskBytes->stack = stack;
-    scheduler->taskIdCounter = scheduler->taskIdCounter + 1;
     taskBytes->taskFunctionVector = &regular_task_fv;
     taskBytes->context.uc_stack.ss_sp = taskBytes->stack;
     taskBytes->context.uc_stack.ss_size = taskBytes->stackSize;
@@ -81,7 +83,6 @@ TaskReturn CreateScheduler(CScheduler* schedulerBytes, CTask* (*NextTask)(CSched
     if (schedulerBytes == NULL || NextTask == NULL || IdleTask == NULL || BeforeEach == NULL ||
         AfterEach == NULL)
         return ERROR_TASK_INVALID_ARGUMENT;
-    schedulerBytes->taskIdCounter = 0;
     schedulerBytes->NextTask = NextTask;
     schedulerBytes->IdleTask = IdleTask;
     schedulerBytes->BeforeEach = BeforeEach;

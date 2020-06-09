@@ -15,11 +15,14 @@
 
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-tasktype.hh"
+#include "jamscript-impl/jamscript-worksteal.hh"
 
 JAMScript::InteractiveTaskManager::InteractiveTaskManager(Scheduler *scheduler, uint32_t stackSize)
     : SporadicTaskManager(scheduler, stackSize), interactiveQueue(JAMScript::edf_cmp) {}
 
-JAMScript::InteractiveTaskManager::~InteractiveTaskManager() {
+JAMScript::InteractiveTaskManager::~InteractiveTaskManager() { ClearAllTasks(); }
+
+void JAMScript::InteractiveTaskManager::ClearAllTasks() {
     std::lock_guard<std::mutex> lock(m);
     while (!interactiveQueue.empty()) {
         auto [ddl, task] = interactiveQueue.top();
@@ -39,7 +42,7 @@ JAMScript::InteractiveTaskManager::~InteractiveTaskManager() {
         delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
-    for (auto task : interactiveTask) {
+    for (auto task : interactiveStack) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         VALGRIND_STACK_DEREGISTER(task->v_stack_id);
 #endif
@@ -47,76 +50,75 @@ JAMScript::InteractiveTaskManager::~InteractiveTaskManager() {
         delete static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
+    interactiveWait.clear();
+    interactiveStack.clear();
+    cv.notify_all();
 }
 
 CTask *JAMScript::InteractiveTaskManager::CreateRIBTask(uint64_t burst, void *args,
                                                         void (*func)(CTask *, void *)) {
-    auto *int_task = new CTask;
-    auto *int_task_stack = new unsigned char[stackSize];
+    auto *interactiveTaskPtr = new CTask;
+    auto *interactiveTaskStack = new unsigned char[stackSize];
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-    int_task->v_stack_id =
-        VALGRIND_STACK_REGISTER(int_task_stack, (void *)((uintptr_t)int_task_stack + stackSize));
+    interactiveTaskPtr->v_stack_id = VALGRIND_STACK_REGISTER(
+        interactiveTaskStack, (void *)((uintptr_t)interactiveTaskStack + stackSize));
 #endif
-    CreateTask(int_task, scheduler->cScheduler, func, args, stackSize, int_task_stack);
-    return int_task;
+    CreateTask(interactiveTaskPtr, scheduler->cScheduler, func, args, stackSize,
+               interactiveTaskStack);
+    return interactiveTaskPtr;
 }
 
 CTask *JAMScript::InteractiveTaskManager::CreateRIBTask(CTask *parent, uint64_t deadline,
                                                         uint64_t burst, void *args,
                                                         void (*func)(CTask *, void *)) {
-    auto int_task_handle = std::make_shared<CFuture>();
-    CreateFuture(int_task_handle.get(), parent, nullptr,
+    auto interactiveTaskHandle = std::make_shared<CFuture>();
+    CreateFuture(interactiveTaskHandle.get(), parent, nullptr,
                  JAMScript::InteractiveTaskHandlePostCallback);
-    int_task_handle->lockWord = 0x0;
-    auto *iext = new JAMScript::InteractiveTaskExtender(burst, deadline, int_task_handle);
-    CTask *int_task = CreateRIBTask(burst, args, func);
-    int_task->taskFunctionVector->SetUserData(int_task, iext);
+    interactiveTaskHandle->lockWord = 0x0;
+    auto *iext = new JAMScript::InteractiveTaskExtender(burst, deadline, interactiveTaskHandle);
+    CTask *interactiveTaskPtr = CreateRIBTask(burst, args, func);
+    interactiveTaskPtr->taskFunctionVector->SetUserData(interactiveTaskPtr, iext);
     {
         std::lock_guard<std::mutex> lock(m);
-        interactiveQueue.push({deadline, int_task});
+        interactiveQueue.push({deadline, interactiveTaskPtr});
     }
     scheduler->decider.RecordInteractiveJobArrival({*iext});
-    return int_task;
+    return interactiveTaskPtr;
 }
 
 CTask *JAMScript::InteractiveTaskManager::DispatchTask() {
     std::lock_guard<std::mutex> lock(m);
     InteractiveTaskExtender *to_cancel_ext;
-    CTask *to_return;
+    CTask *toReturn;
     while (!interactiveQueue.empty()) {
-        to_return = interactiveQueue.top().second;
+        toReturn = interactiveQueue.top().second;
         to_cancel_ext = static_cast<InteractiveTaskExtender *>(
-            to_return->taskFunctionVector->GetUserData(to_return));
+            toReturn->taskFunctionVector->GetUserData(toReturn));
         if ((to_cancel_ext->deadline - to_cancel_ext->burst) <=
             scheduler->GetCurrentTimepointInScheduler() / 1000) {
-            interactiveTask.push_back(to_return);
-            while (interactiveTask.size() > 3) {
-                CTask *to_drop = interactiveTask.front();
-                auto *to_drop_ext = static_cast<InteractiveTaskExtender *>(
-                    to_drop->taskFunctionVector->GetUserData(to_drop));
-                to_drop_ext->handle->status = ACK_CANCELLED;
-                NotifyFinishOfFuture(to_drop_ext->handle.get());
-                RemoveTask(to_drop);
-                interactiveTask.pop_front();
-            }
+            interactiveStack.push_back(toReturn);
+            cv.notify_one();
             interactiveQueue.pop();
         } else {
             break;
         }
     }
     if (interactiveQueue.empty()) {
-        if (interactiveTask.empty()) {
+        if (interactiveStack.empty()) {
             return nullptr;
         } else {
-            to_return = interactiveTask.back();
-            interactiveTask.pop_back();
-            return to_return;
+            toReturn = interactiveStack.back();
+            interactiveStack.pop_back();
+            toReturn->actualScheduler = scheduler->cScheduler;
+            return toReturn;
         }
     } else {
-        to_return = interactiveQueue.top().second;
+        toReturn = interactiveQueue.top().second;
         interactiveQueue.pop();
-        return to_return;
+        toReturn->actualScheduler = scheduler->cScheduler;
+        return toReturn;
     }
+    cv.notify_one();
 }
 
 const uint32_t JAMScript::InteractiveTaskManager::NumberOfTaskReady() const {
@@ -161,4 +163,16 @@ void JAMScript::InteractiveTaskManager::UpdateBurstToTask(CTask *task, uint64_t 
     auto *traits =
         static_cast<InteractiveTaskExtender *>(task->taskFunctionVector->GetUserData(task));
     traits->burst -= burst;
+}
+
+CTask *JAMScript::InteractiveTaskManager::StealTask(TaskStealWorker *thief) {
+    std::unique_lock<std::mutex> lock(m);
+    while (interactiveStack.empty() && thief->GetInteractiveCScheduler()->isSchedulerContinue)
+        cv.wait(lock);
+    if (!thief->GetInteractiveCScheduler()->isSchedulerContinue)
+        return nullptr;
+    CTask *toReturn = interactiveStack.front();
+    toReturn->actualScheduler = thief->GetInteractiveCScheduler();
+    interactiveStack.pop_front();
+    return toReturn;
 }

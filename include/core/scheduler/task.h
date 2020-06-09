@@ -80,8 +80,8 @@ typedef struct TaskFunctions {
 struct CTask {
     TaskStatus taskStatus;                       /// state machine of a task
     CScheduler* scheduler;                       /// scheduler of the task
+    CScheduler* actualScheduler;
     JAMScriptUserContext context;                /// context store for this task, could be use to restore its execution
-    unsigned int taskId;                         /// id of the task, auto incremented
     void (*TaskFunction)(CTask*, void*);         /// function to be executed as the task
     void *taskArgs;                              /// argument that WILL be passed into task function along with task itself
     void *userData;                              /// argument that WILLNOT be passed into task function along with task itself
@@ -95,7 +95,7 @@ struct CTask {
 };
 
 struct CScheduler {
-    unsigned int taskIdCounter;                  /// auto-incremented task id generator
+    CTask* taskRunning;
     JAMScriptUserContext schedulerContext;       /// context store for scheduler, used to switch back to scheduler
     CTask* (*NextTask)(CScheduler*);             /// feed scheduler the next task to run
     void (*IdleTask)(CScheduler*);               /// activities to do if there is no task to run

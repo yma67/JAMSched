@@ -93,18 +93,18 @@ int main(int argc, char *argv[]) {
                                                [](CTask* self, void* args) {
 
             {
-                auto* scheduler_ptr = static_cast<JAMScript::Scheduler*>
+                auto* schedulerPointer = static_cast<JAMScript::Scheduler*>
                     (self->scheduler->GetSchedulerData(self->scheduler));
                 auto* batch_interactives = static_cast<bi_dto*>(args);
                 auto* interactive_tasks = batch_interactives->
                                           pinteractive_tasks;
                 auto* batch_tasks = batch_interactives->pbatch_tasks;
-                while (scheduler_ptr->GetCurrentTimepointInScheduler() / 1000 < nrounds * normal_sched.back().endTime) {
-                    auto curr_timediff = scheduler_ptr->GetCurrentTimepointInScheduler() / 1000;
+                while (schedulerPointer->GetCurrentTimepointInScheduler() / 1000 < nrounds * normal_sched.back().endTime) {
+                    auto curr_timediff = schedulerPointer->GetCurrentTimepointInScheduler() / 1000;
                     for (auto& itask: *interactive_tasks) {
                         if (curr_timediff >= itask.first && 
                             itask.second.handle == nullptr) {
-                            itask.second.handle = scheduler_ptr->
+                            itask.second.handle = schedulerPointer->
                             CreateInteractiveTask(itask.second.deadline, 
                                                  itask.second.burst, nullptr, 
                                                  [](CTask* self, void* args) {
@@ -113,7 +113,9 @@ int main(int argc, char *argv[]) {
                                 auto* extender = 
                                 static_cast<JAMScript::InteractiveTaskExtender*>(
                                     self->taskFunctionVector->GetUserData(self)
-                                );
+                                );    
+                                std::cout << "I Task Start on "  << (ThisTask()->scheduler == self->scheduler) << std::endl;
+
                                 long long prevns = this_scheduler()->GetCurrentTimepointInScheduler();
                                 JAMScript::SleepFor(1000);
                                 long long currns = this_scheduler()->GetCurrentTimepointInScheduler();
@@ -140,7 +142,7 @@ int main(int argc, char *argv[]) {
                     }
                     for (auto& btask: *batch_tasks) {
                         if (curr_timediff >= btask.first) {
-                            scheduler_ptr->CreateBatchTask(btask.second, 
+                            schedulerPointer->CreateBatchTask(btask.second, 
                                                           nullptr, 
                                                           [](CTask* self, 
                                                              void* args) {
@@ -150,6 +152,7 @@ int main(int argc, char *argv[]) {
                                 static_cast<JAMScript::BatchTaskExtender*>(
                                     self->taskFunctionVector->GetUserData(self)
                                 );
+                                std::cout << "B Task Start on "  << (ThisTask()->scheduler == self->scheduler) << std::endl;
                                 long long prevns = this_scheduler()->GetCurrentTimepointInScheduler();
                                 JAMScript::SleepFor(1000);
                                 long long currns = this_scheduler()->GetCurrentTimepointInScheduler();
@@ -177,7 +180,7 @@ int main(int argc, char *argv[]) {
                     );
                     YieldTask(self);
                 }
-                scheduler_ptr->Exit();
+                schedulerPointer->Exit();
             }
             FinishTask(self, EXIT_SUCCESS);
         });

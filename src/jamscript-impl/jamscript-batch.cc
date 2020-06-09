@@ -12,14 +12,16 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-batch.hh"
-
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-tasktype.hh"
+#include "jamscript-impl/jamscript-worksteal.hh"
 
 JAMScript::BatchTaskManager::BatchTaskManager(Scheduler *scheduler, uint32_t stackSize)
     : SporadicTaskManager(scheduler, stackSize) {}
 
-JAMScript::BatchTaskManager::~BatchTaskManager() {
+JAMScript::BatchTaskManager::~BatchTaskManager() { ClearAllTasks(); }
+
+void JAMScript::BatchTaskManager::ClearAllTasks() {
     std::lock_guard<std::mutex> lock(m);
     for (auto task : batchQueue) {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
@@ -37,6 +39,9 @@ JAMScript::BatchTaskManager::~BatchTaskManager() {
         delete static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
         delete task;
     }
+    batchQueue.clear();
+    batchWait.clear();
+    cv.notify_all();
 }
 
 CTask *JAMScript::BatchTaskManager::CreateRIBTask(uint64_t burst, void *args,
@@ -53,6 +58,7 @@ CTask *JAMScript::BatchTaskManager::CreateRIBTask(uint64_t burst, void *args,
     {
         std::unique_lock<std::mutex> lock(m);
         batchQueue.push_back(batchTask);
+        cv.notify_one();
     }
     return batchTask;
 }
@@ -66,9 +72,10 @@ CTask *JAMScript::BatchTaskManager::DispatchTask() {
     std::lock_guard<std::mutex> lock(m);
     if (batchQueue.empty())
         return nullptr;
-    CTask *to_return = batchQueue.front();
+    CTask *toReturn = batchQueue.front();
     batchQueue.pop_front();
-    return to_return;
+    toReturn->actualScheduler = scheduler->cScheduler;
+    return toReturn;
 }
 
 const uint32_t JAMScript::BatchTaskManager::NumberOfTaskReady() const { return batchQueue.size(); }
@@ -83,6 +90,7 @@ bool JAMScript::BatchTaskManager::SetTaskReady(CTask *task) {
     if (batchWait.find(task) != batchWait.end()) {
         batchWait.erase(task);
         batchQueue.push_back(task);
+        cv.notify_one();
         return true;
     }
     return false;
@@ -91,6 +99,7 @@ bool JAMScript::BatchTaskManager::SetTaskReady(CTask *task) {
 void JAMScript::BatchTaskManager::EnableTask(CTask *task) {
     std::lock_guard<std::mutex> lock(m);
     batchQueue.push_back(task);
+    cv.notify_one();
 }
 
 void JAMScript::BatchTaskManager::RemoveTask(CTask *to_remove) {
@@ -105,4 +114,15 @@ void JAMScript::BatchTaskManager::RemoveTask(CTask *to_remove) {
 void JAMScript::BatchTaskManager::UpdateBurstToTask(CTask *task, uint64_t burst) {
     auto *traits = static_cast<BatchTaskExtender *>(task->taskFunctionVector->GetUserData(task));
     traits->burst -= burst;
+}
+
+CTask *JAMScript::BatchTaskManager::StealTask(TaskStealWorker *thief) {
+    std::unique_lock<std::mutex> lock(m);
+    while (batchQueue.empty() && thief->GetBatchCScheduler()->isSchedulerContinue) cv.wait(lock);
+    if (!thief->GetBatchCScheduler()->isSchedulerContinue)
+        return nullptr;
+    CTask *toReturn = batchQueue.back();
+    toReturn->actualScheduler = thief->GetBatchCScheduler();
+    batchQueue.pop_back();
+    return toReturn;
 }

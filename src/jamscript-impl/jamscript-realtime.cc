@@ -12,11 +12,9 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript-impl/jamscript-realtime.hh"
-
-#include <cstring>
-
 #include "jamscript-impl/jamscript-scheduler.hh"
 #include "jamscript-impl/jamscript-tasktype.hh"
+#include <cstring>
 
 JAMScript::RealTimeTaskManager::RealTimeTaskManager(Scheduler *scheduler, uint32_t stackSize)
     : scheduler(scheduler) {
@@ -40,27 +38,25 @@ JAMScript::RealTimeTaskManager::~RealTimeTaskManager() {
 CTask *JAMScript::RealTimeTaskManager::CreateRIBTask(uint32_t id, void *args,
                                                      void (*func)(CTask *, void *)) {
     if (cSharedStack->isAllocatable) {
-        CTask *new_xtask = CreateSharedStackTask(scheduler->cScheduler, func, args, cSharedStack);
-        if (new_xtask == nullptr)
+        CTask *sharedTask = CreateSharedStackTask(scheduler->cScheduler, func, args, cSharedStack);
+        if (sharedTask == nullptr)
             throw std::bad_alloc();
-        new_xtask->taskFunctionVector->SetUserData(new_xtask, new RealTimeTaskExtender(id));
+        sharedTask->taskFunctionVector->SetUserData(sharedTask, new RealTimeTaskExtender(id));
         {
             std::lock_guard<std::mutex> lock(m);
-            taskMap[id].push_back(new_xtask);
-            return new_xtask;
+            taskMap[id].push_back(sharedTask);
+            return sharedTask;
         }
         delete static_cast<RealTimeTaskExtender *>(
-            new_xtask->taskFunctionVector->GetUserData(new_xtask));
-        DestroySharedStackTask(new_xtask);
+            sharedTask->taskFunctionVector->GetUserData(sharedTask));
+        DestroySharedStackTask(sharedTask);
         return nullptr;
     }
     return nullptr;
 }
 
 void JAMScript::RealTimeTaskManager::RemoveTask(CTask *to_remove) {
-    auto *traits2 =
-        static_cast<RealTimeTaskExtender *>(to_remove->taskFunctionVector->GetUserData(to_remove));
-    delete traits2;
+    delete static_cast<RealTimeTaskExtender *>(to_remove->taskFunctionVector->GetUserData(to_remove));
     DestroySharedStackTask(to_remove);
 }
 
@@ -70,9 +66,9 @@ CTask *JAMScript::RealTimeTaskManager::DispatchTask(uint32_t id) {
         auto &l = taskMap[id];
         if (l.empty())
             return nullptr;
-        CTask *to_dispatch = l.front();
+        CTask *toDispatch = l.front();
         l.pop_front();
-        return to_dispatch;
+        return toDispatch;
     }
     return nullptr;
 }

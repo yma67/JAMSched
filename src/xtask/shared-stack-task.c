@@ -29,7 +29,6 @@
 /// limitations under the License.
 
 #include "xtask/shared-stack-task.h"
-
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -108,7 +107,8 @@ void shared_stack_task_resume(CTask* xself) {
         xstack->SharedStackMemcpy(xstack->sharedStackPtr - xdata->privateStackSize,
                                   xdata->privateStack, xdata->privateStackSize);
         currentTask = xself;
-        SwapToContext(&xself->scheduler->schedulerContext, &xself->context);
+        xself->actualScheduler->taskRunning = xself;
+        SwapToContext(&xself->actualScheduler->schedulerContext, &xself->context);
         return;
     }
 }
@@ -135,11 +135,15 @@ void shared_stack_task_yield(CTask* xself) {
             if (xdata->privateStack == NULL) {
                 xself->taskStatus = TASK_FINISHED;
                 xself->returnValue = ERROR_TASK_STACK_OVERFLOW;
-                SwapToContext(&xself->context, &xself->scheduler->schedulerContext);
+                currentTask = NULL;
+                xself->actualScheduler->taskRunning = NULL;
+                SwapToContext(&xself->context, &xself->actualScheduler->schedulerContext);
             }
         }
         xstack->SharedStackMemcpy(xdata->privateStack, tos, xdata->privateStackSize);
-        SwapToContext(&xself->context, &xself->scheduler->schedulerContext);
+        currentTask = NULL;
+        xself->actualScheduler->taskRunning = NULL;
+        SwapToContext(&xself->context, &xself->actualScheduler->schedulerContext);
         return;
     }
 }

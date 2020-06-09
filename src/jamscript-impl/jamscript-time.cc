@@ -14,9 +14,8 @@
 ///
 /// P.S. Just want to try out a different coding style...
 ///
-#include "jamscript-impl/jamscript-time.hh"
-
 #include "future/future.h"
+#include "jamscript-impl/jamscript-time.hh"
 #include "jamscript-impl/jamscript-remote.hh"
 #include "jamscript-impl/jamscript-scheduler.hh"
 

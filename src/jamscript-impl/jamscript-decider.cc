@@ -11,14 +11,12 @@
 /// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
-#include "jamscript-impl/jamscript-decider.hh"
-
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
-
+#include "jamscript-impl/jamscript-decider.hh"
 #include "jamscript-impl/jamscript-scheduler.hh"
 
 JAMScript::ScheduleDecider::ScheduleDecider(Scheduler *schedule) : scheduler(schedule) {
@@ -90,17 +88,16 @@ bool JAMScript::ScheduleDecider::DecideNextScheduleToRun() {
               [](const InteractiveTaskExtender &e1, const InteractiveTaskExtender &e2) {
                   return e1.deadline < e2.deadline;
               });
-    uint64_t acc_normal = 0, currt_normal = 0, success_count_normal = 0, acc_greedy = 0,
-             currt_greedy = 0, success_count_greedy = 0;
+    uint64_t accNormal = 0, successCountNormal = 0, accGreedy = 0, successCountGreedy = 0;
     std::vector<InteractiveTaskExtender> scg, scn;
     for (auto &r : interactiveTaskRecord) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "b: " << r.burst << ", acc: " << acc_normal << ", ddl: " << r.deadline
+        std::cout << "b: " << r.burst << ", acc: " << accNormal << ", ddl: " << r.deadline
                   << std::endl;
 #endif
         if (scheduler->multiplier * scheduler->normalSchedule.back().endTime <= r.deadline &&
             r.deadline <= (scheduler->multiplier + 1) * scheduler->normalSchedule.back().endTime &&
-            r.burst + acc_normal <=
+            r.burst + accNormal <=
                 normalSpoadicServerAccumulator[(r.deadline -
                                                 scheduler->multiplier *
                                                     scheduler->normalSchedule.back().endTime) /
@@ -108,19 +105,19 @@ bool JAMScript::ScheduleDecider::DecideNextScheduleToRun() {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
             std::cout << "accept" << std::endl;
 #endif
-            success_count_normal++;
-            acc_normal += r.burst;
+            successCountNormal++;
+            accNormal += r.burst;
             scn.push_back(r);
         }
     }
     for (auto &r : interactiveTaskRecord) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "b: " << r.burst << ", acc: " << acc_greedy << ", ddl: " << r.deadline
+        std::cout << "b: " << r.burst << ", acc: " << accGreedy << ", ddl: " << r.deadline
                   << std::endl;
 #endif
         if (scheduler->multiplier * scheduler->greedySchedule.back().endTime <= r.deadline &&
             r.deadline <= (scheduler->multiplier + 1) * scheduler->greedySchedule.back().endTime &&
-            r.burst + acc_greedy <=
+            r.burst + accGreedy <=
                 greedySpoadicServerAccumulator[(r.deadline -
                                                 scheduler->multiplier *
                                                     scheduler->greedySchedule.back().endTime) /
@@ -128,24 +125,24 @@ bool JAMScript::ScheduleDecider::DecideNextScheduleToRun() {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
             std::cout << "accept" << std::endl;
 #endif
-            success_count_greedy++;
-            acc_greedy += r.burst;
+            successCountGreedy++;
+            accGreedy += r.burst;
             scg.push_back(r);
         }
     }
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-    std::cout << "greedy success: " << success_count_greedy << std::endl;
+    std::cout << "greedy success: " << successCountGreedy << std::endl;
     for (auto &r : scn) std::cout << "(" << r.burst << ", " << r.deadline << "), ";
     std::cout << std::endl;
-    std::cout << "normal success: " << success_count_normal << std::endl;
+    std::cout << "normal success: " << successCountNormal << std::endl;
     for (auto &r : scg) std::cout << "(" << r.burst << ", " << r.deadline << "), ";
     std::cout << std::endl;
     std::cout << "=> ";
 #endif
     interactiveTaskRecord.clear();
-    if (success_count_greedy == success_count_normal) {
+    if (successCountGreedy == successCountNormal) {
         return rand() % 2 == 0;
-    } else if (success_count_greedy < success_count_normal) {
+    } else if (successCountGreedy < successCountNormal) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "MIN GI NORMAL" << std::endl;
 #endif
