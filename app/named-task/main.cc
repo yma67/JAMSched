@@ -4,7 +4,7 @@
 #include <cassert>
 #include <string>
 #include <iostream>
-#include <jamscript-impl/jamscript-scheduler.hh>
+#include <jamscript/scheduler/scheduler.hh>
 
 #define show(_x) std::cout << #_x": " << _x << std::endl;
 

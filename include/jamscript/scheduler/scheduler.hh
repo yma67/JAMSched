@@ -20,14 +20,14 @@
 #include <utility>
 #include <vector>
 
-#include "jamscript-impl/jamscript-batch.hh"
-#include "jamscript-impl/jamscript-decider.hh"
-#include "jamscript-impl/jamscript-future.hh"
-#include "jamscript-impl/jamscript-interactive.hh"
-#include "jamscript-impl/jamscript-realtime.hh"
-#include "jamscript-impl/jamscript-sporadic.hh"
-#include "jamscript-impl/jamscript-time.hh"
-#include "jamscript-impl/jamscript-worksteal.hh"
+#include "jamscript/manager/batch.hh"
+#include "jamscript/decider/decider.hh"
+#include "jamscript/future/future.hh"
+#include "jamscript/manager/interactive.hh"
+#include "jamscript/manager/realtime.hh"
+#include "jamscript/manager/sporadic.hh"
+#include "jamscript/time/time.hh"
+#include "jamscript/worksteal/worksteal.hh"
 
 namespace JAMScript {
 

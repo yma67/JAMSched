@@ -2,8 +2,8 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <jamscript-impl/jamscript-scheduler.hh>
-#include <jamscript-impl/jamscript-time.hh>
+#include <jamscript/scheduler/scheduler.hh>
+#include <jamscript/time/time.hh>
 #include <thread>
 #include <vector>
 

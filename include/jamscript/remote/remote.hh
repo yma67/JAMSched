@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
-#include <jamscript-impl/jamscript-future.hh>
+#include <jamscript/future/future.hh>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>

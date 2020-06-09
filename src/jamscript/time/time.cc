@@ -15,9 +15,9 @@
 /// P.S. Just want to try out a different coding style...
 ///
 #include "future/future.h"
-#include "jamscript-impl/jamscript-time.hh"
-#include "jamscript-impl/jamscript-remote.hh"
-#include "jamscript-impl/jamscript-scheduler.hh"
+#include "jamscript/time/time.hh"
+#include "jamscript/remote/remote.hh"
+#include "jamscript/scheduler/scheduler.hh"
 
 JAMScript::JAMTimer::JAMTimer(Scheduler* scheduler) : scheduler(scheduler) {
     int err;

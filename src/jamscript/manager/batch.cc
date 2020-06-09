@@ -11,10 +11,10 @@
 /// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
-#include "jamscript-impl/jamscript-batch.hh"
-#include "jamscript-impl/jamscript-scheduler.hh"
-#include "jamscript-impl/jamscript-tasktype.hh"
-#include "jamscript-impl/jamscript-worksteal.hh"
+#include "jamscript/manager/batch.hh"
+#include "jamscript/scheduler/scheduler.hh"
+#include "jamscript/tasktype/tasktype.hh"
+#include "jamscript/worksteal/worksteal.hh"
 
 JAMScript::BatchTaskManager::BatchTaskManager(Scheduler *scheduler, uint32_t stackSize)
     : SporadicTaskManager(scheduler, stackSize) {}

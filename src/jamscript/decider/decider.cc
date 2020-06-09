@@ -16,8 +16,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
-#include "jamscript-impl/jamscript-decider.hh"
-#include "jamscript-impl/jamscript-scheduler.hh"
+#include "jamscript/decider/decider.hh"
+#include "jamscript/scheduler/scheduler.hh"
 
 JAMScript::ScheduleDecider::ScheduleDecider(Scheduler *schedule) : scheduler(schedule) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP

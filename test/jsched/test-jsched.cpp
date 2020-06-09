@@ -9,10 +9,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <jamscript-impl/jamscript-future.hh>
-#include <jamscript-impl/jamscript-remote.hh>
-#include <jamscript-impl/jamscript-scheduler.hh>
-#include <jamscript-impl/jamscript-localstore.hh>
+#include <jamscript/future/future.hh>
+#include <jamscript/remote/remote.hh>
+#include <jamscript/scheduler/scheduler.hh>
+#include <jamscript/tasklocal/tasklocal.hh>
 #include <thread>
 #include <utility>
 #include <vector>

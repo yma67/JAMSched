@@ -7,7 +7,7 @@
 #include <condition_variable>
 #include <mutex>
 
-#include "jamscript-impl/jamscript-tasktype.hh"
+#include "jamscript/tasktype/tasktype.hh"
 
 namespace JAMScript {
 

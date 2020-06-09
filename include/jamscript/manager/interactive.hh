@@ -10,7 +10,7 @@
 #include <queue>
 #include <unordered_set>
 
-#include "jamscript-impl/jamscript-sporadic.hh"
+#include "jamscript/manager/sporadic.hh"
 
 namespace JAMScript {
 

@@ -5,8 +5,8 @@
 #include <cerrno>
 #include <cstdint>
 
-#include "jamscript-impl/jamscript-remote.hh"
-#include "jamscript-impl/timeout.h"
+#include "jamscript/remote/remote.hh"
+#include "timeout.h"
 
 namespace JAMScript {
     class Scheduler;

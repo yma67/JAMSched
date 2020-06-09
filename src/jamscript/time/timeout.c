@@ -37,7 +37,7 @@
 
 #include <sys/queue.h> /* TAILQ(3) */
 
-#include "jamscript-impl/timeout.h"
+#include "jamscript/time/timeout.h"
 
 #if TIMEOUT_DEBUG - 0
 #include "timeout-debug.h"

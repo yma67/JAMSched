@@ -3,7 +3,7 @@
 #include <any>
 #include <unordered_map>
 #include <core/scheduler/task.h>
-#include "jamscript-impl/jamscript-tasktype.hh"
+#include "jamscript/tasktype/tasktype.hh"
 
 namespace JAMScript {
 
