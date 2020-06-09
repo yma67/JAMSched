@@ -1,15 +1,13 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_INTERACTIVE_H
 #define JAMSCRIPT_JAMSCRIPT_INTERACTIVE_H
-#include <core/scheduler/task.h>
-#include <future/future.h>
-#include <xtask/shared-stack-task.h>
-
-#include <functional>
-#include <memory>
 #include <mutex>
 #include <queue>
+#include <memory>
+#include <functional>
 #include <unordered_set>
-
+#include <future/future.h>
+#include <core/scheduler/task.h>
+#include <xtask/shared-stack-task.h>
 #include "jamscript/manager/sporadic.hh"
 
 namespace JAMScript {

@@ -11,11 +11,11 @@
 /// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
-#include <algorithm>
+#include <vector>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
-#include <vector>
+#include <algorithm>
 #include "jamscript/decider/decider.hh"
 #include "jamscript/scheduler/scheduler.hh"
 

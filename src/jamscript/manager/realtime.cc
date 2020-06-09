@@ -11,10 +11,10 @@
 /// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
+#include <cstring>
 #include "jamscript/manager/realtime.hh"
 #include "jamscript/tasktype/tasktype.hh"
 #include "jamscript/scheduler/scheduler.hh"
-#include <cstring>
 
 JAMScript::RealTimeTaskManager::RealTimeTaskManager(Scheduler *scheduler, uint32_t stackSize)
     : scheduler(scheduler) {

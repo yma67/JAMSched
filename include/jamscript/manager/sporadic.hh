@@ -1,12 +1,10 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_SPORADIC_H
 #define JAMSCRIPT_JAMSCRIPT_SPORADIC_H
-#include <core/scheduler/task.h>
-#include <future/future.h>
-#include <xtask/shared-stack-task.h>
-
-#include <condition_variable>
 #include <mutex>
-
+#include <future/future.h>
+#include <condition_variable>
+#include <core/scheduler/task.h>
+#include <xtask/shared-stack-task.h>
 #include "jamscript/tasktype/tasktype.hh"
 
 namespace JAMScript {

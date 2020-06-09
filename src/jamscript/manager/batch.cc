@@ -12,8 +12,8 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "jamscript/manager/batch.hh"
-#include "jamscript/scheduler/scheduler.hh"
 #include "jamscript/tasktype/tasktype.hh"
+#include "jamscript/scheduler/scheduler.hh"
 #include "jamscript/worksteal/worksteal.hh"
 
 JAMScript::BatchTaskManager::BatchTaskManager(Scheduler *scheduler, uint32_t stackSize)

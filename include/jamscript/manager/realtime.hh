@@ -1,13 +1,12 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_REALTIME_H
 #define JAMSCRIPT_JAMSCRIPT_REALTIME_H
-#include <core/scheduler/task.h>
-#include <future/future.h>
-#include <xtask/shared-stack-task.h>
-
-#include <memory>
 #include <mutex>
 #include <queue>
+#include <memory>
 #include <unordered_map>
+#include <future/future.h>
+#include <core/scheduler/task.h>
+#include <xtask/shared-stack-task.h>
 
 namespace JAMScript {
 

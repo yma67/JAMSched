@@ -12,7 +12,6 @@
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
 #include "core/scheduler/task.h"
-
 #include <stdint.h>
 
 #define TASK_STACK_MIN 256

@@ -4,29 +4,27 @@
 
 #ifndef JAMSCRIPT_JAMSCRIPT_SCHEDULER_H
 #define JAMSCRIPT_JAMSCRIPT_SCHEDULER_H
-#include <core/scheduler/task.h>
-#include <future/future.h>
-#include <xtask/shared-stack-task.h>
-
-#include <atomic>
-#include <chrono>
-#include <functional>
-#include <memory>
 #include <mutex>
 #include <queue>
 #include <tuple>
+#include <vector>
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <utility>
+#include <functional>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
-#include <vector>
-
+#include <future/future.h>
+#include <core/scheduler/task.h>
+#include "jamscript/time/time.hh"
+#include <xtask/shared-stack-task.h>
+#include "jamscript/future/future.hh"
 #include "jamscript/manager/batch.hh"
 #include "jamscript/decider/decider.hh"
-#include "jamscript/future/future.hh"
-#include "jamscript/manager/interactive.hh"
 #include "jamscript/manager/realtime.hh"
 #include "jamscript/manager/sporadic.hh"
-#include "jamscript/time/time.hh"
+#include "jamscript/manager/interactive.hh"
 #include "jamscript/worksteal/worksteal.hh"
 
 namespace JAMScript {

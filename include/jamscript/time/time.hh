@@ -1,12 +1,10 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_TIME_HH
 #define JAMSCRIPT_JAMSCRIPT_TIME_HH
-#include <core/scheduler/task.h>
-
 #include <cerrno>
 #include <cstdint>
-
-#include "jamscript/remote/remote.hh"
 #include "timeout.h"
+#include <core/scheduler/task.h>
+#include "jamscript/remote/remote.hh"
 
 namespace JAMScript {
     class Scheduler;

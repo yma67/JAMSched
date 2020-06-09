@@ -32,7 +32,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "core/scheduler/context.h"
-
 #include <stdarg.h>
 #include <string.h>
 

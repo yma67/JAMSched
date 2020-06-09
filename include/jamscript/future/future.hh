@@ -9,9 +9,8 @@
 #include <mutex>
 #include <type_traits>
 #include <utility>
-
-#include "core/scheduler/task.h"
 #include "future/future.h"
+#include "core/scheduler/task.h"
 
 namespace JAMScript {
 

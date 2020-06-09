@@ -1,18 +1,17 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_REMOTE_H
 #define JAMSCRIPT_JAMSCRIPT_REMOTE_H
-#include <core/scheduler/task.h>
-#include <future/future.h>
-
-#include <atomic>
-#include <cstdint>
-#include <functional>
-#include <iostream>
-#include <jamscript/future/future.hh>
-#include <memory>
 #include <mutex>
-#include <nlohmann/json.hpp>
 #include <queue>
+#include <atomic>
+#include <memory>
+#include <cstdint>
+#include <iostream>
+#include <functional>
 #include <unordered_map>
+#include <future/future.h>
+#include <nlohmann/json.hpp>
+#include <core/scheduler/task.h>
+#include <jamscript/future/future.hh>
 
 namespace JAMScript {
 

@@ -11,12 +11,12 @@
 /// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 /// See the License for the specific language governing permissions and
 /// limitations under the License.
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
 #include <random>
 #include <thread>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #ifdef JAMSCRIPT_SCHED_AI_EXP
 #include <iostream>
 #endif
@@ -24,10 +24,9 @@
 #include <valgrind/helgrind.h>
 #include <valgrind/valgrind.h>
 #endif
-#include <thread>
+#include "jamscript/time/time.hh"
 #include "jamscript/future/future.hh"
 #include "jamscript/scheduler/scheduler.hh"
-#include "jamscript/time/time.hh"
 #include "jamscript/worksteal/worksteal.hh"
 
 JAMScript::Scheduler::Scheduler(std::vector<RealTimeTaskScheduleEntry> normalSchedule,

@@ -1,13 +1,11 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_BATCH_H
 #define JAMSCRIPT_JAMSCRIPT_BATCH_H
-#include <core/scheduler/task.h>
-#include <xtask/shared-stack-task.h>
-
-#include <memory>
 #include <mutex>
 #include <queue>
+#include <memory>
 #include <unordered_set>
-
+#include <core/scheduler/task.h>
+#include <xtask/shared-stack-task.h>
 #include "jamscript/manager/sporadic.hh"
 
 namespace JAMScript {

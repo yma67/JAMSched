@@ -1,7 +1,7 @@
 #include "jamscript/worksteal/worksteal.hh"
 #include "jamscript/scheduler/scheduler.hh"
-#include "jamscript/manager/sporadic.hh"
 #include "jamscript/tasktype/tasktype.hh"
+#include "jamscript/manager/sporadic.hh"
 #include "core/scheduler/task.h"
 #ifdef JAMSCRIPT_SCHED_AI_EXP
 #include <iostream>

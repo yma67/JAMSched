@@ -1,11 +1,10 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_WORKSTEAL_HH
 #define JAMSCRIPT_JAMSCRIPT_WORKSTEAL_HH
-#include <core/scheduler/task.h>
-
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <core/scheduler/task.h>
 
 namespace JAMScript {
     class SporadicTaskManager;

@@ -1,7 +1,7 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_TASKTYPE_H
 #define JAMSCRIPT_JAMSCRIPT_TASKTYPE_H
-#include <unordered_map>
 #include <future/future.h>
+#include <unordered_map>
 #include <cstdint>
 #include <memory>
 #include <any>
