@@ -1,11 +1,12 @@
-#include <core/scheduler/task.h>
+#include <core/coroutine/task.h>
 
 #include <catch2/catch.hpp>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <thread>
-
+#include <core/task/task.hh>
+#include <boost/intrusive_ptr.hpp>
 #define task_niter 300
 
 int ref[task_niter], calc[task_niter], sched_tick = 0;
@@ -73,7 +74,7 @@ TEST_CASE("JAMCore", "[core]") {
         CreateScheduler(&scheduler, schedule_next, IdleTask, BeforeEach, AfterEach);
         for (int i = 0; i < task_niter; i++) {
             xs[i] = i;
-            CreateTask(flames[i], &scheduler, test_task_core, &xs[i], NULL, 256 * 1024,
+            CreateTask(flames[i], &scheduler, test_task_core, &xs[i], 256 * 1024,
                        reinterpret_cast<unsigned char*>(flames[i] + 1));
         }
         return;
@@ -95,4 +96,58 @@ TEST_CASE("JAMCore", "[core]") {
 #endif
     for (int i = 0; i < 15; i++) REQUIRE(calc[i] == ref[i]);
     for (int i = 0; i < task_niter; i++) free(flames[i]);
+}
+
+class BenchSched : public JAMScript::SchedulerBase {
+public:
+    boost::intrusive_ptr<JAMScript::TaskInterface> NextTask() override {
+        return onlyTask;
+    }
+    void operator()() {
+        this->onlyTask->SwapIn();
+    }
+    BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
+    boost::intrusive_ptr<JAMScript::TaskInterface> onlyTask = nullptr;
+};
+
+TEST_CASE("JAMScript++", "[core]") {
+#if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
+    BENCHMARK("Baseline " TEST_TASK_NAME) {
+#endif
+        BenchSched bSched(1024 * 256);
+        for (int i = 0; i < task_niter; i++) {
+            int rex = 0;
+            bSched.onlyTask = boost::intrusive_ptr<JAMScript::TaskInterface>(new JAMScript::StandAloneStackTask(&bSched, 1024 * 256, [&](int k) {
+                if (k < 2)
+                    return rex = 1;
+                return rex = k * test_task(k - 1);
+            }, i));
+            bSched();
+            ref[i] = rex;
+        }
+#if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
+        return;
+    };
+#endif
+    for (int i = 0; i < 15; i++) REQUIRE(calc[i] == ref[i]);
+#if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
+    BENCHMARK("Init Only " TEST_TASK_NAME) {
+#endif
+        BenchSched bSched3(1024 * 256);
+        for (int i = 0; i < task_niter; i++) {
+            int rex = 0;
+            bSched3.onlyTask = boost::intrusive_ptr<JAMScript::TaskInterface>(new JAMScript::StandAloneStackTask(&bSched3, 1024 * 256, [&](int k) {
+                if (k < 2)
+                    return rex = 1;
+                return rex = k * test_task(k - 1);
+            }, i));
+            bSched3();
+            ref[i] = rex;
+        }
+#if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
+        return;
+    };
+#endif
+    
+    for (int i = 0; i < 15; i++) REQUIRE(calc[i] == ref[i]);
 }
