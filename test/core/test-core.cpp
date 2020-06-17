@@ -100,14 +100,15 @@ TEST_CASE("JAMCore", "[core]") {
 
 class BenchSched : public JAMScript::SchedulerBase {
 public:
-    boost::intrusive_ptr<JAMScript::TaskInterface> NextTask() override {
+    JAMScript::TaskInterface* NextTask() override {
         return onlyTask;
     }
     void operator()() {
         this->onlyTask->SwapIn();
+
     }
     BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
-    boost::intrusive_ptr<JAMScript::TaskInterface> onlyTask = nullptr;
+    JAMScript::TaskInterface* onlyTask = nullptr;
 };
 
 TEST_CASE("JAMScript++", "[core]") {
@@ -117,11 +118,11 @@ TEST_CASE("JAMScript++", "[core]") {
         BenchSched bSched(1024 * 256);
         for (int i = 0; i < task_niter; i++) {
             int rex = 0;
-            bSched.onlyTask = boost::intrusive_ptr<JAMScript::TaskInterface>(new JAMScript::StandAloneStackTask(&bSched, 1024 * 256, [&](int k) {
+            bSched.onlyTask = new JAMScript::StandAloneStackTask(&bSched, 1024 * 256, [&](int k) {
                 if (k < 2)
                     return rex = 1;
                 return rex = k * test_task(k - 1);
-            }, i));
+            }, i);
             bSched();
             ref[i] = rex;
         }
@@ -136,7 +137,7 @@ TEST_CASE("JAMScript++", "[core]") {
         BenchSched bSched3(1024 * 256);
         for (int i = 0; i < task_niter; i++) {
             int rex = 0;
-            bSched3.onlyTask = boost::intrusive_ptr<JAMScript::TaskInterface>(new JAMScript::StandAloneStackTask(&bSched3, 1024 * 256, [&](int k) {
+            bSched3.onlyTask = (new JAMScript::StandAloneStackTask(&bSched3, 1024 * 256, [&](int k) {
                 if (k < 2)
                     return rex = 1;
                 return rex = k * test_task(k - 1);

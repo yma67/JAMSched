@@ -19,10 +19,10 @@ int naive_fact(int x) {
 
 class BenchSchedXS : public JAMScript::SchedulerBase {
 public:
-    std::vector<boost::intrusive_ptr<JAMScript::TaskInterface>> freeList;
-    boost::intrusive_ptr<JAMScript::TaskInterface> NextTask() override {
+    std::vector<JAMScript::TaskInterface*> freeList;
+   JAMScript::TaskInterface* NextTask() {
         try {
-            auto newTask = boost::intrusive_ptr<JAMScript::TaskInterface>(new JAMScript::SharedCopyStackTask(
+            auto* newTask = (new JAMScript::SharedCopyStackTask(
                     reinterpret_cast<JAMScript::SchedulerBase*>(this), naive_fact, rand() % 1000));
             freeList.push_back(newTask);
             coro_count++;
@@ -56,7 +56,7 @@ public:
     // JAMScript::JAMStorageTypes::BatchQueueType freeList;
     BenchSchedXS(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
     ~BenchSchedXS() {
-        // freeList.erase_and_dispose(freeList.begin(), freeList.end(), [] (JAMScript::TaskInterface* ti) { delete ti; });
+        std::for_each(freeList.begin(), freeList.end(), [] (JAMScript::TaskInterface* x) { delete x; });
     }
     JAMScript::TaskInterface* onlyTask = nullptr;
 };

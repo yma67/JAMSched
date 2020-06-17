@@ -129,6 +129,11 @@ namespace JAMScript {
                                     iCancelStack.push_front(*pTop);
                                 }
                             }
+                            while (iCancelStack.size() > 3) {
+                                iCancelStack.end()->onCancel();
+                                iCancelStack.erase_and_dispose(iCancelStack.end(),
+                                                               [](TaskInterface* x) { delete x; });
+                            }
                             if (iEDFPriorityQueue.empty() && !iCancelStack.empty()) {
                                 auto currentInteractiveIter = iCancelStack.begin();
                                 auto* cIPtr = &(*currentInteractiveIter);

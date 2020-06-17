@@ -281,7 +281,7 @@ namespace JAMScript {
             return false;
         }
         void Execute() override { std::apply(std::move(valueStore.tFunction), std::move(valueStore.tArgs)); }
-        SharedCopyStackTask(SchedulerBase* sched, Fn&& tf, Args&&... args)
+        SharedCopyStackTask(SchedulerBase* sched, Fn&& tf, Args... args)
             : TaskInterface(sched),
               valueStore(std::forward<Fn>(tf), std::forward<Args>(args)...),
               privateStack(nullptr),
@@ -338,7 +338,7 @@ namespace JAMScript {
             return false;
         }
         void Execute() override { std::apply(std::move(valueStore.tFunction), std::move(valueStore.tArgs)); }
-        StandAloneStackTask(SchedulerBase* sched, uint32_t stackSize, Fn&& tf, Args&&... args)
+        StandAloneStackTask(SchedulerBase* sched, uint32_t stackSize, Fn&& tf, Args... args)
             : TaskInterface(sched), valueStore(std::forward<Fn>(tf), std::forward<Args>(args)...) {
             InitStack(stackSize);
         }
