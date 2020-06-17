@@ -1,10 +1,11 @@
-#include "concurrency/notifier.hh"
+#include "concurrency/notifier.h"
 
 #include <iostream>
 #include <mutex>
 
-#include "concurrency/spinlock.hh"
-#include "core/task/task.hh"
+#include "concurrency/spinlock.h"
+#include "core/task/task.h"
+
 void JAMScript::Notifier::Join() {
     if (ownerTask == nullptr) {
         std::unique_lock<SpinLock> lock(m);
@@ -53,13 +54,7 @@ void JAMScript::Notifier::Join(std::unique_lock<JAMScript::SpinLock>& iLock) {
         ownerTask->scheduler->Disable(ownerTask);
         iLock.unlock();
         auto cs = std::chrono::high_resolution_clock::now();
-        std::cout << "swapped out" << std::endl;
         ownerTask->SwapOut();
-        std::cout << "dt = "
-                  << std::chrono::duration_cast<std::chrono::nanoseconds>(
-                         std::chrono::high_resolution_clock::now() - cs)
-                         .count()
-                  << "ns" << std::endl;
         iLock.lock();
     }
 }

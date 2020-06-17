@@ -54,7 +54,8 @@ typedef struct CTask CTask;
 typedef enum {
     TASK_READY = 0, 
     TASK_PENDING = 1, 
-    TASK_FINISHED
+    TASK_FINISHED, 
+    TASK_RUNNING
 } TaskStatus;
 
 /**

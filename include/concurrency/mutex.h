@@ -2,8 +2,8 @@
 #define JAMSCRIPT_MUTEX_HH
 #include <mutex>
 
-#include "concurrency/notifier.hh"
-#include "concurrency/spinlock.hh"
+#include "concurrency/notifier.h"
+#include "concurrency/spinlock.h"
 namespace JAMScript {
     class FIFOTaskMutex {
     public:

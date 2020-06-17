@@ -23,16 +23,15 @@ namespace JAMScript {
         void UpdateTimeout();
         void SetTimeoutFor(TaskInterface* task, Duration dt);
         void SetTimeoutUntil(TaskInterface* task, TimePoint tp);
-        void SetTimeoutFor(TaskInterface* task, Duration dt,
-                           std::unique_lock<JAMScript::SpinLock>& iLock, Notifier* f);
-        void SetTimeoutUntil(TaskInterface* task, TimePoint tp,
-                             std::unique_lock<JAMScript::SpinLock>& iLock, Notifier* f);
+        void SetTimeoutFor(TaskInterface* task, Duration dt, std::unique_lock<JAMScript::SpinLock>& iLock, Notifier* f);
+        void SetTimeoutUntil(TaskInterface* task, TimePoint tp, std::unique_lock<JAMScript::SpinLock>& iLock,
+                             Notifier* f);
         static void TimeoutCallback(void* args);
 
     protected:
         void SetTimeout(TaskInterface* task, Duration dt, uint32_t mask);
-        void SetTimeout(TaskInterface* task, Duration dt, uint32_t mask,
-                        std::unique_lock<JAMScript::SpinLock>& iLock, Notifier* f);
+        void SetTimeout(TaskInterface* task, Duration dt, uint32_t mask, std::unique_lock<JAMScript::SpinLock>& iLock,
+                        Notifier* f);
         Timer() = delete;
         struct timeouts* timingWheelPtr;
         RIBScheduler* scheduler;

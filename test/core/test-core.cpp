@@ -5,7 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
-#include <core/task/task.hh>
+#include <core/task/task.h>
 #include <boost/intrusive_ptr.hpp>
 #define task_niter 300
 

@@ -1,4 +1,4 @@
-#include "scheduler/scheduler.hh"
+#include "scheduler/scheduler.h"
 
 namespace JAMScript {
     void RIBScheduler::Enable(TaskInterface* toEnable) {
@@ -43,28 +43,33 @@ namespace JAMScript {
     }
     void RIBScheduler::operator()() {
         schedulerStartTime = Clock::now();
-        std::cout << "PASS A" << std::endl;
+        thief();
         timer.UpdateTimeout();
         while (toContinue) {
             std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
             while (rtScheduleGreedy.empty() || rtScheduleNormal.empty()) {
                 cvReadyRTSchedule.wait(lScheduleReady);
             }
+            decider.NotifyChangeOfSchedule(rtScheduleNormal, rtScheduleGreedy);
+            decltype(rtScheduleGreedy)* currentSchedule = nullptr;
+            if (decider.DecideNextScheduleToRun()) {
+                currentSchedule = &rtScheduleNormal;
+            } else {
+                currentSchedule = &rtScheduleGreedy;
+            }
             lScheduleReady.unlock();
             cycleStartTime = Clock::now();
-            for (auto& rtItem : rtScheduleNormal) {
+            for (auto& rtItem : *currentSchedule) {
                 auto cTime = Clock::now();
                 timer.NotifyAllTimeouts();
-                if (rtItem.sTime <= cTime - cycleStartTime &&
-                    cTime - cycleStartTime <= rtItem.eTime) {
+                if (rtItem.sTime <= cTime - cycleStartTime && cTime - cycleStartTime <= rtItem.eTime) {
                     std::unique_lock<SpinLock> lockrt(qMutexWithType[REAL_TIME_TASK_T]);
                     if (rtItem.taskId != 0 && rtRegisterTable.count(rtItem.taskId) > 0) {
                         auto currentRTIter = rtRegisterTable.find(rtItem.taskId);
                         lockrt.unlock();
                         eStats.jitters.push_back((cTime - cycleStartTime) - rtItem.sTime);
                         currentRTIter->SwapIn();
-                        rtRegisterTable.erase_and_dispose(currentRTIter,
-                                                          [](TaskInterface* t) { delete t; });
+                        rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface* t) { delete t; });
                         while (Clock::now() - cycleStartTime < rtItem.eTime)
                             ;
                     } else {
@@ -73,16 +78,12 @@ namespace JAMScript {
                             timer.NotifyAllTimeouts();
                             cTime = Clock::now();
                             {
-                                std::scoped_lock<SpinLock, SpinLock> lock2(qMutexWithType[0],
-                                                                           qMutexWithType[1]);
-                                if (bQueue.empty() && iEDFPriorityQueue.empty() &&
-                                    iCancelStack.empty()) {
+                                std::scoped_lock<SpinLock, SpinLock> lock2(qMutexWithType[0], qMutexWithType[1]);
+                                if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty()) {
                                     goto END_LOOP;
-                                } else if (!bQueue.empty() && iEDFPriorityQueue.empty() &&
-                                           iCancelStack.empty()) {
+                                } else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty()) {
                                     goto DECISION_BATCH;
-                                } else if (bQueue.empty() &&
-                                           (!iEDFPriorityQueue.empty() || !iCancelStack.empty())) {
+                                } else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty())) {
                                     goto DECISION_INTERACTIVE;
                                 } else {
                                     if (vClockB > vClockI)
@@ -93,8 +94,16 @@ namespace JAMScript {
                             }
                         DECISION_BATCH : {
                             std::unique_lock<SpinLock> lock(qMutexWithType[BATCH_TASK_T]);
-                            if (bQueue.empty())
+                            while (thief.Size() <
+                                       bQueue.size() + bWaitPool.size() + iWaitPool.size() + iEDFPriorityQueue.size() &&
+                                   bQueue.size() > 1 && bQueue.begin()->CanSteal()) {
+                                auto* nSteal = &(*bQueue.begin());
+                                bQueue.pop_front();
+                                thief.Steal(nSteal);
+                            }
+                            if (bQueue.empty()) {
                                 goto END_LOOP;
+                            }
                             auto currentBatchIter = bQueue.begin();
                             auto* cBatchPtr = &(*currentBatchIter);
                             bQueue.erase(currentBatchIter);
@@ -108,12 +117,17 @@ namespace JAMScript {
                         }
                         DECISION_INTERACTIVE : {
                             std::unique_lock<SpinLock> lock(qMutexWithType[INTERACTIVE_TASK_T]);
-                            while (!iEDFPriorityQueue.empty() &&
-                                   iEDFPriorityQueue.top()->deadline -
-                                           iEDFPriorityQueue.top()->burst + schedulerStartTime >
-                                       cTime) {
-                                iCancelStack.push_front(*iEDFPriorityQueue.top());
+                            while (!iEDFPriorityQueue.empty() && iEDFPriorityQueue.top()->deadline -
+                                                                         iEDFPriorityQueue.top()->burst +
+                                                                         schedulerStartTime <
+                                                                     cTime) {
+                                auto* pTop = &(*iEDFPriorityQueue.top());
                                 iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
+                                if (pTop->CanSteal()) {
+                                    thief.Steal(pTop);
+                                } else {
+                                    iCancelStack.push_front(*pTop);
+                                }
                             }
                             if (iEDFPriorityQueue.empty() && !iCancelStack.empty()) {
                                 auto currentInteractiveIter = iCancelStack.begin();
@@ -150,14 +164,14 @@ namespace JAMScript {
                     }
                 }
             }
+            numberOfPeriods++;
             // rtScheduleGreedy.clear();
             // rtScheduleNormal.clear();
 #ifdef JAMSCRIPT_SCHED_AI_EXP
             std::cout << "Jitters: ";
             long tj = 0, nj = 0;
             for (auto& j : eStats.jitters) {
-                std::cout << std::chrono::duration_cast<std::chrono::microseconds>(j).count()
-                          << " ";
+                std::cout << std::chrono::duration_cast<std::chrono::microseconds>(j).count() << " ";
                 tj += std::chrono::duration_cast<std::chrono::microseconds>(j).count();
                 nj++;
             }

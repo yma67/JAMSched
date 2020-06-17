@@ -1,8 +1,9 @@
 #ifndef JAMSCRIPT_NOTIFIER_HH
 #define JAMSCRIPT_NOTIFIER_HH
+#include <concurrency/spinlock.h>
+
 #include <atomic>
 #include <boost/intrusive/set.hpp>
-#include <concurrency/spinlock.hh>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -10,11 +11,9 @@ namespace JAMScript {
     class TaskInterface;
     namespace JAMHookTypes {
         struct NotifierSetTag;
-        typedef boost::intrusive::set_member_hook<boost::intrusive::tag<NotifierSetTag>>
-            NotifierSetHook;
+        typedef boost::intrusive::set_member_hook<boost::intrusive::tag<NotifierSetTag>> NotifierSetHook;
         struct NotifierSetCVTag;
-        typedef boost::intrusive::set_member_hook<boost::intrusive::tag<NotifierSetCVTag>>
-            NotifierSetCVHook;
+        typedef boost::intrusive::set_member_hook<boost::intrusive::tag<NotifierSetCVTag>> NotifierSetCVHook;
     }  // namespace JAMHookTypes
     class Notifier {
     public:
@@ -40,15 +39,12 @@ namespace JAMScript {
     };
     namespace JAMStorageTypes {
         typedef boost::intrusive::set<
-            Notifier,
-            boost::intrusive::member_hook<Notifier, JAMHookTypes::NotifierSetHook,
-                                          &Notifier::notifierHook>,
+            Notifier, boost::intrusive::member_hook<Notifier, JAMHookTypes::NotifierSetHook, &Notifier::notifierHook>,
             boost::intrusive::key_of_value<NotifierIdKeyType>>
             NotifierSetType;
         typedef boost::intrusive::set<
             Notifier,
-            boost::intrusive::member_hook<Notifier, JAMHookTypes::NotifierSetCVHook,
-                                          &Notifier::notifierHookCV>,
+            boost::intrusive::member_hook<Notifier, JAMHookTypes::NotifierSetCVHook, &Notifier::notifierHookCV>,
             boost::intrusive::key_of_value<NotifierIdKeyType>>
             NotifierCVSetType;
     }  // namespace JAMStorageTypes

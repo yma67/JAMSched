@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <core/task/task.hh>
+#include <core/task/task.h>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -9,7 +9,7 @@
 #include <iostream>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive_ptr.hpp>
-#include <scheduler/scheduler.hh>
+#include <scheduler/scheduler.h>
 using namespace std;
 int coro_count = 0, idbg;
 

@@ -1,6 +1,6 @@
-#include "concurrency/mutex.hh"
+#include "concurrency/mutex.h"
 
-#include "core/task/task.hh"
+#include "core/task/task.h"
 
 bool JAMScript::FIFOTaskMutex::try_lock() {
     std::lock_guard<SpinLock> lk(qLock);

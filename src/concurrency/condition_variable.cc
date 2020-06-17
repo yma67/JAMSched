@@ -1,4 +1,4 @@
-#include "concurrency/condition_variable.hh"
+#include "concurrency/condition_variable.h"
 
 namespace JAMScript {
     void ConditionVariableAny::notify_one() noexcept {

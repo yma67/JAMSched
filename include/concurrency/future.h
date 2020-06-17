@@ -8,8 +8,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "concurrency/condition_variable.hh"
-#include "concurrency/mutex.hh"
+#include "concurrency/condition_variable.h"
+#include "concurrency/mutex.h"
 namespace JAMScript {
 
     using std::future_status;
@@ -157,6 +157,112 @@ namespace JAMScript {
 
     template <typename T>
     void swap(Promise<T>& lhs, Promise<T>& rhs) {
+        lhs.swap(rhs);
+    }
+
+    // for void
+    namespace detail {
+        template <>
+        struct future_shared_state<void> {
+        public:
+            void wait() const {
+                std::unique_lock<FIFOTaskMutex> ul(mtx);
+                available.wait(ul, [&] { return state || error; });
+            }
+
+            void get() {
+                std::unique_lock<FIFOTaskMutex> ul(mtx);
+                available.wait(ul, [&] { return state || error; });
+                if (state)
+                    return;
+                if (error)
+                    std::rethrow_exception(error);
+                throw std::runtime_error("WTF");
+            }
+
+            void set_value() {
+                std::unique_lock<FIFOTaskMutex> ul(mtx);
+                state = true;
+                available.notify_all();
+            }
+            void set_exception(std::exception_ptr e) {
+                std::unique_lock<FIFOTaskMutex> ul(mtx);
+                error = e;
+                available.notify_all();
+            }
+
+        private:
+            mutable ConditionVariableAny available;
+            mutable FIFOTaskMutex mtx;
+            bool state;
+            std::exception_ptr error;
+        };
+    }  // namespace detail
+
+    template <>
+    class Promise<void>;
+
+    template <>
+    struct Future<void> {
+    public:
+        Future() noexcept = default;
+        Future(Future&&) noexcept = default;
+        Future(Future const& other) = delete;
+
+        ~Future() = default;
+
+        Future& operator=(Future&& other) noexcept = default;
+        Future& operator=(Future const& other) = delete;
+
+        // shared_future<T> share();
+
+        void Get() { return box->get(); }
+
+        bool Valid() const noexcept { return box != nullptr; }
+
+        void Wait() const { box->wait(); }
+
+    private:
+        std::shared_ptr<detail::future_shared_state_box<void>> box = nullptr;
+
+        friend class Promise<void>;
+        Future(std::shared_ptr<detail::future_shared_state_box<void>> const& box) : box(box) {}
+        Future(std::shared_ptr<detail::future_shared_state_box<void>>&& box) : box(std::move(box)) {}
+    };
+
+    template <>
+    struct Promise<void> {
+    public:
+        Promise() : box(std::make_shared<detail::future_shared_state_box<void>>()) {}
+        template <typename Alloc>
+        Promise(std::allocator_arg_t, Alloc const& alloc)
+            : box(std::allocate_shared<detail::future_shared_state_box<void>>(alloc)) {}
+        Promise(Promise&& other) noexcept = default;
+        Promise(Promise const& other) = delete;
+
+        ~Promise() = default;
+
+        Promise& operator=(Promise&& other) noexcept = default;
+        Promise& operator=(Promise const& rhs) = delete;
+
+        void swap(Promise& other) noexcept { box.swap(other.box); }
+
+        Future<void> GetFuture() { return {box}; }
+
+        void SetValue() { box->set_value(); }
+
+        // void set_value_at_thread_exit(T const& value);
+        // void set_value_at_thread_exit(T&& value);
+
+        void SetException(std::exception_ptr e) { box->set_exception(std::move(e)); }
+        // void set_exception_at_thread_exit(std::exception_ptr e);
+
+    private:
+        std::shared_ptr<detail::future_shared_state_box<void>> box;
+    };
+
+    template <>
+    void swap(Promise<void>& lhs, Promise<void>& rhs) {
         lhs.swap(rhs);
     }
 }  // namespace JAMScript
