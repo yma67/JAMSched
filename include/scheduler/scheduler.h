@@ -58,7 +58,7 @@ namespace JAMScript {
         const TimePoint& GetCycleStartTime() const;
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
         void ShutDown();
-        void operator()();
+        void Run();
         
         template <typename Fn, typename... Args>
         TaskInterface* CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,

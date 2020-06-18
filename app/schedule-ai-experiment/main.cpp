@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
                 ->Detach();
         }
         jRIBScheduler.SetSchedule(normal_sched, greedy_sched);
-        jRIBScheduler();
+        jRIBScheduler.Run();
         std::cout << "Exp Batch: " << _bc << ", Actual Batch" << batch_count << std::endl;
         std::cout << "Exp Interac: " << _ic << ", Actual Interac" << interactive_count << std::endl;
     }

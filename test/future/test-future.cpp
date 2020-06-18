@@ -31,7 +31,7 @@ TEST_CASE("Performance Future", "[future]") {
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
             p->SetValue(std::chrono::high_resolution_clock::now());
         });
-        ribScheduler();
+        ribScheduler.Run();
         tn.join();
     }
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / 10000 << "ns");
@@ -62,5 +62,5 @@ TEST_CASE("InterLock", "[future]") {
         WARN(ans);
         ribScheduler.ShutDown();
     });
-    ribScheduler();
+    ribScheduler.Run();
 }

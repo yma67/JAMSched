@@ -103,7 +103,7 @@ public:
     JAMScript::TaskInterface* NextTask() override {
         return onlyTask;
     }
-    void operator()() {
+    void Run() {
         this->onlyTask->SwapIn();
 
     }
@@ -123,7 +123,7 @@ TEST_CASE("JAMScript++", "[core]") {
                     return rex = 1;
                 return rex = k * test_task(k - 1);
             }, i);
-            bSched();
+            bSched.Run();
             ref[i] = rex;
         }
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
@@ -142,7 +142,7 @@ TEST_CASE("JAMScript++", "[core]") {
                     return rex = 1;
                 return rex = k * test_task(k - 1);
             }, i));
-            bSched3();
+            bSched3.Run();
             ref[i] = rex;
         }
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)

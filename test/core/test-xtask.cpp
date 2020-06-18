@@ -32,7 +32,7 @@ public:
             return nullptr;
         }
     }
-    void operator()() {
+    void Run() {
         while (toContinue) {
             try {
                 auto nextTask = NextTask();
@@ -91,7 +91,7 @@ TEST_CASE("Performance XTask", "[xtask]") {
     WARN("largest could allocate is " << iallocmax / 1024 / 1024 << "mb");
     BenchSchedXS bSched2(1024 * 128);
     try {
-        bSched2();
+        bSched2.Run();
         std::cout << "coroutine per GB is " << coro_count * 
          (1024 / (iallocmax / 1024 / 1024)) << std::endl;
     } catch (const std::exception& e) {
