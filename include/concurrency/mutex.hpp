@@ -1,8 +1,8 @@
 #ifndef JAMSCRIPT_MUTEX_HH
 #define JAMSCRIPT_MUTEX_HH
 #include <mutex>
-#include "concurrency/notifier.h"
-#include "concurrency/spinlock.h"
+#include "concurrency/notifier.hpp"
+#include "concurrency/spinlock.hpp"
 
 namespace JAMScript {
 

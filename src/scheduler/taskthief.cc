@@ -1,4 +1,4 @@
-#include "scheduler/taskthief.h"
+#include "scheduler/taskthief.hpp"
 
 JAMScript::StealScheduler::StealScheduler(SchedulerBase* victim, uint32_t ssz) : 
     SchedulerBase(ssz), victim(victim) {}

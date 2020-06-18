@@ -8,8 +8,8 @@
 #include <exception>
 #include <type_traits>
 
-#include "concurrency/condition_variable.h"
-#include "concurrency/mutex.h"
+#include "concurrency/condition_variable.hpp"
+#include "concurrency/mutex.hpp"
 
 namespace JAMScript {
 

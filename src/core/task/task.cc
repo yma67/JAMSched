@@ -1,7 +1,7 @@
-#include "core/task/task.h"
-#include "concurrency/notifier.h"
-#include "scheduler/scheduler.h"
-#include "scheduler/tasklocal.h"
+#include "core/task/task.hpp"
+#include "concurrency/notifier.hpp"
+#include "scheduler/scheduler.hpp"
+#include "scheduler/tasklocal.hpp"
 
 JAMScript::TaskInterface::TaskInterface(SchedulerBase* scheduler)
 : status(TASK_READY),

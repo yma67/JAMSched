@@ -1,5 +1,5 @@
-#include <scheduler/scheduler.h>
-#include <scheduler/tasklocal.h>
+#include <scheduler/scheduler.hpp>
+#include <scheduler/tasklocal.hpp>
 
 #include <catch2/catch.hpp>
 
