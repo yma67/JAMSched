@@ -1,6 +1,6 @@
-#include <scheduler/scheduler.h>
-#include <scheduler/tasklocal.h>
-#include <concurrency/future.h>
+#include <scheduler/scheduler.hpp>
+#include <scheduler/tasklocal.hpp>
+#include <concurrency/future.hpp>
 #include <catch2/catch.hpp>
 #include <thread>
 #include <chrono>

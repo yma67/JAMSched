@@ -17,10 +17,10 @@
 #include <boost/intrusive/treap_set.hpp>
 #include <boost/intrusive/unordered_set.hpp>
 
-#include "time/time.h"
+#include "time/time.hpp"
 #include "core/coroutine/task.h"
-#include "concurrency/notifier.h"
-#include "concurrency/spinlock.h"
+#include "concurrency/notifier.hpp"
+#include "concurrency/spinlock.hpp"
 #include "core/coroutine/context.h"
 
 #ifdef JAMSCRIPT_ENABLE_VALGRIND

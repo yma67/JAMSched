@@ -4,7 +4,7 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
-#include <concurrency/spinlock.h>
+#include <concurrency/spinlock.hpp>
 #include <boost/intrusive/set.hpp>
 
 namespace JAMScript {

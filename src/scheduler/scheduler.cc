@@ -1,4 +1,4 @@
-#include "scheduler/scheduler.h"
+#include "scheduler/scheduler.hpp"
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize)
             : SchedulerBase(sharedStackSize),

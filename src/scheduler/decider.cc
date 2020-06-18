@@ -1,5 +1,5 @@
-#include "scheduler/scheduler.h"
-#include "scheduler/decider.h"
+#include "scheduler/scheduler.hpp"
+#include "scheduler/decider.hpp"
 #include <algorithm>
 
 JAMScript::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule) {

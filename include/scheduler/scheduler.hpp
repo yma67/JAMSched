@@ -7,10 +7,10 @@
 #include <iostream>
 #include <boost/intrusive/unordered_set.hpp>
 
-#include "time/time.h"
-#include "core/task/task.h"
-#include "scheduler/decider.h"
-#include "scheduler/taskthief.h"
+#include "time/time.hpp"
+#include "core/task/task.hpp"
+#include "scheduler/decider.hpp"
+#include "scheduler/taskthief.hpp"
 
 namespace JAMScript {
 

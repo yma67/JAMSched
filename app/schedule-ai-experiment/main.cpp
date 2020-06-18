@@ -1,7 +1,7 @@
-#include <concurrency/future.h>
-#include <core/task/task.h>
-#include <exception/exception.h>
-#include <scheduler/scheduler.h>
+#include <concurrency/future.hpp>
+#include <core/task/task.hpp>
+#include <exception/exception.hpp>
+#include <scheduler/scheduler.hpp>
 
 #include <cstdint>
 #include <cstdlib>

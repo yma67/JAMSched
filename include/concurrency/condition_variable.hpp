@@ -6,10 +6,10 @@
 #include <condition_variable>
 #include <boost/assert.hpp>
 
-#include "time/time.h"
-#include "core/task/task.h"
-#include "concurrency/notifier.h"
-#include "concurrency/spinlock.h"
+#include "time/time.hpp"
+#include "core/task/task.hpp"
+#include "concurrency/notifier.hpp"
+#include "concurrency/spinlock.hpp"
 
 namespace JAMScript {
 
