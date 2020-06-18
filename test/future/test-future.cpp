@@ -11,7 +11,8 @@ pthread_barrier_t barrier;
 TEST_CASE("Performance Future", "[future]") {
     
     std::chrono::duration dt = std::chrono::nanoseconds(0);
-    for (int i = 0; i < 10000; i++) {
+    const int nIter = 100;
+    for (int i = 0; i < nIter; i++) {
         pthread_barrier_init(&barrier, NULL, 2);
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
         auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
@@ -34,8 +35,7 @@ TEST_CASE("Performance Future", "[future]") {
         ribScheduler.Run();
         tn.join();
     }
-    WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / 10000 << "ns");
-
+    WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
 
 

@@ -20,7 +20,7 @@ namespace JAMScript {
         void Disable(TaskInterface* toDisable) override;
         const uint32_t Size() const;
         void ShutDown_();
-        void ShutDown();
+        void ShutDown() override;
         void Run();
         StealScheduler(SchedulerBase* victim, uint32_t ssz);
         ~StealScheduler();
