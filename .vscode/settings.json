@@ -1,6 +1,5 @@
 {
     "cmake.configureOnOpen": true,
-    "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
     "files.associations": {
         "ostream": "cpp",
         "array": "c",
@@ -66,5 +65,6 @@
         "shared_mutex": "cpp",
         "forward_list": "cpp"
     },
+    "C_Cpp.errorSquiggles": "Enabled",
     
 }

@@ -17,10 +17,12 @@
 - VSCode users, please review [Debug Your App](#debug-your-app) for an option of debugging your test cases
 - **DO NOT** compile your tests into LIBRARIES
 ## CiteLab Coding Style (draft)
-- 80 characters per line
+- 100 characters per line
 - 4 space alignment
 - avoid unnecessary blank lines
 - parenthesis, especially those in function calls, should be aligned
+- vscode formatter 
+``` { BasedOnStyle: Google, UseTab: Never, IndentWidth: 4, TabWidth: 4,  AllowShortIfStatementsOnASingleLine: false, IndentCaseLabels: false, ColumnLimit: 100, AccessModifierOffset: -4, NamespaceIndentation: All }```
 ## Note to VSCode Users
 ### Reasons to use
 - free yourselves from gdb, cmake... commands

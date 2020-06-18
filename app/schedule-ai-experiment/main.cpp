@@ -1,263 +1,219 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <thread>
+#include <concurrency/future.h>
+#include <core/task/task.h>
+#include <exception/exception.h>
+#include <scheduler/scheduler.h>
+
 #include <cstdint>
 #include <cstdlib>
-#include <jamscript-impl/jamscript-scheduler.hh>
-#include <jamscript-impl/jamscript-time.hh>
+#include <fstream>
+#include <iostream>
+#include <thread>
+#include <vector>
 
-struct task_data_transfer {
-    uint32_t task_id, exec_count;
-    uint64_t task_sleep;
-    jamscript::c_side_scheduler* scheduler;
-    jamscript::ctask_types task_type;
-    task_data_transfer() : 
-    task_id(0), task_sleep(0), scheduler(nullptr), 
-    task_type(jamscript::real_time_task_t), exec_count(0) {}
-    task_data_transfer(uint32_t task_id, uint64_t task_sleep, 
-                       jamscript::c_side_scheduler* scheduler, 
-                       jamscript::ctask_types task_type) : 
-    task_id(task_id), task_sleep(task_sleep), scheduler(scheduler), 
-    task_type(task_type), exec_count(0) {}
-};
+int nrounds, batch_count = 0, interactive_count = 0, rt_count = 0, preempt_tslice = 0, _bc, _ic;
+std::vector<JAMScript::RealTimeSchedule> normal_sched, greedy_sched;
 
-struct bi_dto {
-    std::vector<std::pair<uint64_t, jamscript::interactive_extender>>* 
-    pinteractive_tasks;
-    std::vector<std::pair<uint64_t, uint64_t>>* pbatch_tasks;
-    bi_dto(std::vector<std::pair<uint64_t, jamscript::interactive_extender>>* 
-           pi, std::vector<std::pair<uint64_t, uint64_t>>* pb) : 
-           pinteractive_tasks(pi), pbatch_tasks(pb) {}
-};
+int RealTimeTaskFunction(JAMScript::RIBScheduler& jSched, std::vector<uint64_t>& tasks, int i) {
+    auto tStart = std::chrono::high_resolution_clock::now();
+    std::cout << "RT TASK-" << i << " start" << std::endl;
+    rt_count++;
+    jSched
+        .CreateRealTimeTask(
+            {true, 0}, i,
+            std::function<int(JAMScript::RIBScheduler&, std::vector<uint64_t>&, int)>(RealTimeTaskFunction),
+            std::ref(jSched), std::ref(tasks), i)
+        ->Detach();
+    std::this_thread::sleep_for(std::chrono::nanoseconds(tasks[i] * 1000 - 500 * 1000));
+    /*while (std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::high_resolution_clock::now() - tStart)
+                   .count() +
+               500000 <=
+           tasks[i] * 1000) {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(50));
+    }*/
+    return 8;
+}
 
-int nrounds, batch_count = 0, interactive_count = 0, preempt_tslice = 0, 
-    _bc, _ic;
-std::vector<jamscript::task_schedule_entry> normal_sched, greedy_sched;
-
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     // both of the followings are fine
     // ./schedule-ai-experiment [trace file name] [number of cycles to simulate]
-    // ./schedule-ai-experiment [trace file name] [number of cycles to simulate] [psuedo-preemption time slice in ns]
-    if (argc < 3 || argc > 4) return EXIT_FAILURE;
+    // ./schedule-ai-experiment [trace file name] [number of cycles to simulate] [psuedo-preemption
+    // time slice in ns]
+    if (argc < 3 || argc > 4)
+        return EXIT_FAILURE;
     int nn, ng, ntask, nitask, nbtask;
     std::ifstream trace_file(argv[1]);
     nrounds = std::atoi(argv[2]);
-    if (argc == 4) preempt_tslice = std::atoi(argv[3]);
+    if (argc == 4)
+        preempt_tslice = std::atoi(argv[3]);
     uint64_t s, e;
     uint32_t id;
     std::vector<uint64_t> tasks, tasks_exec_count;
-    std::vector<task_data_transfer> task_dtos;
-    std::vector<std::pair<uint64_t, jamscript::interactive_extender>> 
-    interactive_tasks;
-    std::vector<std::pair<uint64_t, uint64_t>> batch_tasks;
-    bi_dto pbi({ &interactive_tasks, &batch_tasks });
+    std::vector<std::tuple<std::chrono::high_resolution_clock::duration, std::chrono::high_resolution_clock::duration,
+                           std::chrono::high_resolution_clock::duration>>
+        interactive_tasks;
+    std::vector<std::pair<std::chrono::high_resolution_clock::duration, std::chrono::high_resolution_clock::duration>>
+        batch_tasks;
+    std::vector<JAMScript::RealTimeSchedule> normal_sched, greedy_sched;
     if (trace_file.is_open()) {
         trace_file >> ntask;
         tasks.resize(ntask + 1);
         tasks_exec_count.resize(ntask + 1);
-        task_dtos.resize(ntask + 1);
-        for (auto& c: tasks_exec_count) c = 0;
+        for (auto& c : tasks_exec_count) c = 0;
         trace_file >> nn;
         while (nn--) {
             trace_file >> s >> e >> id;
             tasks[id] = (e - s);
             tasks_exec_count[id]++;
-            normal_sched.push_back({ s, e, id });
+            normal_sched.push_back({std::chrono::high_resolution_clock::duration(std::chrono::microseconds(s)),
+                                    std::chrono::high_resolution_clock::duration(std::chrono::microseconds(e)), id});
         }
         trace_file >> ng;
         while (ng--) {
             trace_file >> s >> e >> id;
             tasks[id] = (e - s);
-            greedy_sched.push_back({ s, e, id });
+            greedy_sched.push_back({std::chrono::high_resolution_clock::duration(std::chrono::microseconds(s)),
+                                    std::chrono::high_resolution_clock::duration(std::chrono::microseconds(e)), id});
         }
         trace_file >> nitask;
         _ic = nitask;
         while (nitask--) {
             int arr, ddl, burst;
             trace_file >> arr >> ddl >> burst;
-            interactive_tasks.push_back({ 
-                arr, jamscript::interactive_extender(burst, ddl, nullptr)
-            });
+            interactive_tasks.push_back(
+                {std::chrono::high_resolution_clock::duration(std::chrono::microseconds(arr)),
+                 std::chrono::high_resolution_clock::duration(std::chrono::microseconds(ddl)),
+                 std::chrono::high_resolution_clock::duration(std::chrono::microseconds(burst))});
         }
         trace_file >> nbtask;
         _bc = nbtask;
         while (nbtask--) {
             int arr, burst;
             trace_file >> arr >> burst;
-            batch_tasks.push_back({ arr, burst });
+            batch_tasks.push_back({std::chrono::high_resolution_clock::duration(std::chrono::microseconds(arr)),
+                                   std::chrono::high_resolution_clock::duration(std::chrono::microseconds(burst))});
         }
-
-        jamscript::c_side_scheduler jamc_sched(normal_sched, greedy_sched, 
-                                               0, 1024 * 256, &pbi, 
-                                               [](task_t* self, void* args) {
-
-            {
-                auto* scheduler_ptr = static_cast<jamscript::c_side_scheduler*>
-                    (self->scheduler->get_scheduler_data(self->scheduler));
-                auto* batch_interactives = static_cast<bi_dto*>(args);
-                auto* interactive_tasks = batch_interactives->
-                                          pinteractive_tasks;
-                auto* batch_tasks = batch_interactives->pbatch_tasks;
-                while (scheduler_ptr->get_current_timepoint_in_scheduler() / 1000 < nrounds * normal_sched.back().end_time) {
-                    auto curr_timediff = scheduler_ptr->get_current_timepoint_in_scheduler() / 1000;
-                    for (auto& itask: *interactive_tasks) {
-                        if (curr_timediff >= itask.first && 
-                            itask.second.handle == nullptr) {
-                            itask.second.handle = scheduler_ptr->
-                            add_interactive_task(itask.second.deadline, 
-                                                 itask.second.burst, nullptr, 
-                                                 [](task_t* self, void* args) {
-                                auto _itask_start = 
-                                std::chrono::high_resolution_clock::now();
-                                auto* extender = 
-                                static_cast<jamscript::interactive_extender*>(
-                                    self->task_fv->get_user_data(self)
-                                );
-                                long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
-                                jamscript::jsleep_for(1000);
-                                long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
-                                std::cout << ("JSleep jitter in ns: " + std::to_string(currns - prevns - 1000 * 1000)) << std::endl;
-                                while (std::chrono::
-                                       duration_cast<std::chrono::nanoseconds>(
-                                       std::chrono::
-                                       high_resolution_clock::now()
-                                       - _itask_start).count() < 1000 * 
-                                       extender->burst) {
-                                    if (preempt_tslice > 0)
-                                    std::this_thread::sleep_for(
-                                        std::chrono::
-                                        nanoseconds(preempt_tslice)
-                                    );
-                                    yield_task(self);
-                                }
-                                interactive_count++;
-                                extender->handle->status = ack_finished;
-                                notify_future(extender->handle.get());
-                                finish_task(self, 0);
-                            });
-                        }
+        JAMScript::RIBScheduler jRIBScheduler(1024 * 256);
+        jRIBScheduler.CreateBatchTask({true, 0}, std::chrono::milliseconds(996), [&]() {
+            while (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() -
+                                                                         jRIBScheduler.GetSchedulerStartTime())
+                       .count() <
+                   nrounds * std::chrono::duration_cast<std::chrono::microseconds>(normal_sched.back().eTime).count()) {
+                int ax = 0;
+                for (auto& [arrival, deadline, burst] : interactive_tasks) {
+                    auto cBurst = burst;
+                    if (std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::high_resolution_clock::now() - jRIBScheduler.GetSchedulerStartTime())
+                            .count() >= std::chrono::duration_cast<std::chrono::microseconds>(arrival).count()) {
+                        jRIBScheduler
+                            .CreateInteractiveTask(
+                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0})
+                                                   : (JAMScript::StackTraits{false, 1024 * 128})),
+                                deadline, burst, []() {},
+                                [&jRIBScheduler, cBurst]() {
+                                    std::cout << "Interac Exec" << std::endl;
+                                    interactive_count++;
+                                    std::cout << "JSleep Start" << std::endl;
+                                    auto ct = std::chrono::high_resolution_clock::now();
+                                    auto delta = 1000;
+                                    JAMScript::ThisTask::SleepFor(std::chrono::microseconds(delta));
+                                    std::cout << "JSleep Jitter: "
+                                              << std::chrono::duration_cast<std::chrono::microseconds>(
+                                                     std::chrono::high_resolution_clock::now() - ct)
+                                                         .count() -
+                                                     delta
+                                              << "us" << std::endl;
+                                    auto tStart = std::chrono::high_resolution_clock::now();
+                                    while (std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                               std::chrono::high_resolution_clock::now() - tStart)
+                                               .count() <=
+                                           std::chrono::duration_cast<std::chrono::nanoseconds>(cBurst).count()) {
+                                        std::this_thread::sleep_for(std::chrono::microseconds(50));
+                                        JAMScript::ThisTask::Yield();
+                                    }
+                                    return 8;
+                                })
+                            ->Detach();
+                        arrival = std::chrono::high_resolution_clock::duration::max();
                     }
-                    for (auto& btask: *batch_tasks) {
-                        if (curr_timediff >= btask.first) {
-                            scheduler_ptr->add_batch_task(btask.second, 
-                                                          nullptr, 
-                                                          [](task_t* self, 
-                                                             void* args) {
-                                auto _btask_start = 
-                                std::chrono::high_resolution_clock::now();
-                                auto* extender = 
-                                static_cast<jamscript::batch_extender*>(
-                                    self->task_fv->get_user_data(self)
-                                );
-                                long long prevns = this_scheduler()->get_current_timepoint_in_scheduler();
-                                jamscript::jsleep_for(1000);
-                                long long currns = this_scheduler()->get_current_timepoint_in_scheduler();
-                                std::cout << ("JSleep jitter in ns: " + std::to_string(currns - prevns - 1000 * 1000)) << std::endl;
-                                while (std::chrono::
-                                       duration_cast<std::chrono::nanoseconds>
-                                       (std::chrono::
-                                       high_resolution_clock::now()
-                                       - _btask_start).count() < 1000 * 
-                                       extender->burst) {
-                                    if (preempt_tslice > 0)
-                                    std::this_thread::sleep_for(
-                                        std::chrono::
-                                        nanoseconds(preempt_tslice));
-                                    yield_task(self);
-                                }
-                                batch_count++;
-                                finish_task(self, 0);
-                            });
-                            btask.first = std::numeric_limits<uint64_t>::max();
-                        }
-                    }
-                    std::this_thread::sleep_for(
-                        std::chrono::nanoseconds(preempt_tslice)
-                    );
-                    yield_task(self);
                 }
-                scheduler_ptr->exit();
+                for (auto& [arrival, burst] : batch_tasks) {
+                    auto cBurst = burst;
+                    if (std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::high_resolution_clock::now() - jRIBScheduler.GetSchedulerStartTime()) >=
+                        arrival) {
+                        jRIBScheduler
+                            .CreateBatchTask(
+                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0})
+                                                   : (JAMScript::StackTraits{false, 1024 * 128})),
+                                std::chrono::duration_cast<std::chrono::microseconds>(cBurst),
+                                [&jRIBScheduler, cBurst]() {
+                                    auto tStart = std::chrono::high_resolution_clock::now();
+                                    std::cout << "Batch Exec" << std::endl;
+                                    batch_count++;
+                                    while (std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                               std::chrono::high_resolution_clock::now() - tStart)
+                                                   .count() +
+                                               500000 <=
+                                           std::chrono::duration_cast<std::chrono::nanoseconds>(cBurst).count()) {
+                                        std::this_thread::sleep_for(std::chrono::microseconds(50));
+                                        JAMScript::ThisTask::Yield();
+                                    }
+                                    return 8;
+                                })
+                            ->Detach();
+                        arrival = std::chrono::high_resolution_clock::duration::max();
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(25));
+                JAMScript::ThisTask::Yield();
             }
-            finish_task(self, EXIT_SUCCESS);
+            auto sec3 = std::make_shared<std::string>();
+            auto p = std::make_shared<JAMScript::Promise<std::string>>();
+            auto ep = std::make_shared<JAMScript::Promise<void>>();
+            auto rp = std::make_shared<JAMScript::Promise<std::string&>>();
+            auto* fx = jRIBScheduler.CreateInteractiveTask(
+                {true, 0}, std::chrono::nanoseconds(38000000), std::chrono::nanoseconds(99), []() {},
+                [p, ep, rp, sec3]() {
+                    *sec3 = "I don't like cpp";
+                    std::cout << "Start Joining Task " << &sec3 << std::endl;
+                    ep->SetException(std::make_exception_ptr(JAMScript::InvalidArgumentException("cancelled")));
+
+                    rp->SetValue(*sec3);
+
+                    p->SetValue("I like Java");
+
+                    std::cout << "End Joining Task" << std::endl;
+                });
+            fx->Detach();
+            auto fp = p->GetFuture();
+            auto frp = rp->GetFuture();
+            std::cout << "Before Join" << std::endl;
+            std::cout << "After Join" << std::endl;
+            std::cout << "Secret is: \"" << fp.Get() << "\"" << std::endl;
+            // sec3.append(sec3_);
+
+            try {
+                ep->GetFuture().Get();
+            } catch (const JAMScript::InvalidArgumentException& e) {
+                std::cout << e.what() << std::endl;
+            }
+            std::cout << "Secret3 " << &sec3 << " is: \"" << frp.Get() << "\"" << std::endl;
+            jRIBScheduler.ShutDown();
+            return 3;
         });
         for (uint32_t i = 1; i < tasks.size(); i++) {
-            task_dtos[i] = { i, tasks[i], &jamc_sched, 
-                             jamscript::real_time_task_t };
-            jamc_sched.add_real_time_task(i, &(*(task_dtos.begin() + i)), 
-                                          [](task_t* self, void* args) {
-                {
-                    auto _start_time = std::chrono::
-                                       high_resolution_clock::now();
-                    auto* pack = static_cast<task_data_transfer*>(args);
-                    if (pack->scheduler->get_num_cycle_finished() >= nrounds) {
-                        pack->scheduler->exit();
-                        finish_task(self, EXIT_SUCCESS);
-                    }
-                    std::cout << "TASK #" << pack->task_id << " " << 
-                                 "EXEC"   << std::endl;
-                    pack->exec_count++;
-                    pack->scheduler->add_real_time_task(pack->task_id, pack, 
-                                                        self->task_function);
-                    while (std::chrono::duration_cast<std::chrono::nanoseconds>
-                           (std::chrono::high_resolution_clock::now() - 
-                            _start_time).count() < pack->task_sleep * 1000);
-                }
-                finish_task(self, EXIT_SUCCESS);
-            });
+            jRIBScheduler
+                .CreateRealTimeTask(
+                    (((i) % 2 == 0) ? (JAMScript::StackTraits{true, 0}) : (JAMScript::StackTraits{false, 1024 * 128})),
+                    i, std::function<int(JAMScript::RIBScheduler&, std::vector<uint64_t>&, int)>(RealTimeTaskFunction),
+                    std::ref(jRIBScheduler), std::ref(tasks), i)
+                ->Detach();
         }
-        jamc_sched.run();
-        for (uint32_t i = 1; i < task_dtos.size(); i++) {
-            std::cout << "TASK #" << i << " EXP: " << 
-                         jamc_sched.get_num_cycle_finished() * tasks_exec_count[i] << " " <<
-                         "ACT: "  << task_dtos[i].exec_count << std::endl;
-        }
-        std::cout << "NORMAL LOWER BOUND: ";
-        int tacc = 0, cacc = 0;
-        decltype(std::chrono::high_resolution_clock::now()) test_start = 
-        std::chrono::high_resolution_clock::now();
-        for (auto& nsc: normal_sched) {
-            auto inv_start = std::chrono::high_resolution_clock::now();
-            if (nsc.task_id != 0x0) {
-                int cj = std::chrono::duration_cast<std::chrono::microseconds>(
-                    inv_start - test_start
-                ).count() - nsc.start_time;
-                std::cout << cj << " ";
-                tacc += std::abs(cj);
-                cacc++;
-            }
-            while (std::chrono::duration_cast<std::chrono::nanoseconds>(
-                   std::chrono::high_resolution_clock::now() - inv_start
-                   ).count() < (nsc.end_time - nsc.start_time) * 1000);
-        }
-        std::cout << "AVG: " << double(tacc) / cacc << std::endl;
-        std::cout << "GREEDY LOWER BOUND: ";
-        tacc = 0, cacc = 0;
-        test_start = std::chrono::high_resolution_clock::now();
-        for (auto& nsc: greedy_sched) {
-            decltype(test_start) inv_start = std::chrono::
-                                             high_resolution_clock::now();
-            // measure jitter if RT task
-            if (nsc.task_id != 0x0) {
-                int cj = std::chrono::duration_cast<std::chrono::microseconds>(
-                    inv_start - test_start
-                ).count() - nsc.start_time;
-                std::cout << cj << " ";
-                tacc += std::abs(cj);
-                cacc++;
-            }
-            // sleep until finishing this interval
-            while (std::chrono::duration_cast<std::chrono::nanoseconds>(
-                   std::chrono::high_resolution_clock::now() - inv_start
-                   ).count() < (nsc.end_time - nsc.start_time) * 1000);
-        }
-        std::cout << "AVG: " << double(tacc) / cacc << std::endl;
-        std::cout << "TOTAL-I: " << _ic << ", " <<
-                     "FINISHED-I: " << interactive_count << ", " <<
-                     "GR-I: " << double(interactive_count) / _ic << std::endl;
-        std::cout << "TOTAL-B: " << _bc << ", " <<
-                     "FINISHED-B: " << batch_count << ", " <<
-                     "GR-B: " << double(batch_count) / _bc << std::endl;
+        jRIBScheduler.SetSchedule(normal_sched, greedy_sched);
+        jRIBScheduler.Run();
+        std::cout << "Exp Batch: " << _bc << ", Actual Batch" << batch_count << std::endl;
+        std::cout << "Exp Interac: " << _ic << ", Actual Interac" << interactive_count << std::endl;
     }
     return 0;
 }
