@@ -18,7 +18,6 @@
 #include <boost/intrusive/unordered_set.hpp>
 
 #include "time/time.hpp"
-#include "core/coroutine/task.h"
 #include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
 #include "core/coroutine/context.h"
@@ -224,6 +223,23 @@ namespace JAMScript {
         const type operator()(const TaskInterface& v) const {
             return reinterpret_cast<uintptr_t>(&v);
         }
+    };
+
+    enum TaskStatus {
+        TASK_READY = 0, 
+        TASK_PENDING = 1, 
+        TASK_FINISHED, 
+        TASK_RUNNING
+    };
+
+    enum TaskReturn {
+        SUCCESS_TASK,
+        ERROR_TASK_CONTEXT_INIT, 
+        ERROR_TASK_INVALID_ARGUMENT,
+        ERROR_TASK_STACK_OVERFLOW, 
+        ERROR_TASK_CONTEXT_SWITCH, 
+        ERROR_TASK_WRONG_TYPE, 
+        ERROR_TASK_CANCELLED
     };
 
     template <typename Fn, typename... Args>

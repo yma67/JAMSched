@@ -42,14 +42,6 @@ namespace JAMScript {
         friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinLock>& lk, Notifier* f);
         friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinLock>& lk, Notifier* f);
         friend void ThisTask::Yield();
-
-        JAMStorageTypes::BatchQueueType bQueue;
-        JAMStorageTypes::BatchWaitSetType bWaitPool;
-        JAMStorageTypes::InteractiveWaitSetType iWaitPool;
-        JAMStorageTypes::InteractiveReadyStackType iCancelStack;
-        JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
-        JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
-        JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
         
         void Enable(TaskInterface* toEnable) override;
         void Disable(TaskInterface* toDisable) override;
@@ -135,6 +127,14 @@ namespace JAMScript {
         std::condition_variable cvReadyRTSchedule;
         TimePoint schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
+
+        JAMStorageTypes::BatchQueueType bQueue;
+        JAMStorageTypes::BatchWaitSetType bWaitPool;
+        JAMStorageTypes::InteractiveWaitSetType iWaitPool;
+        JAMStorageTypes::InteractiveReadyStackType iCancelStack;
+        JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
+        JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
+        JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
 
     };
 
