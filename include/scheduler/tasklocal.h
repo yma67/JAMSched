@@ -8,7 +8,9 @@
 namespace JAMScript {
 
     using JTLSLocation = void**;
+
     extern std::unordered_map<JTLSLocation, std::any>* GetGlobalJTLSMap();
+
     template <typename T, typename... Args>
     T& GetByJTLSLocation(JTLSLocation location, Args&&... args) {
         std::unordered_map<JTLSLocation, std::any>* taskLocalPool = nullptr;
@@ -29,24 +31,20 @@ namespace JAMScript {
     template <typename T>
     class JTLSRef {
     public:
+
         template <typename... Args>
         JTLSRef(JTLSLocation location, Args&&... args) : addressLocation_(location) {
             (void)GetByJTLSLocation<T>(addressLocation_, std::forward<Args>(args)...);
         }
 
         operator T const&() const { return GetByJTLSLocation<T>(addressLocation_); }
-
         operator T&() { return GetByJTLSLocation<T>(addressLocation_); }
 
     private:
-        JTLSLocation addressLocation_;
-    };
 
-#define GetJTLSLocation()             \
-    [] {                              \
-        static void* dummy = nullptr; \
-        return &dummy;                \
-    }()
+        JTLSLocation addressLocation_;
+
+    };
 
     template <typename TJTLS>
     using TaskLS = JTLSRef<TJTLS>;
@@ -55,6 +53,14 @@ namespace JAMScript {
     JTLSRef<TJTLS> __CreateTaskLS(JTLSLocation location, Args&&... args) {
         return JTLSRef<TJTLS>(location, std::forward<Args>(args)...);
     }
+    
+#define GetJTLSLocation()             \
+    [] {                              \
+        static void* dummy = nullptr; \
+        return &dummy;                \
+    }()
+
 #define CreateTaskLS(tname, ...) JAMScript::__CreateTaskLS<tname>(GetJTLSLocation(), ##__VA_ARGS__)
+
 }  // namespace JAMScript
 #endif

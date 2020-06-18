@@ -7,8 +7,8 @@ arch:
   - arm64
 
 compiler:
-  - gcc
-  - clang
+  - gcc-9
+  - clang-9
 
 before_install: 
   - sudo apt-get -y install mosquitto

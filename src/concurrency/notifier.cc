@@ -1,10 +1,8 @@
-#include "concurrency/notifier.h"
-
-#include <iostream>
 #include <mutex>
-
-#include "concurrency/spinlock.h"
+#include <iostream>
 #include "core/task/task.h"
+#include "concurrency/notifier.h"
+#include "concurrency/spinlock.h"
 
 void JAMScript::Notifier::Join() {
     if (ownerTask == nullptr) {

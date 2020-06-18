@@ -1,16 +1,13 @@
-#include "time/time.h"
-
 #include <mutex>
-
+#include "time/time.h"
+#include "core/task/task.h"
 #include "concurrency/notifier.h"
 #include "concurrency/spinlock.h"
-#include "core/task/task.h"
 #include "scheduler/scheduler.h"
 
 JAMScript::Timer::Timer(RIBScheduler* scheduler) : scheduler(scheduler) {
     int err;
     timingWheelPtr = timeouts_open(0, &err);
-    printf("%d\n", err);
 }
 
 JAMScript::Timer::~Timer() { timeouts_close(timingWheelPtr); }

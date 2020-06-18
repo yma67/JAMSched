@@ -6,7 +6,7 @@
 struct A {
     static JAMScript::TaskLS<int> i;
     int b, c;
-    A (int b_, int c_) : b(b_), c(c_) {}
+    A(int b_, int c_) : b(b_), c(c_) {}
 };
 
 JAMScript::TaskLS<int> A::i = CreateTaskLS(int, 8);
@@ -21,8 +21,7 @@ void CheckTLS() {
     REQUIRE(A::i == (org + r));
 }
 
-int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e, long f,
-                                       std::string validator) {
+int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e, long f, std::string validator) {
     auto xa = CreateTaskLS(A, 3, 2);
     REQUIRE(A::i == 8);
     A::i += 10;
@@ -39,8 +38,7 @@ int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e
     return a + b + d + f;
 }
 
-int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, long f,
-                                    std::string validator) {
+int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, long f, std::string validator) {
     auto xa = CreateTaskLS(A, 4, 5);
     REQUIRE(A::i == 8);
     A::i += 13;
@@ -57,9 +55,8 @@ int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, l
     return a + b + d + f;
 }
 
-int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long f,
-                                 std::string validator) {
-    int& xa = CreateTaskLS(int, 5), &xb = CreateTaskLS(int, 6), &xc = CreateTaskLS(int, 7);
+int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long f, std::string validator) {
+    int &xa = CreateTaskLS(int, 5), &xb = CreateTaskLS(int, 6), &xc = CreateTaskLS(int, 7);
     REQUIRE(5 == xa);
     REQUIRE(6 == xb);
     REQUIRE(7 == xc);
@@ -75,17 +72,24 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
 
 TEST_CASE("Task Local", "[tasklocal]") {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
-    ribScheduler.rtScheduleGreedy =
-        ribScheduler.rtScheduleNormal = {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}};
-        ribScheduler.CreateBatchTask({ false, 1024 * 256 }, std::chrono::milliseconds(90), [&]() {
-            ribScheduler.CreateBatchTask({ false, 1024 * 256 }, std::chrono::milliseconds(90), CiteLabAdditionFunctionInteractive, 1, 2, float(0.5), 3,
-                    double(1.25), 4, std::string("citelab loves java interactive"))->Join();
-            ribScheduler.CreateBatchTask({ true, 0 }, std::chrono::milliseconds(90), CiteLabAdditionFunctionRealTime, 1, 2, float(0.5), 3, double(1.25), 4,
-                    std::string("citelab loves java real time"))->Join();
-            ribScheduler.CreateInteractiveTask({ true, 0 }, std::chrono::milliseconds(9000), std::chrono::milliseconds(90), [](){}, CiteLabAdditionFunctionBatch, 1, 2, float(0.5), 3, double(1.25), 4,
-                    std::string("citelab loves java batch"))->Join();
-            ribScheduler.ShutDown();
-        });
-    
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
+                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
+    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [&]() {
+        ribScheduler
+            .CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), CiteLabAdditionFunctionInteractive, 1,
+                             2, float(0.5), 3, double(1.25), 4, std::string("citelab loves java interactive"))
+            ->Join();
+        ribScheduler
+            .CreateBatchTask({true, 0}, std::chrono::milliseconds(90), CiteLabAdditionFunctionRealTime, 1, 2,
+                             float(0.5), 3, double(1.25), 4, std::string("citelab loves java real time"))
+            ->Join();
+        ribScheduler
+            .CreateInteractiveTask(
+                {true, 0}, std::chrono::milliseconds(9000), std::chrono::milliseconds(90), []() {},
+                CiteLabAdditionFunctionBatch, 1, 2, float(0.5), 3, double(1.25), 4,
+                std::string("citelab loves java batch"))
+            ->Join();
+        ribScheduler.ShutDown();
+    });
     ribScheduler();
 }

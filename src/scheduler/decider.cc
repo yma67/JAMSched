@@ -1,8 +1,6 @@
-#include "scheduler/decider.h"
-
-#include <algorithm>
-
 #include "scheduler/scheduler.h"
+#include "scheduler/decider.h"
+#include <algorithm>
 
 JAMScript::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule) {
 #ifdef JAMSCRIPT_SCHED_AI_EXP

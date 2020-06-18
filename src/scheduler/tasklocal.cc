@@ -1,5 +1,4 @@
 #include "scheduler/tasklocal.h"
-
 #include "core/task/task.h"
 
 std::unordered_map<JAMScript::JTLSLocation, std::any>* JAMScript::GetGlobalJTLSMap() {

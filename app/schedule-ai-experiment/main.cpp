@@ -10,12 +10,13 @@
 #include <thread>
 #include <vector>
 
-int nrounds, batch_count = 0, interactive_count = 0, preempt_tslice = 0, _bc, _ic;
+int nrounds, batch_count = 0, interactive_count = 0, rt_count = 0, preempt_tslice = 0, _bc, _ic;
 std::vector<JAMScript::RealTimeSchedule> normal_sched, greedy_sched;
 
 int RealTimeTaskFunction(JAMScript::RIBScheduler& jSched, std::vector<uint64_t>& tasks, int i) {
     auto tStart = std::chrono::high_resolution_clock::now();
     std::cout << "RT TASK-" << i << " start" << std::endl;
+    rt_count++;
     jSched
         .CreateRealTimeTask(
             {true, 0}, i,
@@ -111,6 +112,7 @@ int main(int argc, char* argv[]) {
                                 deadline, burst, []() {},
                                 [&jRIBScheduler, cBurst]() {
                                     std::cout << "Interac Exec" << std::endl;
+                                    interactive_count++;
                                     std::cout << "JSleep Start" << std::endl;
                                     auto ct = std::chrono::high_resolution_clock::now();
                                     auto delta = 1000;
@@ -148,6 +150,7 @@ int main(int argc, char* argv[]) {
                                 [&jRIBScheduler, cBurst]() {
                                     auto tStart = std::chrono::high_resolution_clock::now();
                                     std::cout << "Batch Exec" << std::endl;
+                                    batch_count++;
                                     while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                std::chrono::high_resolution_clock::now() - tStart)
                                                    .count() +
@@ -207,12 +210,10 @@ int main(int argc, char* argv[]) {
                     std::ref(jRIBScheduler), std::ref(tasks), i)
                 ->Detach();
         }
-
-        jRIBScheduler.rtScheduleNormal = normal_sched;
-        jRIBScheduler.rtScheduleGreedy = greedy_sched;
-
+        jRIBScheduler.SetSchedule(normal_sched, greedy_sched);
         jRIBScheduler();
-        std::cout << "end" << std::endl;
+        std::cout << "Exp Batch: " << _bc << ", Actual Batch" << batch_count << std::endl;
+        std::cout << "Exp Interac: " << _ic << ", Actual Interac" << interactive_count << std::endl;
     }
     return 0;
 }
