@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "concurrency/condition_variable.hpp"
-#include "concurrency/mutex.hpp"
 
 namespace JAMScript {
 

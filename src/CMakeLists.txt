@@ -19,6 +19,7 @@ foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
 endforeach(jamcomponent_source ${JAMTEST_SOURCES})
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/time/time.cc")
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/concurrency/condition_variable.cc")
+list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/concurrency/spinlock.cc")
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/scheduler/decider.cc")
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/scheduler/tasklocal.cc")
 

@@ -1,6 +1,7 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_SPINLOCK_HH
 #define JAMSCRIPT_JAMSCRIPT_SPINLOCK_HH
 #include <atomic>
+
 namespace JAMScript {
 
     class SpinLock {
@@ -11,14 +12,11 @@ namespace JAMScript {
 
         SpinLock() : flag{false} {}
 
-        inline void lock() {
-            while (flag.test_and_set(std::memory_order_acquire))
-                ;
-        }
+        void lock();
 
-        inline bool try_lock() { return !flag.test_and_set(std::memory_order_acquire); }
+        bool try_lock();
 
-        inline void unlock() { flag.clear(std::memory_order_release); }
+        void unlock();
         
     };
 

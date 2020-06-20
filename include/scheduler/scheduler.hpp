@@ -50,6 +50,7 @@ namespace JAMScript {
         const TimePoint& GetCycleStartTime() const;
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
         void ShutDown() override;
+        bool Empty();
         void RunSchedulerMainLoop();
         
         template <typename Fn, typename... Args>

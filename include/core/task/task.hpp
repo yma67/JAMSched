@@ -250,7 +250,7 @@ namespace JAMScript {
         friend class SharedCopyStackTask;
         template <typename Fna, typename... Argsa>
         friend class StandAloneStackTask;
-        TaskAttr(Fn&& tf, Args&&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward_as_tuple(args...)) {}
+        TaskAttr(Fn&& tf, Args&&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
         virtual ~TaskAttr() {}
 
     protected:
@@ -358,7 +358,6 @@ namespace JAMScript {
         void SwapOut() override {
             ThisTask::thisTask = nullptr;
             auto* prev_scheduler = scheduler;
-            isStealable = true;
             scheduler->taskRunning = nullptr;
             this->status = TASK_PENDING;
             SwapToContext(&uContext, &prev_scheduler->schedulerContext);
@@ -408,7 +407,7 @@ namespace JAMScript {
             delete[] reinterpret_cast<uint8_t*>(uContext.uc_stack.ss_sp);
         }
 
-    public:
+    protected:
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         uint64_t v_stack_id;
 #endif

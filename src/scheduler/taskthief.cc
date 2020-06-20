@@ -60,6 +60,7 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop() {
             }
             if (!(victim->toContinue && toContinue))
                 break;
+            std::cout << "sTOLEN One" << std::endl;
             auto iterNext = isReady.begin();
             auto* pNext = &(*iterNext);
             isReady.erase(iterNext);
