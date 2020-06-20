@@ -23,7 +23,7 @@ class BenchSched : public JAMScript::SchedulerBase {
 public:
     JAMScript::TaskInterface* NextTask() override { return onlyTask; }
     void Enable() {}
-    void Run() {
+    void RunSchedulerMainLoop() {
         this->onlyTask->SwapIn();
         this->onlyTask->SwapIn();
     }
@@ -40,6 +40,6 @@ int main() {
         clock_gettime(CLOCK_MONOTONIC, &time2);
         std::cout << "2xCtx switch time: " << diff(time1, time2).tv_nsec << " ns" << std::endl;
     });
-    bSched.Run();
+    bSched.RunSchedulerMainLoop();
     return 0;
 }

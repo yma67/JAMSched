@@ -21,7 +21,7 @@ namespace JAMScript {
         const uint32_t Size() const;
         void ShutDown_();
         void ShutDown() override;
-        void Run();
+        void RunSchedulerMainLoop();
         StealScheduler(SchedulerBase* victim, uint32_t ssz);
         ~StealScheduler();
 

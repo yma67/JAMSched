@@ -250,7 +250,7 @@ namespace JAMScript {
         friend class SharedCopyStackTask;
         template <typename Fna, typename... Argsa>
         friend class StandAloneStackTask;
-        TaskAttr(Fn&& tf, Args&&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
+        TaskAttr(Fn&& tf, Args&&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward_as_tuple(args...)) {}
         virtual ~TaskAttr() {}
 
     protected:

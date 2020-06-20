@@ -82,9 +82,9 @@ void JAMScript::RIBScheduler::Disable(TaskInterface* toDisable) {
     }
 }
 
-void JAMScript::RIBScheduler::Run() {
+void JAMScript::RIBScheduler::RunSchedulerMainLoop() {
     schedulerStartTime = Clock::now();
-    thief.Run();
+    thief.RunSchedulerMainLoop();
     timer.UpdateTimeout();
     while (toContinue) {
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);

@@ -34,10 +34,7 @@ TEST_CASE("Baseline", "[core]") {
 TEST_CASE("C++ Thread", "[core]") {
     BENCHMARK("C++ Thread " TEST_TASK_NAME) {
         for (int i = 0; i < task_niter; i++) {
-            std::thread([&] {
-                test_task(i);
-                return;
-            }).join();
+            std::thread(test_task, i).join();
         }
         return;
     };
@@ -49,7 +46,7 @@ public:
     JAMScript::TaskInterface* NextTask() override {
         return onlyTask;
     }
-    void Run() {
+    void RunSchedulerMainLoop() {
         this->onlyTask->SwapIn();
 
     }
@@ -71,8 +68,8 @@ TEST_CASE("JAMScript++", "[core]") {
                 if (k < 2)
                     return ref[i] = 1;
                 return ref[i] = k * test_task(k - 1);
-            }, i);
-            bSched.Run();
+            }, int(i));
+            bSched.RunSchedulerMainLoop();
         }
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)
         return;
@@ -89,8 +86,8 @@ TEST_CASE("JAMScript++", "[core]") {
                 if (k < 2)
                     return rex = 1;
                 return rex = k * test_task(k - 1);
-            }, i));
-            bSched3.Run();
+            }, int(i)));
+            bSched3.RunSchedulerMainLoop();
             ref[i] = rex;
         }
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)

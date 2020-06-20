@@ -33,7 +33,6 @@ void JAMScript::Notifier::Notify() {
 
 void JAMScript::Notifier::Notify(std::unique_lock<JAMScript::SpinLock>& iLock) {
     if (ownerTask == nullptr) {
-        std::unique_lock<SpinLock> lock(m);
         lockWord |= 0x80000000;
         cv.notify_all();
         return;
@@ -44,8 +43,7 @@ void JAMScript::Notifier::Notify(std::unique_lock<JAMScript::SpinLock>& iLock) {
 
 void JAMScript::Notifier::Join(std::unique_lock<JAMScript::SpinLock>& iLock) {
     if (ownerTask == nullptr) {
-        std::unique_lock<SpinLock> lock(m);
-        while (lockWord < 0x80000000) cv.wait(lock);
+        while (lockWord < 0x80000000) cv.wait(iLock);
         return;
     }
     while (lockWord < 0x80000000) {

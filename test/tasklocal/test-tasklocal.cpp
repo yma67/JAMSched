@@ -91,5 +91,5 @@ TEST_CASE("Task Local", "[tasklocal]") {
             ->Join();
         ribScheduler.ShutDown();
     });
-    ribScheduler.Run();
+    ribScheduler.RunSchedulerMainLoop();
 }
