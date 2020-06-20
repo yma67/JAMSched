@@ -24,9 +24,9 @@ void JAMScript::FIFOTaskMutex::lock() {
 }
 
 void JAMScript::FIFOTaskMutex::unlock() {
-    std::lock_guard<SpinLock> lk(qLock);
+    std::unique_lock<SpinLock> lk(qLock);
     m_state = UNLOCKED;
     if (!waitSet.empty()) {
-        waitSet.begin()->Notify();
+        waitSet.begin()->Notify(lk);
     }
 }

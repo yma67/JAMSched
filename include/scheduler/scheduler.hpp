@@ -50,16 +50,16 @@ namespace JAMScript {
         const TimePoint& GetCycleStartTime() const;
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
         void ShutDown() override;
-        void Run();
+        void RunSchedulerMainLoop();
         
         template <typename Fn, typename... Args>
         TaskInterface* CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
-                                             std::function<void()> onCancel, Fn&& tf, Args... args) {
+                                             std::function<void()> onCancel, Fn&& tf, Args&&... args) {
             TaskInterface* fn = nullptr;
             if (stackTraits.useSharedStack) {
-                fn = new SharedCopyStackTask(this, std::move(tf), std::move(args)...);
+                fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
             } else {
-                fn = new StandAloneStackTask(this, stackTraits.stackSize, std::move(tf), std::move(args)...);
+                fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = INTERACTIVE_TASK_T;
             fn->burst = burst;
@@ -75,12 +75,12 @@ namespace JAMScript {
         }
 
         template <typename Fn, typename... Args>
-        TaskInterface* CreateBatchTask(StackTraits stackTraits, Duration burst, Fn&& tf, Args... args) {
+        TaskInterface* CreateBatchTask(StackTraits stackTraits, Duration burst, Fn&& tf, Args&&... args) {
             TaskInterface* fn = nullptr;
             if (stackTraits.useSharedStack) {
-                fn = new SharedCopyStackTask(this, std::move(tf), std::move(args)...);
+                fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
             } else {
-                fn = new StandAloneStackTask(this, stackTraits.stackSize, std::move(tf), std::move(args)...);
+                fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = BATCH_TASK_T;
             fn->burst = burst;
@@ -91,12 +91,12 @@ namespace JAMScript {
         }
 
         template <typename Fn, typename... Args>
-        TaskInterface* CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn&& tf, Args... args) {
+        TaskInterface* CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn&& tf, Args&&... args) {
             TaskInterface* fn = nullptr;
             if (stackTraits.useSharedStack) {
-                fn = new SharedCopyStackTask(this, std::move(tf), std::move(args)...);
+                fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
             } else {
-                fn = new StandAloneStackTask(this, stackTraits.stackSize, std::move(tf), std::move(args)...);
+                fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = REAL_TIME_TASK_T;
             fn->id = id;

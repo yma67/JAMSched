@@ -63,7 +63,11 @@
         "unordered_set": "cpp",
         "bit": "cpp",
         "shared_mutex": "cpp",
-        "forward_list": "cpp"
+        "forward_list": "cpp",
+        "any": "cpp",
+        "complex": "cpp",
+        "list": "cpp",
+        "typeindex": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled",
     

@@ -51,7 +51,7 @@ void JAMScript::StealScheduler::ShutDown() {
     ShutDown_();
 }
 
-void JAMScript::StealScheduler::Run() {
+void JAMScript::StealScheduler::RunSchedulerMainLoop() {
     std::thread t([this]() {
         while (victim->toContinue && toContinue) {
             std::unique_lock<std::mutex> lock(m);

@@ -1,12 +1,12 @@
 #ifndef JAMSCRIPT_FUTURE_HH
 #define JAMSCRIPT_FUTURE_HH
 #include <chrono>
-#include <memory>
-#include <future>
-#include <utility>
-#include <iostream>
 #include <exception>
+#include <future>
+#include <iostream>
+#include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "concurrency/condition_variable.hpp"
 #include "concurrency/mutex.hpp"
@@ -14,13 +14,14 @@
 namespace JAMScript {
 
     using std::future_status;
+    // using LockType = FIFOTaskMutex;
+    using LockType = SpinLock;
 
     namespace detail {
         // quick-and-dirty optional-like brick type
         template <typename T>
         struct LateInitialized {
         public:
-
             LateInitialized() = default;
 
             LateInitialized(LateInitialized&&) = delete;
@@ -57,12 +58,12 @@ namespace JAMScript {
         struct future_shared_state {
         public:
             void wait() const {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 available.wait(ul, [&] { return state || error; });
             }
 
             T& get() {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 available.wait(ul, [&] { return state || error; });
                 if (state)
                     return *state;
@@ -73,19 +74,19 @@ namespace JAMScript {
 
             template <typename U>
             void set_value(U&& value) {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 state.Initialize(std::forward<U>(value));
                 available.notify_all();
             }
             void set_exception(std::exception_ptr e) {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 error = e;
                 available.notify_all();
             }
 
         private:
             mutable ConditionVariableAny available;
-            mutable SpinLock mtx;
+            mutable LockType mtx;
             LateInitialized<T> state;
             std::exception_ptr error;
         };
@@ -168,12 +169,12 @@ namespace JAMScript {
         struct future_shared_state<void> {
         public:
             void wait() const {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 available.wait(ul, [&] { return state || error; });
             }
 
             void get() {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 available.wait(ul, [&] { return state || error; });
                 if (state)
                     return;
@@ -183,19 +184,19 @@ namespace JAMScript {
             }
 
             void set_value() {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 state = true;
                 available.notify_all();
             }
             void set_exception(std::exception_ptr e) {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 error = e;
                 available.notify_all();
             }
 
         private:
             mutable ConditionVariableAny available;
-            mutable SpinLock mtx;
+            mutable LockType mtx;
             bool state;
             std::exception_ptr error;
         };
@@ -268,18 +269,18 @@ namespace JAMScript {
         lhs.swap(rhs);
     }
 
-    // for reference type 
+    // for reference type
     namespace detail {
         template <typename R>
         struct future_shared_state<R&> {
         public:
             void wait() const {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 available.wait(ul, [&] { return state || error; });
             }
 
             R& get() {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 available.wait(ul, [&] { return state || error; });
                 if (state)
                     return *state;
@@ -290,20 +291,20 @@ namespace JAMScript {
 
             template <typename U>
             void set_value(const U& value) {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 state = const_cast<U*>(&value);
                 available.notify_all();
             }
             void set_exception(std::exception_ptr e) {
-                std::unique_lock<SpinLock> ul(mtx);
+                std::unique_lock<LockType> ul(mtx);
                 error = e;
                 available.notify_all();
             }
 
         private:
             mutable ConditionVariableAny available;
-            mutable SpinLock mtx;
-            R* state{ nullptr };
+            mutable LockType mtx;
+            R* state{nullptr};
             std::exception_ptr error;
         };
     }  // namespace detail
