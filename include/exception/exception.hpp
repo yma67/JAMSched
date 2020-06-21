@@ -3,19 +3,18 @@
 #include <string>
 #include <exception>
 
-namespace JAMScript {
+namespace JAMScript
+{
 
-    class InvalidArgumentException : public std::exception {
+    class InvalidArgumentException : public std::exception
+    {
     private:
-
         std::string message_;
 
     public:
-
-        explicit InvalidArgumentException(const std::string& message) : message_(message){};
-        virtual const char* what() const throw() { return message_.c_str(); }
-
+        explicit InvalidArgumentException(const std::string &message) : message_(message){};
+        virtual const char *what() const throw() { return message_.c_str(); }
     };
 
-}  // namespace JAMScript
+} // namespace JAMScript
 #endif

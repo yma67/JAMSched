@@ -12,17 +12,20 @@
 #include "scheduler/decider.hpp"
 #include "scheduler/taskthief.hpp"
 
-namespace JAMScript {
+namespace JAMScript
+{
 
-    struct RealTimeSchedule {
+    struct RealTimeSchedule
+    {
         std::chrono::high_resolution_clock::duration sTime, eTime;
         uint32_t taskId;
-        RealTimeSchedule(const std::chrono::high_resolution_clock::duration& s,
-                         const std::chrono::high_resolution_clock::duration& e, uint32_t id)
+        RealTimeSchedule(const std::chrono::high_resolution_clock::duration &s,
+                         const std::chrono::high_resolution_clock::duration &e, uint32_t id)
             : sTime(s), eTime(e), taskId(id) {}
     };
 
-    struct StackTraits {
+    struct StackTraits
+    {
         bool useSharedStack;
         uint32_t stackSize;
         bool canSteal;
@@ -30,36 +33,41 @@ namespace JAMScript {
         StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs) {}
     };
 
-    class RIBScheduler : public SchedulerBase {
+    class RIBScheduler : public SchedulerBase
+    {
     public:
 
         friend class StealScheduler;
         friend class Decider;
 
-        friend TaskInterface* ThisTask::Active();
+        friend TaskInterface *ThisTask::Active();
         friend void ThisTask::SleepFor(Duration dt);
         friend void ThisTask::SleepUntil(TimePoint tp);
-        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinLock>& lk, Notifier* f);
-        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinLock>& lk, Notifier* f);
+        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinLock> &lk, Notifier *f);
+        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinLock> &lk, Notifier *f);
         friend void ThisTask::Yield();
-        
-        void Enable(TaskInterface* toEnable) override;
-        void Disable(TaskInterface* toDisable) override;
 
-        const TimePoint& GetSchedulerStartTime() const;
-        const TimePoint& GetCycleStartTime() const;
+        void Enable(TaskInterface *toEnable) override;
+        void Disable(TaskInterface *toDisable) override;
+
+        const TimePoint &GetSchedulerStartTime() const;
+        const TimePoint &GetCycleStartTime() const;
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
         void ShutDown() override;
         bool Empty();
         void RunSchedulerMainLoop();
-        
+
         template <typename Fn, typename... Args>
-        TaskInterface* CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
-                                             std::function<void()> onCancel, Fn&& tf, Args&&... args) {
-            TaskInterface* fn = nullptr;
-            if (stackTraits.useSharedStack) {
+        TaskInterface *CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
+                                             std::function<void()> onCancel, Fn &&tf, Args &&... args)
+        {
+            TaskInterface *fn = nullptr;
+            if (stackTraits.useSharedStack)
+            {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
-            } else {
+            }
+            else
+            {
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = INTERACTIVE_TASK_T;
@@ -76,11 +84,15 @@ namespace JAMScript {
         }
 
         template <typename Fn, typename... Args>
-        TaskInterface* CreateBatchTask(StackTraits stackTraits, Duration burst, Fn&& tf, Args&&... args) {
-            TaskInterface* fn = nullptr;
-            if (stackTraits.useSharedStack) {
+        TaskInterface *CreateBatchTask(StackTraits stackTraits, Duration burst, Fn &&tf, Args &&... args)
+        {
+            TaskInterface *fn = nullptr;
+            if (stackTraits.useSharedStack)
+            {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
-            } else {
+            }
+            else
+            {
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = BATCH_TASK_T;
@@ -92,11 +104,15 @@ namespace JAMScript {
         }
 
         template <typename Fn, typename... Args>
-        TaskInterface* CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn&& tf, Args&&... args) {
-            TaskInterface* fn = nullptr;
-            if (stackTraits.useSharedStack) {
+        TaskInterface *CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn &&tf, Args &&... args)
+        {
+            TaskInterface *fn = nullptr;
+            if (stackTraits.useSharedStack)
+            {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
-            } else {
+            }
+            else
+            {
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = REAL_TIME_TASK_T;
@@ -112,7 +128,8 @@ namespace JAMScript {
 
     protected:
 
-        struct ExecutionStats {
+        struct ExecutionStats
+        {
             std::vector<std::chrono::high_resolution_clock::duration> jitters;
             std::vector<ITaskEntry> iRecords;
         };
@@ -136,9 +153,9 @@ namespace JAMScript {
         JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
         JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
         JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
-
+        
     };
 
-}  // namespace JAMScript
+} // namespace JAMScript
 
 #endif

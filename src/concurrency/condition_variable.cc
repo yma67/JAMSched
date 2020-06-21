@@ -1,16 +1,20 @@
 #include "concurrency/condition_variable.hpp"
 
-void JAMScript::ConditionVariableAny::notify_one() noexcept {
+void JAMScript::ConditionVariableAny::notify_one() noexcept
+{
     std::lock_guard<SpinLock> lk(wListLock);
-    if (!waitSet.empty()) {
+    if (!waitSet.empty())
+    {
         waitSet.begin()->Notify();
         waitSet.erase(waitSet.begin());
     }
 }
 
-void JAMScript::ConditionVariableAny::notify_all() noexcept {
+void JAMScript::ConditionVariableAny::notify_all() noexcept
+{
     std::lock_guard<SpinLock> lk(wListLock);
-    while (!waitSet.empty()) {
+    while (!waitSet.empty())
+    {
         waitSet.begin()->Notify();
         waitSet.erase(waitSet.begin());
     }

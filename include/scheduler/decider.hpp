@@ -3,16 +3,19 @@
 #include <cstdint>
 #include <vector>
 
-namespace JAMScript {
+namespace JAMScript
+{
 
-    struct RTaskEntry {
+    struct RTaskEntry
+    {
         uint64_t startTime, endTime;
         uint32_t taskId;
         RTaskEntry(uint64_t startTime, uint64_t endTime, uint32_t taskId)
             : startTime(startTime), endTime(endTime), taskId(taskId) {}
     };
 
-    struct ITaskEntry {
+    struct ITaskEntry
+    {
         long deadline, burst;
         ITaskEntry(long deadline, long burst) : deadline(deadline), burst(burst) {}
     };
@@ -20,24 +23,25 @@ namespace JAMScript {
     class RIBScheduler;
     struct RealTimeSchedule;
 
-    class Decider {
+    class Decider
+    {
     public:
 
-        void NotifyChangeOfSchedule(const std::vector<RealTimeSchedule>& normal,
-                                    const std::vector<RealTimeSchedule>& greedy);
+        void NotifyChangeOfSchedule(const std::vector<RealTimeSchedule> &normal,
+                                    const std::vector<RealTimeSchedule> &greedy);
         bool DecideNextScheduleToRun();
-        void RecordInteractiveJobArrival(const ITaskEntry& aInteractiveTaskRecord);
-        Decider(RIBScheduler* schedule);
+        void RecordInteractiveJobArrival(const ITaskEntry &aInteractiveTaskRecord);
+        Decider(RIBScheduler *schedule);
 
     private:
 
         Decider() = delete;
-        RIBScheduler* scheduler;
+        RIBScheduler *scheduler;
         std::vector<uint64_t> normalSpoadicServerAccumulator, greedySpoadicServerAccumulator;
         std::vector<ITaskEntry> interactiveTaskRecord;
-        std::vector<uint64_t> CalculateAccumulator(const std::vector<RealTimeSchedule>& schedule);
-        
+        std::vector<uint64_t> CalculateAccumulator(const std::vector<RealTimeSchedule> &schedule);
+
     };
 
-}  // namespace JAMScript
+} // namespace JAMScript
 #endif

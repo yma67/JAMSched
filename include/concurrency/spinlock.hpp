@@ -2,23 +2,22 @@
 #define JAMSCRIPT_JAMSCRIPT_SPINLOCK_HH
 #include <atomic>
 
-namespace JAMScript {
+namespace JAMScript
+{
 
-    class SpinLock {
+    class SpinLock
+    {
 
         std::atomic_flag flag;
 
     public:
 
         SpinLock() : flag{false} {}
-
         void lock();
-
         bool try_lock();
-
         void unlock();
-        
+
     };
 
-}  // namespace JAMScript
+} // namespace JAMScript
 #endif

@@ -8,17 +8,19 @@
 
 pthread_barrier_t barrier;
 
-TEST_CASE("Performance Future", "[future]") {
-    
+TEST_CASE("Performance Future", "[future]")
+{
+
     std::chrono::duration dt = std::chrono::nanoseconds(0);
     const int nIter = 100;
-    for (int i = 0; i < nIter; i++) {
+    for (int i = 0; i < nIter; i++)
+    {
         pthread_barrier_init(&barrier, NULL, 2);
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
         auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                                {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-        
+                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
+
         ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::milliseconds(90), [p, &dt, &ribScheduler]() {
             auto ff = p->GetFuture();
             pthread_barrier_wait(&barrier);
@@ -38,19 +40,20 @@ TEST_CASE("Performance Future", "[future]") {
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
 
-
-TEST_CASE("InterLock", "[future]") {
+TEST_CASE("InterLock", "[future]")
+{
     std::string sec("muthucumaru maheswaran loves java");
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                            {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
+                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [sec, p, &ribScheduler]() {
         auto pt = std::make_shared<JAMScript::Promise<std::string>>();
         auto prev = pt;
-        for (auto ch: sec) {
+        for (auto ch : sec)
+        {
             auto p = std::make_shared<JAMScript::Promise<std::string>>();
-            ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [p, ch, prev](){
+            ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [p, ch, prev]() {
                 auto sx = p->GetFuture().Get();
                 prev->SetValue(ch + sx);
             });
