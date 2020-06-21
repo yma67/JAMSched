@@ -61,7 +61,6 @@ void JAMScript::Notifier::Join(std::unique_lock<JAMScript::SpinLock> &iLock)
     {
         ownerTask->scheduler->Disable(ownerTask);
         iLock.unlock();
-        auto cs = std::chrono::high_resolution_clock::now();
         ownerTask->SwapOut();
         iLock.lock();
     }

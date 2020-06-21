@@ -191,7 +191,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     DECISION_BATCH:
                     {
                         std::unique_lock<SpinLock> lock(qMutexWithType[BATCH_TASK_T]);
-                        while (GetThiefSizes() < (bQueue.size() + bWaitPool.size() + iWaitPool.size() + iEDFPriorityQueue.size()) / (thiefs.size() - 1) &&
+                        while (GetThiefSizes() < bQueue.size() + bWaitPool.size() + iWaitPool.size() + iEDFPriorityQueue.size() &&
                                bQueue.size() > 1 && bQueue.begin()->CanSteal())
                         {
                             auto *nSteal = &(*bQueue.begin());
@@ -199,6 +199,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             thiefs[cThief]->Steal(nSteal);
                             cThief = (cThief + 1) % thiefs.size();
                         }
+                        std::cout << "bWaitPool: " << bWaitPool.size() << std::endl;
                         if (bQueue.empty())
                         {
                             goto END_LOOP;

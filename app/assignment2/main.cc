@@ -54,64 +54,14 @@ public:
     }
 };
 
-struct ReaderWriterWritePriortized
-{
-private:
-    int read_count, write_count, read_wait, write_wait;
-    JAMScript::SpinLock lock;
-    JAMScript::ConditionVariable read_queue, write_queue;
-
-public:
-    ReaderWriterWritePriortized() : read_count(0), write_count(0), read_wait(0), write_wait(0) {}
-
-    void ReadLock()
-    {
-        std::unique_lock<JAMScript::SpinLock> lc(lock);
-        read_queue.wait(lc, [this]() -> bool {
-            return !(write_count > 0 || write_wait > 0);
-        });
-        read_count += 1;
-        read_queue.notify_one();
-    }
-
-    void ReadUnlock()
-    {
-        std::unique_lock<JAMScript::SpinLock> lc(lock);
-        read_count -= 1;
-        if (read_count == 0)
-            write_queue.notify_one();
-    }
-
-    void WriteLock()
-    {
-        std::unique_lock<JAMScript::SpinLock> lc(lock);
-        write_wait += 1;
-        write_queue.wait(lc, [this]() -> bool {
-            return !(read_count > 0 || write_count > 0);
-        });
-        write_wait -= 1;
-        write_count += 1;
-    }
-
-    void WriteUnlock()
-    {
-        std::unique_lock<JAMScript::SpinLock> lc(lock);
-        write_count -= 1;
-        if (write_count > 0 || write_wait > 0)
-            write_queue.notify_one();
-        else
-            read_queue.notify_one();
-    }
-};
-
 using ReadWriteLock = ReaderWriterReadPriortized;
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256);
+    JAMScript::RIBScheduler ribScheduler(1024 * 256, 5);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
-    std::atomic_int32_t syncVar = 0, rTotal;
+    std::atomic_int32_t syncVar = 0, rTotal = 0;
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::high_resolution_clock::duration::max(), [&]() {
         int var = 0;
         ReadWriteLock rw;
@@ -126,9 +76,10 @@ int main()
                         syncVar++;
                         std::cout << "Read" << std::endl;
                         JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
+                        std::cout << rTotal++ << std::endl;
                         std::cout << var << std::endl;
                         syncVar--;
-                        rw.ReadUnlock();
+                        rw.ReadUnlock();                        
                     }
                 },
                 60));
