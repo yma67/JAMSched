@@ -124,6 +124,7 @@ namespace JAMScript
         }
 
         RIBScheduler(uint32_t sharedStackSize);
+        RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         ~RIBScheduler() override;
 
     protected:
@@ -136,7 +137,8 @@ namespace JAMScript
 
         Timer timer;
         Decider decider;
-        StealScheduler thief;
+        uint32_t cThief;
+        std::vector<StealScheduler*> thiefs;
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
@@ -153,6 +155,10 @@ namespace JAMScript
         JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
         JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
         JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
+
+    private:
+
+        uint32_t GetThiefSizes();
         
     };
 

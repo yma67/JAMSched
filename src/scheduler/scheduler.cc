@@ -1,14 +1,19 @@
 #include "scheduler/scheduler.hpp"
+#include <algorithm>
+
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs)
+    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)),
+      numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, 200))
+{
+    for (uint32_t i = 0; i < nThiefs; i++)
+    {
+        thiefs.push_back(new StealScheduler{this, sharedStackSize});
+    }
+}
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize)
-    : SchedulerBase(sharedStackSize),
-      timer(this),
-      thief(this, sharedStackSize),
-      vClockI(std::chrono::nanoseconds(0)),
-      decider(this),
-      vClockB(std::chrono::nanoseconds(0)),
-      numberOfPeriods(0),
-      rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, 200)) {}
+    : RIBScheduler(sharedStackSize, std::max(std::thread::hardware_concurrency() - 1, 1u)) {}
 
 JAMScript::RIBScheduler::~RIBScheduler()
 {
@@ -19,6 +24,7 @@ JAMScript::RIBScheduler::~RIBScheduler()
     iWaitPool.clear_and_dispose(dTaskInf);
     bQueue.clear_and_dispose(dTaskInf);
     bWaitPool.clear_and_dispose(dTaskInf);
+    std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { delete ss; });
 }
 
 void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy)
@@ -43,7 +49,7 @@ void JAMScript::RIBScheduler::ShutDown()
     {
         toContinue = false;
     }
-    thief.ShutDown_();
+    std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { ss->ShutDown_(); });
 }
 
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
@@ -104,10 +110,18 @@ void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
     }
 }
 
+uint32_t JAMScript::RIBScheduler::GetThiefSizes()
+{
+    uint32_t sz = 0;
+    for (StealScheduler *ss : thiefs)
+        sz += ss->Size();
+    return sz;
+}
+
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
-    thief.RunSchedulerMainLoop();
+    std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { ss->RunSchedulerMainLoop(); });
     timer.UpdateTimeout();
     while (toContinue)
     {
@@ -177,13 +191,13 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     DECISION_BATCH:
                     {
                         std::unique_lock<SpinLock> lock(qMutexWithType[BATCH_TASK_T]);
-                        while (thief.Size() <
-                                   bQueue.size() + bWaitPool.size() + iWaitPool.size() + iEDFPriorityQueue.size() &&
+                        while (GetThiefSizes() < (bQueue.size() + bWaitPool.size() + iWaitPool.size() + iEDFPriorityQueue.size()) / (thiefs.size() - 1) &&
                                bQueue.size() > 1 && bQueue.begin()->CanSteal())
                         {
                             auto *nSteal = &(*bQueue.begin());
                             bQueue.pop_front();
-                            thief.Steal(nSteal);
+                            thiefs[cThief]->Steal(nSteal);
+                            cThief = (cThief + 1) % thiefs.size();
                         }
                         if (bQueue.empty())
                         {
@@ -212,7 +226,8 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
                             if (pTop->CanSteal())
                             {
-                                thief.Steal(pTop);
+                                thiefs[cThief]->Steal(pTop);
+                                cThief = (cThief + 1) % thiefs.size();
                             }
                             else
                             {

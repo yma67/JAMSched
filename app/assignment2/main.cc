@@ -129,7 +129,6 @@ int main()
                         std::cout << var << std::endl;
                         syncVar--;
                         rw.ReadUnlock();
-                        std::cout << rTotal++ << std::endl;
                     }
                 },
                 60));
