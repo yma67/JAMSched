@@ -1,5 +1,6 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_SCHEDULER_HH
 #define JAMSCRIPT_JAMSCRIPT_SCHEDULER_HH
+#include <any>
 #include <mutex>
 #include <chrono>
 #include <thread>
@@ -126,6 +127,38 @@ namespace JAMScript
             return fn->notifier;
         }
 
+        template <typename T, typename... Args>
+        Future<T> CreateLocalNamedInteractiveExecution(StackTraits stackTraits, Duration deadline, Duration burst, 
+                                                        const std::string &eName, Args &&... eArgs) 
+        {
+            auto pf = std::make_shared<Promise<T>>();
+            auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
+            auto tf = CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
+            {
+                pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
+            }
+            , [pf, tAttr]() 
+            {
+                try 
+                {
+                    pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    delete tAttr;
+                } 
+                catch (const std::exception& e) 
+                {
+                    pf->SetException(std::make_exception_ptr(e));
+                    delete tAttr;
+                }
+            });
+            return pf->GetFuture();
+        }
+
+        template<typename Fn>
+        void RegisterNamedExecution(const std::string &eName, Fn&& fn) 
+        {
+            lexecFuncMap[eName] = std::function(fn);
+        }
+
         template <typename... Args>
         Future<nlohmann::json> CreateRemoteExecution(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
@@ -165,6 +198,7 @@ namespace JAMScript
         std::condition_variable cvReadyRTSchedule;
         TimePoint schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
+        std::unordered_map<std::string, std::any> lexecFuncMap;
 
         JAMStorageTypes::BatchQueueType bQueue;
         JAMStorageTypes::InteractiveReadyStackType iCancelStack;

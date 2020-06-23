@@ -301,6 +301,7 @@ namespace JAMScript
         friend class SharedCopyStackTask;
         template <typename Fna, typename... Argsa>
         friend class StandAloneStackTask;
+        friend class RIBScheduler;
         TaskAttr(Fn &&tf, Args &&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
         virtual ~TaskAttr() {}
 
