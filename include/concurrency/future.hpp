@@ -15,7 +15,7 @@ namespace JAMScript
 
     using std::future_status;
     // using LockType = FIFOTaskMutex;
-    using LockType = SpinLock;
+    using LockType = SpinMutex;
 
     namespace detail
     {
@@ -105,7 +105,7 @@ namespace JAMScript
     } // namespace detail
 
     template <typename T>
-    class Promise;
+    struct Promise;
 
     template <typename T>
     struct Future
@@ -122,7 +122,7 @@ namespace JAMScript
 
         // shared_future<T> share();
 
-        T Get() { return box->get(); }
+        T Get() { return std::move(box->get()); }
 
         bool Valid() const noexcept { return box != nullptr; }
 
@@ -131,7 +131,7 @@ namespace JAMScript
     private:
         std::shared_ptr<detail::future_shared_state_box<T>> box = nullptr;
 
-        friend class Promise<T>;
+        friend struct Promise<T>;
         Future(std::shared_ptr<detail::future_shared_state_box<T>> const &box) : box(box) {}
         Future(std::shared_ptr<detail::future_shared_state_box<T>> &&box) : box(std::move(box)) {}
     };
@@ -221,7 +221,7 @@ namespace JAMScript
     } // namespace detail
 
     template <>
-    class Promise<void>;
+    struct Promise<void>;
 
     template <>
     struct Future<void>
@@ -247,7 +247,7 @@ namespace JAMScript
     private:
         std::shared_ptr<detail::future_shared_state_box<void>> box = nullptr;
 
-        friend class Promise<void>;
+        friend struct Promise<void>;
         Future(std::shared_ptr<detail::future_shared_state_box<void>> const &box) : box(box) {}
         Future(std::shared_ptr<detail::future_shared_state_box<void>> &&box) : box(std::move(box)) {}
     };
@@ -284,11 +284,11 @@ namespace JAMScript
         std::shared_ptr<detail::future_shared_state_box<void>> box;
     };
 
-    template <>
-    void swap(Promise<void> &lhs, Promise<void> &rhs)
-    {
-        lhs.swap(rhs);
-    }
+    //template <>
+    //void swap(Promise<void> &lhs, Promise<void> &rhs)
+    //{
+    //    lhs.swap(rhs);
+    //}
 
     // for reference type
     namespace detail
@@ -337,7 +337,7 @@ namespace JAMScript
     } // namespace detail
 
     template <typename R>
-    class Promise<R &>;
+    struct Promise<R &>;
 
     template <typename R>
     struct Future<R &>
@@ -363,7 +363,7 @@ namespace JAMScript
     private:
         std::shared_ptr<detail::future_shared_state_box<R &>> box = nullptr;
 
-        friend class Promise<R &>;
+        friend struct Promise<R &>;
         Future(std::shared_ptr<detail::future_shared_state_box<R &>> const &box) : box(box) {}
         Future(std::shared_ptr<detail::future_shared_state_box<R &>> &&box) : box(std::move(box)) {}
     };

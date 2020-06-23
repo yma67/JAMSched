@@ -23,7 +23,7 @@ int RealTimeTaskFunction(JAMScript::RIBScheduler &jSched, std::vector<uint64_t> 
             {true, 0}, i,
             std::function<int(JAMScript::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
             std::ref(jSched), std::ref(tasks), i)
-        ->Detach();
+        .Detach();
     std::this_thread::sleep_for(std::chrono::nanoseconds(tasks[i] * 1000 - 500 * 1000));
     /*while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                std::chrono::high_resolution_clock::now() - tStart)
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
                                     }
                                     return 8;
                                 })
-                            ->Detach();
+                            .Detach();
                         arrival = std::chrono::high_resolution_clock::duration::max();
                     }
                 }
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
                                     }
                                     return 8;
                                 })
-                            ->Detach();
+                            .Detach();
                         arrival = std::chrono::high_resolution_clock::duration::max();
                     }
                 }
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
             auto p = std::make_shared<JAMScript::Promise<std::string>>();
             auto ep = std::make_shared<JAMScript::Promise<void>>();
             auto rp = std::make_shared<JAMScript::Promise<std::string &>>();
-            auto *fx = jRIBScheduler.CreateInteractiveTask(
+            auto fx = jRIBScheduler.CreateInteractiveTask(
                 {true, 0}, std::chrono::nanoseconds(38000000), std::chrono::nanoseconds(99), []() {},
                 [p, ep, rp, sec3]() {
                     *sec3 = "I don't like cpp";
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
                     p->SetValue("I like Java");
                     std::cout << "End Joining Task" << std::endl;
                 });
-            fx->Detach();
+            fx.Detach();
             auto fp = p->GetFuture();
             auto frp = rp->GetFuture();
             std::cout << "Before Join" << std::endl;
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
                     (((i) % 2 == 0) ? (JAMScript::StackTraits{true, 0}) : (JAMScript::StackTraits{false, 1024 * 128})),
                     i, std::function<int(JAMScript::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
                     std::ref(jRIBScheduler), std::ref(tasks), i)
-                ->Detach();
+                .Detach();
         }
         jRIBScheduler.SetSchedule(normal_sched, greedy_sched);
         jRIBScheduler.RunSchedulerMainLoop();

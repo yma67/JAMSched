@@ -2,20 +2,20 @@
 
 void JAMScript::ConditionVariableAny::notify_one() noexcept
 {
-    std::unique_lock<SpinLock> lk(wListLock);
-    if (!waitSet.empty())
+    std::unique_lock<SpinMutex> lk(wListLock);
+    if (!waitList.empty())
     {
-        waitSet.begin()->Notify(lk);
-        waitSet.erase(waitSet.begin());
+        waitList.front()->Enable();
+        waitList.pop_front();
     }
 }
 
 void JAMScript::ConditionVariableAny::notify_all() noexcept
 {
-    std::unique_lock<SpinLock> lk(wListLock);
-    while (!waitSet.empty())
+    std::unique_lock<SpinMutex> lk(wListLock);
+    while (!waitList.empty())
     {
-        waitSet.begin()->Notify(lk);
-        waitSet.erase(waitSet.begin());
+        waitList.front()->Enable();
+        waitList.pop_front();
     }
 }

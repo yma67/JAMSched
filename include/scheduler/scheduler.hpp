@@ -5,9 +5,11 @@
 #include <thread>
 #include <vector>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <boost/intrusive/unordered_set.hpp>
 
 #include "time/time.hpp"
+#include "remote/remote.hpp"
 #include "core/task/task.hpp"
 #include "scheduler/decider.hpp"
 #include "scheduler/taskthief.hpp"
@@ -39,16 +41,17 @@ namespace JAMScript
 
         friend class StealScheduler;
         friend class Decider;
+        friend class Remote;
 
         friend TaskInterface *ThisTask::Active();
         friend void ThisTask::SleepFor(Duration dt);
         friend void ThisTask::SleepUntil(TimePoint tp);
-        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinLock> &lk, Notifier *f);
-        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinLock> &lk, Notifier *f);
+        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
         friend void ThisTask::Yield();
 
         void Enable(TaskInterface *toEnable) override;
-        void Disable(TaskInterface *toDisable) override;
+        void Disable(TaskInterface *toEnable) override;
 
         const TimePoint &GetSchedulerStartTime() const;
         const TimePoint &GetCycleStartTime() const;
@@ -58,7 +61,7 @@ namespace JAMScript
         void RunSchedulerMainLoop();
 
         template <typename Fn, typename... Args>
-        TaskInterface *CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
+        TaskHandle CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
                                              std::function<void()> onCancel, Fn &&tf, Args &&... args)
         {
             TaskInterface *fn = nullptr;
@@ -75,16 +78,16 @@ namespace JAMScript
             fn->deadline = deadline;
             fn->onCancel = onCancel;
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard<SpinLock> lock(qMutexWithType[INTERACTIVE_TASK_T]);
+            std::lock_guard<SpinMutex> lock(qMutexWithType[INTERACTIVE_TASK_T]);
             decider.RecordInteractiveJobArrival(
                 {std::chrono::duration_cast<std::chrono::microseconds>(deadline).count(),
                  std::chrono::duration_cast<std::chrono::microseconds>(burst).count()});
             iEDFPriorityQueue.insert(*fn);
-            return fn;
+            return fn->notifier;
         }
 
         template <typename Fn, typename... Args>
-        TaskInterface *CreateBatchTask(StackTraits stackTraits, Duration burst, Fn &&tf, Args &&... args)
+        TaskHandle CreateBatchTask(StackTraits stackTraits, Duration burst, Fn &&tf, Args &&... args)
         {
             TaskInterface *fn = nullptr;
             if (stackTraits.useSharedStack)
@@ -98,13 +101,13 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = burst;
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard<SpinLock> lock(qMutexWithType[BATCH_TASK_T]);
+            std::lock_guard<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
             bQueue.push_back(*fn);
-            return fn;
+            return fn->notifier;
         }
 
         template <typename Fn, typename... Args>
-        TaskInterface *CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn &&tf, Args &&... args)
+        TaskHandle CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn &&tf, Args &&... args)
         {
             TaskInterface *fn = nullptr;
             if (stackTraits.useSharedStack)
@@ -118,13 +121,27 @@ namespace JAMScript
             fn->taskType = REAL_TIME_TASK_T;
             fn->id = id;
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard<SpinLock> lock(qMutexWithType[REAL_TIME_TASK_T]);
+            std::lock_guard<SpinMutex> lock(qMutexWithType[REAL_TIME_TASK_T]);
             rtRegisterTable.insert(*fn);
-            return fn;
+            return fn->notifier;
+        }
+
+        template <typename... Args>
+        Future<nlohmann::json> CreateRemoteExecution(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        {
+            return std::move(remote->CreateRExec(eName, condstr, condvec, std::forward<Args>(eArgs)...));
+        }
+
+        template <typename T>
+        T ExtractRemote(Future<nlohmann::json>& future) 
+        {
+            return std::move(future.Get().get<T>());
         }
 
         RIBScheduler(uint32_t sharedStackSize);
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName);
         ~RIBScheduler() override;
 
     protected:
@@ -136,25 +153,25 @@ namespace JAMScript
         };
 
         Timer timer;
+        std::unique_ptr<Remote> remote;
         Decider decider;
         uint32_t cThief;
         std::vector<StealScheduler*> thiefs;
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
-        SpinLock qMutexWithType[3];
+        SpinMutex qMutexWithType[3];
         std::mutex sReadyRTSchedule;
         std::condition_variable cvReadyRTSchedule;
         TimePoint schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
 
         JAMStorageTypes::BatchQueueType bQueue;
-        JAMStorageTypes::BatchWaitSetType bWaitPool;
-        JAMStorageTypes::InteractiveWaitSetType iWaitPool;
         JAMStorageTypes::InteractiveReadyStackType iCancelStack;
         JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
         JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
         JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
+        JAMStorageTypes::WaitSetType waitSet;
 
     private:
 

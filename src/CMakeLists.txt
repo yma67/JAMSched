@@ -22,14 +22,20 @@ list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/concurrency/
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/concurrency/spinlock.cc")
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/scheduler/decider.cc")
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/scheduler/tasklocal.cc")
+list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/remote/remote.cc")
+list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/remote/mqtt/mqtt_adapter.c")
+list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/remote/mqtt/nvoid.c")
+
 
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 set(CMAKE_CXX_FLAGS "${CXXFLAGS} -ggdb")
+
 add_compile_definitions(JAMSCRIPT_RT_SPINWAIT_DELTA=0)
 add_compile_definitions(JAMSCRIPT_RT_SPIN_LIMIT_NS=100000)
 # add_compile_definitions(JAMSCRIPT_ENABLE_WORKSTEAL=1)
 find_package(Threads)
 add_library(jamsched ${JAMCOMPONENTS_SOURCES_LIST})
 target_compile_features(jamsched PUBLIC cxx_std_17)
-target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json paho-mqtt3a ${CMAKE_THREAD_LIBS_INIT})
+target_include_directories(jamsched PUBLIC "/usr/local/include")
 target_include_directories(jamsched PUBLIC ${PROJECT_SOURCE_DIR}/include)

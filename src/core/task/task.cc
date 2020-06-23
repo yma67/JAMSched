@@ -9,7 +9,7 @@ JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
       scheduler(scheduler),
       baseScheduler(scheduler),
       references(0),
-      notifier(ThisTask::Active()),
+      notifier(std::make_shared<Notifier>(ThisTask::Active())),
       id(0),
       taskLocalStoragePool(*GetGlobalJTLSMap()),
       deadline(std::chrono::microseconds(0)),
@@ -22,18 +22,18 @@ void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
     TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
     task->Execute();
     task->status = TASK_FINISHED;
-    task->notifier.Notify();
+    task->notifier->Notify();
     task->SwapOut();
 }
 
-void JAMScript::TaskInterface::Join()
+void JAMScript::TaskHandle::Join()
 {
-    notifier.Join();
+    n->Join();
 }
 
-void JAMScript::TaskInterface::Detach()
+void JAMScript::TaskHandle::Detach()
 {
-    notifier.ownerTask = nullptr;
+    n->ownerTask = nullptr;
 }
 
 std::unordered_map<JAMScript::JTLSLocation, std::any> *
@@ -89,14 +89,14 @@ void JAMScript::ThisTask::SleepUntil(TimePoint tp)
     static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutUntil(thisTask, tp);
 }
 
-void JAMScript::ThisTask::SleepFor(Duration dt, std::unique_lock<SpinLock> &lk, Notifier *f)
+void JAMScript::ThisTask::SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *t)
 {
-    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutFor(thisTask, dt, lk, f);
+    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutFor(thisTask, dt, lk, t);
 }
 
-void JAMScript::ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinLock> &lk, Notifier *f)
+void JAMScript::ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *t)
 {
-    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutUntil(thisTask, tp, lk, f);
+    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutUntil(thisTask, tp, lk, t);
 }
 
 void JAMScript::ThisTask::Yield()

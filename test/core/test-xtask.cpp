@@ -136,7 +136,7 @@ TEST_CASE("Performance XTask", "[xtask]")
 {
     {
         BenchSchedXS bSched2(1024 * 128);
-        bSched2();
+        bSched2.RunSchedulerMainLoop();
         REQUIRE(coro_count > 30);
     }
 }

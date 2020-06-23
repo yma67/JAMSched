@@ -1,7 +1,7 @@
 #include "concurrency/spinlock.hpp"
 #include <core/task/task.hpp>
 
-void JAMScript::SpinLock::lock()
+void JAMScript::SpinMutex::lock()
 {
     int cnt = 1;
     while (flag.test_and_set(std::memory_order_acquire))
@@ -14,12 +14,12 @@ void JAMScript::SpinLock::lock()
     }
 }
 
-bool JAMScript::SpinLock::try_lock()
+bool JAMScript::SpinMutex::try_lock()
 {
     return !flag.test_and_set(std::memory_order_acquire);
 }
 
-void JAMScript::SpinLock::unlock()
+void JAMScript::SpinMutex::unlock()
 {
     flag.clear(std::memory_order_release);
 }

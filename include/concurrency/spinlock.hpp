@@ -5,14 +5,14 @@
 namespace JAMScript
 {
 
-    class SpinLock
+    class SpinMutex
     {
 
         std::atomic_flag flag;
 
     public:
 
-        SpinLock() : flag{false} {}
+        SpinMutex() : flag{false} {}
         void lock();
         bool try_lock();
         void unlock();

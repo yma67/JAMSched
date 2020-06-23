@@ -31,13 +31,15 @@ namespace JAMScript
 
     protected:
 
-        std::mutex m;
-        int stealCount = 0;
-        std::condition_variable cv;
+        SpinMutex m;
+        unsigned int rCount = 0;
+        bool isRunning;
+        std::condition_variable_any cv;
         std::vector<std::thread> tx;
+        std::thread t;
         SchedulerBase *victim;
-        JAMStorageTypes::InteractiveWaitSetType isWait;
-        JAMStorageTypes::BatchQueueType isReady;
+        JAMStorageTypes::ThiefSetType isWait;
+        JAMStorageTypes::ThiefQueueType isReady;
 
     };
 

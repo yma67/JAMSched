@@ -3,6 +3,7 @@
 #include <mutex>
 #include <chrono>
 #include <cstdint>
+#include <queue>
 #include <condition_variable>
 #include <boost/assert.hpp>
 
@@ -30,13 +31,13 @@ namespace JAMScript
         template <typename Tl>
         void wait(Tl &li)
         {
-            std::unique_lock<SpinLock> lkList(wListLock);
-            Notifier *f = new Notifier(ThisTask::Active());
-            waitSet.insert(*f);
+            std::unique_lock<SpinMutex> lkList(wListLock);
+            waitList.push_back(ThisTask::Active());
+            ThisTask::Active()->Disable();
             li.unlock();
-            f->Join(lkList);
+            lkList.unlock();
+            ThisTask::Active()->SwapOut();
             li.lock();
-            delete f;
         }
 
         template <typename Tl, typename Tp>
@@ -53,12 +54,11 @@ namespace JAMScript
         {
             std::cv_status isTimeout = std::cv_status::no_timeout;
             TimePoint timeoutTime = convert(timeoutTime_);
-            std::unique_lock<SpinLock> lk(wListLock);
-            Notifier *n = new Notifier(ThisTask::Active());
-            waitSet.insert(*n);
+            std::unique_lock<SpinMutex> lk(wListLock);
+            waitList.push_back(ThisTask::Active());
+            ThisTask::Active()->Disable();
             lt.unlock();
-            ThisTask::SleepUntil(timeoutTime, lk, n);
-            delete n;
+            ThisTask::SleepUntil(timeoutTime, lk, ThisTask::Active());
             if (Clock::now() >= timeoutTime)
                 isTimeout = std::cv_status::timeout;
             return isTimeout;
@@ -91,11 +91,6 @@ namespace JAMScript
 
         ConditionVariableAny() = default;
 
-        ~ConditionVariableAny()
-        {
-            waitSet.clear_and_dispose([](Notifier *nf) { delete nf; });
-        }
-
     private:
 
         ConditionVariableAny(ConditionVariableAny const &) = delete;
@@ -103,8 +98,8 @@ namespace JAMScript
         ConditionVariableAny &operator=(ConditionVariableAny &&) = delete;
         ConditionVariableAny(ConditionVariableAny &&) = delete;
 
-        JAMStorageTypes::NotifierCVSetType waitSet;
-        SpinLock wListLock;
+        std::deque<TaskInterface *> waitList;
+        SpinMutex wListLock;
 
     };
 

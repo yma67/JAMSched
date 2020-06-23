@@ -2,6 +2,7 @@
 #define JAMSCRIPT_JAMSCRIPT_TASK_HH
 #include <any>
 #include <mutex>
+#include <memory>
 #include <atomic>
 #include <chrono>
 #include <future>
@@ -10,6 +11,7 @@
 #include <cstring>
 #include <functional>
 #include <unordered_map>
+#include <nlohmann/json.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/intrusive/list.hpp>
@@ -45,11 +47,6 @@ namespace JAMScript
             boost::intrusive::tag<ReadyBatchQueueTag>>
             ReadyBatchQueueHook;
 
-        struct WaitBatchTag;
-        typedef boost::intrusive::set_member_hook<
-            boost::intrusive::tag<WaitBatchTag>>
-            WaitBatchHook;
-
         struct ReadyInteractiveStackTag;
         typedef boost::intrusive::slist_member_hook<
             boost::intrusive::tag<ReadyInteractiveStackTag>>
@@ -60,15 +57,30 @@ namespace JAMScript
             boost::intrusive::tag<ReadyInteractiveEdfTag>>
             ReadyInteractiveEdfHook;
 
-        struct WaitInteractiveTag;
-        typedef boost::intrusive::set_member_hook<
-            boost::intrusive::tag<WaitInteractiveTag>>
-            WaitInteractiveHook;
-
         struct RealTimeTag;
         typedef boost::intrusive::unordered_set_member_hook<
             boost::intrusive::tag<RealTimeTag>>
             RealTimeHook;
+
+        struct WaitQueueTag;
+        typedef boost::intrusive::list_member_hook<
+            boost::intrusive::tag<WaitQueueTag>>
+            WaitQueueHook;
+
+        struct WaitSetTag;
+        typedef boost::intrusive::set_member_hook<
+            boost::intrusive::tag<WaitSetTag>
+        >   WaitSetHook;
+
+        struct ThiefQueueTag;
+        typedef boost::intrusive::list_member_hook<
+            boost::intrusive::tag<ThiefQueueTag>>
+            ThiefQueueHook;
+
+        struct ThiefSetTag;
+        typedef boost::intrusive::set_member_hook<
+            boost::intrusive::tag<ThiefSetTag>
+        >   ThiefSetHook;
 
     } // namespace JAMHookTypes
 
@@ -80,8 +92,8 @@ namespace JAMScript
         TaskInterface *Active();
         void SleepFor(Duration dt);
         void SleepUntil(TimePoint tp);
-        void SleepFor(Duration dt, std::unique_lock<SpinLock> &lk, Notifier *f);
-        void SleepUntil(TimePoint tp, std::unique_lock<SpinLock> &lk, Notifier *f);
+        void SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+        void SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
         void Yield();
 
     } // namespace ThisTask
@@ -104,7 +116,7 @@ namespace JAMScript
 
         virtual TaskInterface *NextTask() { return nullptr; }
         virtual void Enable(TaskInterface *toEnable) {}
-        virtual void Disable(TaskInterface *toDisable) {}
+        virtual void Disable(TaskInterface *toEnable) {}
         virtual void ShutDown()
         {
             if (toContinue)
@@ -144,6 +156,18 @@ namespace JAMScript
         REAL_TIME_TASK_T = 2
     };
 
+    class TaskInterface;
+
+    class TaskHandle
+    {
+    public:
+        void Join();
+        void Detach();
+        TaskHandle(std::shared_ptr<Notifier> h) : n(std::move(h)) {}
+    private:
+        std::shared_ptr<Notifier> n;
+    };
+
     class TaskInterface
     {
     public:
@@ -165,8 +189,8 @@ namespace JAMScript
         friend TaskInterface *ThisTask::Active();
         friend void ThisTask::SleepFor(Duration dt);
         friend void ThisTask::SleepUntil(TimePoint tp);
-        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinLock> &lk, Notifier *f);
-        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinLock> &lk, Notifier *f);
+        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
         friend void ThisTask::Yield();
 
         friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
@@ -177,19 +201,20 @@ namespace JAMScript
         friend bool priority_inverse_order(const TaskInterface &a, const TaskInterface &b) noexcept;
 
         JAMScript::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
-        JAMScript::JAMHookTypes::WaitBatchHook wbHook;
         JAMScript::JAMHookTypes::ReadyInteractiveStackHook riStackHook;
         JAMScript::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
-        JAMScript::JAMHookTypes::WaitInteractiveHook wiHook;
         boost::intrusive::unordered_set_member_hook<> rtHook;
+        JAMScript::JAMHookTypes::WaitSetHook wsHook;
+        JAMScript::JAMHookTypes::ThiefQueueHook trHook;
+        JAMScript::JAMHookTypes::ThiefSetHook twHook;
 
         virtual void SwapOut() = 0;
         virtual void SwapIn() = 0;
         virtual void Execute() = 0;
-        virtual void Join();
-        virtual void Detach();
         virtual bool Steal(SchedulerBase *scheduler) = 0;
         bool CanSteal() { return isStealable; }
+        void Disable() { scheduler->Disable(this); }
+        void Enable() { scheduler->Enable(this); }
 
         const TaskType GetTaskType() const { return taskType; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
@@ -217,7 +242,7 @@ namespace JAMScript
         long references;
         Duration deadline, burst;
         uint32_t id;
-        Notifier notifier;
+        std::shared_ptr<Notifier> notifier;
         std::function<void()> onCancel;
 
     };
@@ -252,7 +277,7 @@ namespace JAMScript
     {
         TASK_READY = 0,
         TASK_PENDING = 1,
-        TASK_FINISHED,
+        TASK_FINISHED = 2,
         TASK_RUNNING
     };
 
@@ -311,8 +336,10 @@ namespace JAMScript
                 privateStackSize = (uintptr_t)(scheduler->sharedStackAlignedEndAct) - (uintptr_t)(tos);
                 if (privateStackSizeUpperBound < privateStackSize)
                 {
-                    if (privateStack != nullptr)
+                    if (privateStack != nullptr) {
                         delete[] privateStack;
+                        privateStack = nullptr;
+                    }
                     privateStackSizeUpperBound = privateStackSize;
                     try
                     {
@@ -328,7 +355,6 @@ namespace JAMScript
                 }
                 memcpy(privateStack, tos, privateStackSize);
                 ThisTask::thisTask = nullptr;
-                this->status = TASK_PENDING;
                 SwapToContext(&uContext, &scheduler->schedulerContext);
                 return;
             }
@@ -403,7 +429,6 @@ namespace JAMScript
             ThisTask::thisTask = nullptr;
             auto *prev_scheduler = scheduler;
             scheduler->taskRunning = nullptr;
-            this->status = TASK_PENDING;
             SwapToContext(&uContext, &prev_scheduler->schedulerContext);
         }
 
@@ -498,28 +523,7 @@ namespace JAMScript
                 JAMHookTypes::ReadyBatchQueueHook,
                 &TaskInterface::rbQueueHook>>
             BatchQueueType;
-
-        // Wait Queue
-        // Interactive Wait Set
-        typedef boost::intrusive::set<
-            TaskInterface,
-            boost::intrusive::member_hook<
-                TaskInterface,
-                JAMHookTypes::WaitInteractiveHook,
-                &TaskInterface::wiHook>,
-            boost::intrusive::key_of_value<BIIdKeyType>>
-            InteractiveWaitSetType;
-
-        // Batch Wait Set
-        typedef boost::intrusive::set<
-            TaskInterface,
-            boost::intrusive::member_hook<
-                TaskInterface,
-                JAMHookTypes::WaitBatchHook,
-                &TaskInterface::wbHook>,
-            boost::intrusive::key_of_value<BIIdKeyType>>
-            BatchWaitSetType;
-
+        
         typedef boost::intrusive::slist<
             TaskInterface,
             boost::intrusive::member_hook<
@@ -527,6 +531,35 @@ namespace JAMScript
                 JAMHookTypes::ReadyInteractiveStackHook,
                 &TaskInterface::riStackHook>>
             InteractiveReadyStackType;
+
+        // Wait Queue
+        typedef boost::intrusive::set<
+            TaskInterface,
+            boost::intrusive::member_hook<
+                TaskInterface, 
+                JAMHookTypes::WaitSetHook, 
+                &TaskInterface::wsHook
+            >,
+            boost::intrusive::key_of_value<BIIdKeyType>>
+            WaitSetType;
+        
+        typedef boost::intrusive::list<
+            TaskInterface,
+            boost::intrusive::member_hook<
+                TaskInterface,
+                JAMScript::JAMHookTypes::ThiefQueueHook,
+                &TaskInterface::trHook>>
+            ThiefQueueType;
+        
+        typedef boost::intrusive::set<
+            TaskInterface,
+            boost::intrusive::member_hook<
+                TaskInterface, 
+                JAMHookTypes::ThiefSetHook, 
+                &TaskInterface::twHook
+            >,
+            boost::intrusive::key_of_value<BIIdKeyType>>
+            ThiefSetType;
 
     } // namespace JAMStorageTypes
 

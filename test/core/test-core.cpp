@@ -59,6 +59,7 @@ public:
         this->onlyTask->SwapIn();
     }
     BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
+    ~BenchSched() { if (onlyTask != nullptr) delete onlyTask; }
     JAMScript::TaskInterface *onlyTask = nullptr;
 };
 
@@ -72,10 +73,11 @@ TEST_CASE("JAMScript++", "[core]")
     BENCHMARK("Baseline " TEST_TASK_NAME)
     {
 #endif
-        BenchSched bSched(1024 * 256);
+        
         for (int i = 0; i < task_niter; i++)
         {
             int rex = 0;
+            BenchSched bSched(1024 * 256);
             bSched.onlyTask = new JAMScript::StandAloneStackTask(
                 &bSched, 1024 * 256, [i](int k) {
                     if (k < 2)
@@ -95,10 +97,11 @@ TEST_CASE("JAMScript++", "[core]")
     BENCHMARK("Init Only " TEST_TASK_NAME)
     {
 #endif
-        BenchSched bSched3(1024 * 256);
+        
         for (int i = 0; i < task_niter; i++)
         {
             int rex = 0;
+            BenchSched bSched3(1024 * 256);
             bSched3.onlyTask = (new JAMScript::StandAloneStackTask(
                 &bSched3, 1024 * 256, [&](int k) {
                     if (k < 2)
