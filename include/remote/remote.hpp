@@ -11,6 +11,9 @@
 #include <string>
 #include <mutex>
 
+// Serializer
+// possible to define your own in program files
+// but should in consistent with ArgumentGC specialization
 // CString
 template <>
 struct nlohmann::adl_serializer<char *>
@@ -82,51 +85,76 @@ namespace JAMScript
     namespace RExecDetails
     {
 
-        bool GarbageCollect();
+        // TODO: avoid extra copy
+        bool ArgumentGC();
+
+        // Pointer Types Except for CString (char*/const char*), with destructor
         template <typename R, typename... TArgs>
-        bool GarbageCollect(R *gc, TArgs &&... tArgs);
+        bool ArgumentGC(R *gc, TArgs &&... tArgs);
+        // CString (char*/const char*)
         template <typename... TArgs>
-        bool GarbageCollect(nvoid_t *gc, TArgs &&... tArgs);
+        bool ArgumentGC(char *gc, TArgs &&... tArgs);
+        // ByteArray (Should be passed using nvoid_t)
+        template <typename... TArgs>
+        bool ArgumentGC(nvoid_t *gc, TArgs &&... tArgs);
+
+        // const versions of the above
         template <typename R, typename... TArgs>
-        bool GarbageCollect(const R *gc, TArgs &&... tArgs);
+        bool ArgumentGC(const R *gc, TArgs &&... tArgs);
         template <typename... TArgs>
-        bool GarbageCollect(const nvoid_t *gc, TArgs &&... tArgs);
+        bool ArgumentGC(const char *gc, TArgs &&... tArgs);
+        template <typename... TArgs>
+        bool ArgumentGC(const nvoid_t *gc, TArgs &&... tArgs);
 
         template <typename T, typename... TArgs>
-        bool GarbageCollect(T gc, TArgs &&... tArgs)
+        bool ArgumentGC(T gc, TArgs &&... tArgs)
         {
-            GarbageCollect(std::forward<TArgs>(tArgs)...);
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
             return false;
         }
 
         template <typename R, typename... TArgs>
-        bool GarbageCollect(R *gc, TArgs &&... tArgs)
+        bool ArgumentGC(R *gc, TArgs &&... tArgs)
         {
-            GarbageCollect(std::forward<TArgs>(tArgs)...);
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
             delete gc;
             return true;
         }
 
         template <typename... TArgs>
-        bool GarbageCollect(nvoid_t *gc, TArgs &&... tArgs)
-        {
-            GarbageCollect(std::forward<TArgs>(tArgs)...);
-            nvoid_free(const_cast<nvoid_t *>(gc));
-            return true;
-        }
-
-        template <typename R, typename... TArgs>
-        bool GarbageCollect(const R *gc, TArgs &&... tArgs)
-        {
-            GarbageCollect(std::forward<TArgs>(tArgs)...);
+        bool ArgumentGC(char *gc, TArgs &&... tArgs) {
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
             delete[] gc;
             return true;
         }
 
         template <typename... TArgs>
-        bool GarbageCollect(const nvoid_t *gc, TArgs &&... tArgs)
+        bool ArgumentGC(nvoid_t *gc, TArgs &&... tArgs)
         {
-            GarbageCollect(std::forward<TArgs>(tArgs)...);
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
+            nvoid_free(const_cast<nvoid_t *>(gc));
+            return true;
+        }
+
+        template <typename R, typename... TArgs>
+        bool ArgumentGC(const R *gc, TArgs &&... tArgs)
+        {
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
+            delete[] gc;
+            return true;
+        }
+
+        template <typename... TArgs>
+        bool ArgumentGC(const char *gc, TArgs &&... tArgs) {
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
+            delete[] gc;
+            return true;
+        }
+
+        template <typename... TArgs>
+        bool ArgumentGC(const nvoid_t *gc, TArgs &&... tArgs)
+        {
+            ArgumentGC(std::forward<TArgs>(tArgs)...);
             nvoid_free(const_cast<nvoid_t *>(gc));
             return true;
         }
@@ -152,7 +180,7 @@ namespace JAMScript
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     nlohmann::json jxr = {"result", std::apply(fn, vaTuple)};
-                    std::apply([](auto &&... xarg) { GarbageCollect(xarg...); }, std::move(vaTuple));
+                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return std::move(jxr);
                 }
                 catch (const std::exception &e)
@@ -173,7 +201,7 @@ namespace JAMScript
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     std::apply(fn, vaTuple);
-                    std::apply([](auto &&... xarg) { GarbageCollect(xarg...); }, std::move(vaTuple));
+                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return nlohmann::json{"result", {}};
                 }
                 catch (const std::exception &e)
@@ -232,7 +260,7 @@ namespace JAMScript
         uint32_t eIdFactory;
         mqtt_adapter_t *mq;
         std::unordered_map<uint32_t, std::shared_ptr<Promise<nlohmann::json>>> rLookup;
-        
+
     };
 
 } // namespace JAMScript

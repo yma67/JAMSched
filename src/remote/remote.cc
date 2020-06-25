@@ -43,7 +43,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     return 1;
 }
 
-bool JAMScript::RExecDetails::GarbageCollect()
+bool JAMScript::RExecDetails::ArgumentGC()
 {
     std::cout << "ArgDetect" << std::endl;
     return false;
