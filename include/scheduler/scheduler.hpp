@@ -92,7 +92,7 @@ namespace JAMScript
                     auto jResult = localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]);
                     if (remote != nullptr) 
                     {
-                        auto vReq = nlohmann::json::to_cbor(jResult);
+                        auto vReq = nlohmann::json::to_cbor(jResult.dump());
                         for (int i = 0; i < 3; i++)
                         {
                             if (mqtt_publish(remote->mq, const_cast<char *>("/mach/func/request"), nvoid_new(vReq.data(), vReq.size())))

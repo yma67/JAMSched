@@ -19,8 +19,7 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
 {
     MQTTAsync_setMessageArrivedCallback(mq->mqttserv, scheduler, RemoteArrivedCallback);
     mqtt_connect(mq);
-    mqtt_set_subscription(mq, const_cast<char *>("/schedule"));
-    mqtt_set_subscription(mq, const_cast<char *>("/rexec-response"));
+    mqtt_set_subscription(mq, const_cast<char *>("/mach/func/request"));
 }
 
 JAMScript::Remote::~Remote() { mqtt_deleteserver(mq); }
@@ -28,15 +27,18 @@ JAMScript::Remote::~Remote() { mqtt_deleteserver(mq); }
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
     auto *scheduler = static_cast<RIBScheduler *>(ctx);
-    std::vector<std::uint8_t> cbor_;
-    cbor_.assign((uint8_t *)msg->payload, (uint8_t *)msg->payload + msg->payloadlen);
-    nlohmann::json rMsg = nlohmann::json::from_cbor(cbor_);
-    if (!strcmp(topicname, "/mach/func/request") && rMsg.contains("cmd") && rMsg["cmd"].is_string())
+    std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
+    nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
+    if (!strcmp(topicname, "/app-1/mach/func/request") && rMsg.contains("cmd") && rMsg["cmd"].is_string())
     {
         std::string cmd = rMsg["cmd"].get<std::string>();
         if (cmd == "REXEC-SYN" || cmd == "REXEC-ASY")
         {
             scheduler->CreateRPBatchCall(rMsg);
+        }
+        if (cmd == "KILL")
+        {
+            scheduler->ShutDown();
         }
     }
     mqtt_free_topic_msg(topicname, &msg);

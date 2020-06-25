@@ -21,6 +21,7 @@ struct nlohmann::adl_serializer<char *>
     static void to_json(json &j, const char *&value)
     {
         j = std::string(value);
+        free(const_cast<char *>(value));
     }
     static void from_json(const json &j, char *&value)
     {
@@ -38,6 +39,7 @@ struct nlohmann::adl_serializer<const char *>
     static void to_json(json &j, const char *&value)
     {
         j = std::string(value, value + strlen(value));
+        free(const_cast<char *>(value));
     }
     static void from_json(const json &j, const char *&value)
     {
@@ -57,6 +59,7 @@ struct nlohmann::adl_serializer<nvoid_t *>
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
+        nvoid_free(const_cast<nvoid_t *>(value));
     }
     static void from_json(const json &j, nvoid_t *&value)
     {
@@ -72,6 +75,7 @@ struct nlohmann::adl_serializer<const nvoid_t *>
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
+        nvoid_free(const_cast<nvoid_t *>(value));
     }
     static void from_json(const json &j, const nvoid_t *&value)
     {
