@@ -9,33 +9,39 @@
 #include <thread>
 #include <vector>
 
-namespace JAMScript {
+namespace JAMScript
+{
 
-    class StealScheduler : public SchedulerBase {
+    class StealScheduler : public SchedulerBase
+    {
     public:
 
         friend class RIBScheduler;
-        void Steal(TaskInterface* toSteal);
-        void Enable(TaskInterface* toEnable) override;
-        void Disable(TaskInterface* toDisable) override;
+
+        void Steal(TaskInterface *toSteal);
+        void Enable(TaskInterface *toEnable) override;
+        void Disable(TaskInterface *toDisable) override;
         const uint32_t Size() const;
         void ShutDown_();
         void ShutDown() override;
         void RunSchedulerMainLoop();
-        StealScheduler(SchedulerBase* victim, uint32_t ssz);
+
+        StealScheduler(SchedulerBase *victim, uint32_t ssz);
         ~StealScheduler();
 
     protected:
 
-        std::mutex m;
-        int stealCount = 0;
-        std::condition_variable cv;
+        SpinMutex m;
+        unsigned int rCount = 0;
+        bool isRunning;
+        std::condition_variable_any cv;
         std::vector<std::thread> tx;
-        SchedulerBase* victim;
-        JAMStorageTypes::InteractiveWaitSetType isWait;
-        JAMStorageTypes::BatchQueueType isReady;
+        std::thread t;
+        SchedulerBase *victim;
+        JAMStorageTypes::ThiefSetType isWait;
+        JAMStorageTypes::ThiefQueueType isReady;
 
     };
-    
-}  // namespace JAMScript
+
+} // namespace JAMScript
 #endif

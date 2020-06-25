@@ -36,7 +36,8 @@
 #include <string.h>
 
 #if defined(__x86_64__)
-void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...)
+{
     va_list va;
     memset(ucp->registers, 0, 16 * 8);
     if (argc != 2)
@@ -90,7 +91,8 @@ asm(".text                      \n\t"
     "movq       %rcx, %rsp      \n\t"
     "jmp        *%rax           \n\t");
 #elif defined(__aarch64__)
-void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...)
+{
     va_list va;
     memset(ucp->registers, 0, 25 * 8);
     if (argc != 2)
@@ -141,7 +143,8 @@ asm(".text                      \n\t"
     "ldp x0,  x1,  [x2, #184]   \n\t"
     "ret                        \n\t");
 #elif defined(__arm__)
-void CreateContext(JAMScriptUserContext *uc, void (*fn)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *uc, void (*fn)(void), int argc, ...)
+{
     va_list arg;
     uintptr_t u_p =
         (uintptr_t)(uc->uc_stack.ss_size - (sizeof(void *) << 1) + (uintptr_t)uc->uc_stack.ss_sp);
@@ -166,12 +169,14 @@ asm(".text\n\t"
     "bx     lr                  \n\t");
 #elif defined(__mips__)
 #error "not implemented yet"
-void CreateContext(JAMScriptUserContext *uc, void (*fn)(void), int argc, ...) {
+void CreateContext(JAMScriptUserContext *uc, void (*fn)(void), int argc, ...)
+{
     int i, *sp;
     va_list arg;
     va_start(arg, argc);
     sp = (int *)uc->uc_stack.ss_sp + uc->uc_stack.ss_size / 4;
-    for (i = 0; i < 4 && i < argc; i++) uc->uc_mcontext.mc_regs[i + 4] = va_arg(arg, int);
+    for (i = 0; i < 4 && i < argc; i++)
+        uc->uc_mcontext.mc_regs[i + 4] = va_arg(arg, int);
     va_end(arg);
     uc->uc_mcontext.mc_regs[29] = (int)sp;
     uc->uc_mcontext.mc_regs[31] = (int)fn;

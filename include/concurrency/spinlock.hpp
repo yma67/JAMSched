@@ -1,26 +1,23 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_SPINLOCK_HH
 #define JAMSCRIPT_JAMSCRIPT_SPINLOCK_HH
 #include <atomic>
-namespace JAMScript {
 
-    class SpinLock {
+namespace JAMScript
+{
+
+    class SpinMutex
+    {
 
         std::atomic_flag flag;
 
     public:
 
-        SpinLock() : flag{false} {}
+        SpinMutex() : flag{false} {}
+        void lock();
+        bool try_lock();
+        void unlock();
 
-        inline void lock() {
-            while (flag.test_and_set(std::memory_order_acquire))
-                ;
-        }
-
-        inline bool try_lock() { return !flag.test_and_set(std::memory_order_acquire); }
-
-        inline void unlock() { flag.clear(std::memory_order_release); }
-        
     };
 
-}  // namespace JAMScript
+} // namespace JAMScript
 #endif

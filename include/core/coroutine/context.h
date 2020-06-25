@@ -1,20 +1,23 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct _JAMScriptStack {
-    void *ss_sp;
-    int ss_flags;
-    size_t ss_size;
-} JAMScriptStack;
+    typedef struct _JAMScriptStack
+    {
+        void *ss_sp;
+        int ss_flags;
+        size_t ss_size;
+    } JAMScriptStack;
 
-struct JAMScriptUContext {
+    struct JAMScriptUContext
+    {
 #if defined(__x86_64__)
-    uintptr_t registers[16];
+        uintptr_t registers[16];
 #elif defined(__aarch64__)
     uintptr_t registers[25];
 #elif defined(__arm__)
@@ -25,12 +28,13 @@ struct JAMScriptUContext {
 #else
 #error "platform not supported"
 #endif
-    JAMScriptStack uc_stack;
-};
+        JAMScriptStack uc_stack;
+    };
 
-typedef struct JAMScriptUContext JAMScriptUserContext;
-extern int SwapToContext(JAMScriptUserContext *, JAMScriptUserContext *);
-extern void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...);
+    typedef struct JAMScriptUContext JAMScriptUserContext;
+    extern int SwapToContext(JAMScriptUserContext *, JAMScriptUserContext *);
+    extern void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...);
+
 #ifdef __cplusplus
 }
 #endif

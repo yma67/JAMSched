@@ -3,7 +3,8 @@
 
 #include <catch2/catch.hpp>
 
-struct A {
+struct A
+{
     static JAMScript::TaskLS<int> i;
     int b, c;
     A(int b_, int c_) : b(b_), c(c_) {}
@@ -13,7 +14,8 @@ JAMScript::TaskLS<int> A::i = CreateTaskLS(int, 8);
 
 auto xglb = CreateTaskLS(int, 84);
 
-void CheckTLS() {
+void CheckTLS()
+{
     WARN(xglb);
     REQUIRE(xglb == 84);
     int r = rand() % 10000, org = A::i;
@@ -21,13 +23,15 @@ void CheckTLS() {
     REQUIRE(A::i == (org + r));
 }
 
-int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e, long f, std::string validator) {
+int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e, long f, std::string validator)
+{
     auto xa = CreateTaskLS(A, 3, 2);
     REQUIRE(A::i == 8);
     A::i += 10;
     REQUIRE(A::i == 18);
     int rr = rand() % 10;
-    for (int x = 0; x < rr; x++) CheckTLS();
+    for (int x = 0; x < rr; x++)
+        CheckTLS();
     REQUIRE(1 == a);
     REQUIRE(2 == b);
     REQUIRE(Approx(0.5) == c);
@@ -38,13 +42,15 @@ int CiteLabAdditionFunctionInteractive(int a, char b, float c, short d, double e
     return a + b + d + f;
 }
 
-int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, long f, std::string validator) {
+int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, long f, std::string validator)
+{
     auto xa = CreateTaskLS(A, 4, 5);
     REQUIRE(A::i == 8);
     A::i += 13;
     REQUIRE(A::i == 21);
     int rr = rand() % 10;
-    for (int x = 0; x < rr; x++) CheckTLS();
+    for (int x = 0; x < rr; x++)
+        CheckTLS();
     REQUIRE(1 == a);
     REQUIRE(2 == b);
     REQUIRE(Approx(0.5) == c);
@@ -55,7 +61,8 @@ int CiteLabAdditionFunctionRealTime(int a, char b, float c, short d, double e, l
     return a + b + d + f;
 }
 
-int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long f, std::string validator) {
+int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long f, std::string validator)
+{
     int &xa = CreateTaskLS(int, 5), &xb = CreateTaskLS(int, 6), &xc = CreateTaskLS(int, 7);
     REQUIRE(5 == xa);
     REQUIRE(6 == xb);
@@ -70,7 +77,8 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
     return a + b + d + f;
 }
 
-TEST_CASE("Task Local", "[tasklocal]") {
+TEST_CASE("Task Local", "[tasklocal]")
+{
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
@@ -78,17 +86,17 @@ TEST_CASE("Task Local", "[tasklocal]") {
         ribScheduler
             .CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), CiteLabAdditionFunctionInteractive, 1,
                              2, float(0.5), 3, double(1.25), 4, std::string("citelab loves java interactive"))
-            ->Join();
+            .Join();
         ribScheduler
             .CreateBatchTask({true, 0}, std::chrono::milliseconds(90), CiteLabAdditionFunctionRealTime, 1, 2,
                              float(0.5), 3, double(1.25), 4, std::string("citelab loves java real time"))
-            ->Join();
+            .Join();
         ribScheduler
             .CreateInteractiveTask(
                 {true, 0}, std::chrono::milliseconds(9000), std::chrono::milliseconds(90), []() {},
                 CiteLabAdditionFunctionBatch, 1, 2, float(0.5), 3, double(1.25), 4,
                 std::string("citelab loves java batch"))
-            ->Join();
+            .Join();
         ribScheduler.ShutDown();
     });
     ribScheduler.RunSchedulerMainLoop();

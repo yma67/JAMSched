@@ -1,0 +1,5 @@
+find_package(Threads)
+add_executable(assignment2 main.cc)
+target_link_libraries(assignment2 PRIVATE jamsched  ${CMAKE_THREAD_LIBS_INIT})
+target_compile_features(assignment2 PRIVATE cxx_std_17)
+target_include_directories(jamsched PRIVATE "${PROJECT_SOURCE_DIR}/include/")
