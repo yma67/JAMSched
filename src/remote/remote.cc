@@ -45,6 +45,5 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
 
 bool JAMScript::RExecDetails::ArgumentGC()
 {
-    std::cout << "ArgDetect" << std::endl;
     return false;
 }

@@ -85,10 +85,9 @@ namespace JAMScript
     namespace RExecDetails
     {
 
-        // TODO: avoid extra copy
         bool ArgumentGC();
 
-        // Pointer Types Except for CString (char*/const char*), with destructor
+        // Pointer Types Except for CString (char*/const char*) and ByteArray, with destructor
         template <typename R, typename... TArgs>
         bool ArgumentGC(R *gc, TArgs &&... tArgs);
         // CString (char*/const char*)
@@ -107,7 +106,7 @@ namespace JAMScript
         bool ArgumentGC(const nvoid_t *gc, TArgs &&... tArgs);
 
         template <typename T, typename... TArgs>
-        bool ArgumentGC(T gc, TArgs &&... tArgs)
+        bool ArgumentGC(T&& gc, TArgs &&... tArgs)
         {
             ArgumentGC(std::forward<TArgs>(tArgs)...);
             return false;

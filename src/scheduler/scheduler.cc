@@ -216,7 +216,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         lock.unlock();
                         auto tStart = Clock::now();
                         cBatchPtr->SwapIn();
-
                         vClockB += Clock::now() - tStart;
                         if (cBatchPtr->status == TASK_FINISHED)
                         {
