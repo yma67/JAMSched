@@ -1,11 +1,40 @@
 #include <concurrency/future.hpp>
 #include <scheduler/scheduler.hpp>
 #include <scheduler/tasklocal.hpp>
+#include <remote/remote.hpp>
 #include <concurrency/semaphore.hpp>
 #include <thread>
 #include <chrono>
 #include <vector>
 #include <atomic>
+#include <string>
+#include <cstring>
+#include <any>
+#include <tuple>
+
+std::string PrintResultWithGrade(int rex, char *grade, std::string comment, nvoid_t *token)
+{
+    std::vector<char> tokenVerifier = {'L', 'e', 'K', 'a', 'N', 0, 'R', 'i', 'C', 'h', 'A', 'r', 'D'};
+    assert(tokenVerifier == std::vector<char>(reinterpret_cast<char *>(token->data), reinterpret_cast<char *>(token->data) + token->len));
+    std::cout << "Token verified, your assignment submission is successful." << std::endl;
+    std::cout << "Final value of var: " << rex << std::endl;
+    std::cout << "Your grade for capstone project: " << grade << std::endl;
+    std::cout << "Comment: " << comment << std::endl;
+    tokenVerifier[5] = ' ';
+    return std::string(tokenVerifier.data());
+}
+
+auto PrintResultWithGradeFunctor = std::function(PrintResultWithGrade);
+auto PrintResultWithGradeInvoker = JAMScript::RExecDetails::Invoker<decltype(PrintResultWithGradeFunctor)>(PrintResultWithGradeFunctor);
+auto CompareCStringFunctor = std::function(strcmp);
+auto CompareCStringInvoker = JAMScript::RExecDetails::Invoker<decltype(CompareCStringFunctor)>(CompareCStringFunctor);
+auto CStringLengthFunctor = std::function(strlen);
+auto CStringLengthInvoker = JAMScript::RExecDetails::Invoker<decltype(CStringLengthFunctor)>(CStringLengthFunctor);
+
+std::unordered_map<std::string, JAMScript::RExecDetails::InvokerInterface *> invokerMap = {
+    {std::string("PrintResultWithGrade"), &PrintResultWithGradeInvoker},
+    {std::string("CompareCString"), &CompareCStringInvoker},
+    {std::string("CStringLength"), &CStringLengthInvoker}};
 
 struct ReaderWriterReadPriortized
 {
@@ -106,11 +135,13 @@ using ReadWriteLock = ReaderWriterReadPriortized;
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, 5);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
+    ribScheduler.RegisterRPCalls(invokerMap);
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}},
+                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}});
     std::atomic_int32_t syncVar = 0, rTotal = 0;
+    int var = 0;
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::high_resolution_clock::duration::max(), [&]() {
-        int var = 0;
+#ifndef JAMSCRIPT_ENABLE_VALGRIND
         ReadWriteLock rw;
         std::vector<JAMScript::TaskHandle> rpool, wpool;
         for (int i = 0; i < 500; i++)
@@ -150,7 +181,29 @@ int main()
             x.Join();
         for (auto &x : wpool)
             x.Join();
-        std::cout << "final value of var is: " << var << std::endl;
+#endif
+        // supposed we received this Cbor
+        nlohmann::json jx = {
+            {"actname",
+             "PrintResultWithGrade"},
+            {"args",
+             {var, "F", "Not using the C programming language in your project!", {'L', 'e', 'K', 'a', 'N', 0, 'R', 'i', 'C', 'h', 'A', 'r', 'D'}}}};
+        std::cout << ribScheduler.CreateJSONBatchCall(jx) << std::endl;
+        nlohmann::json jx1 = {
+            {"actname",
+             "CompareCString"},
+            {"args",
+             {"Muthucumaru", "Maheswaran"}}};
+        std::cout << "Reference: " << (strcmp("Muthucumaru", "Maheswaran") > 0) << std::endl;
+        std::cout << "Note: result is fine if they have same sign" << std::endl;
+        std::cout << ribScheduler.CreateJSONBatchCall(jx1) << std::endl;
+        nlohmann::json jx2 = {
+            {"actname",
+             "CStringLength"},
+            {"args",
+             {"Muthucumaru Maheswaran"}}};
+        std::cout << "Reference: " << strlen("Muthucumaru Maheswaran") << std::endl;
+        std::cout << ribScheduler.CreateJSONBatchCall(jx2) << std::endl;
         ribScheduler.ShutDown();
     });
     ribScheduler.RunSchedulerMainLoop();

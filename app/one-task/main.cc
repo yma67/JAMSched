@@ -4,6 +4,13 @@
 #include <cstdlib>
 #include <iostream>
 #include <scheduler/scheduler.hpp>
+#include <nlohmann/json.hpp>
+#include <type_traits>
+#include <typeinfo>
+
+int JCalc(std::string a, std::string b) {
+    return std::stoi(a) + std::stoi(b);
+}
 
 struct timespec time1, time2;
 
@@ -48,5 +55,18 @@ int main()
         std::cout << "2xCtx switch time: " << diff(time1, time2).tv_nsec << " ns" << std::endl;
     });
     bSched.RunSchedulerMainLoop();
+    std::cout << typeid(JCalc).name() << std::endl;
+    nlohmann::json jx;
+    jx.push_back(1);
+    jx.push_back(2);
+    jx.push_back(3);
+    char charr[40];
+    std::vector<char> chvec(charr, charr + 40);
+    nlohmann::json jxe = { { "args", jx }, { "name", "jxe" }, { "bytes",  chvec } };
+    for (auto& rv: jxe["args"].get<std::vector<int>>()) {
+        std::cout << rv << std::endl;
+    }
+    std::cout << jxe["bytes"].is_array() << std::endl;
+    assert(jxe["bytes"].get<std::vector<char>>() == chvec);
     return 0;
 }

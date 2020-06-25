@@ -101,8 +101,11 @@ void JAMScript::ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &
 
 void JAMScript::ThisTask::Yield()
 {
-    thisTask->scheduler->Enable(thisTask);
-    thisTask->SwapOut();
+    if (thisTask->status != TASK_FINISHED) 
+    {
+        thisTask->scheduler->Enable(thisTask);
+        thisTask->SwapOut();
+    }
 }
 
 bool JAMScript::operator<(const TaskInterface &a, const TaskInterface &b) noexcept

@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 #include <iostream>
+#include <unordered_map>
 #include <nlohmann/json.hpp>
 #include <boost/intrusive/unordered_set.hpp>
 
@@ -60,6 +61,49 @@ namespace JAMScript
         void ShutDown() override;
         bool Empty();
         void RunSchedulerMainLoop();
+
+        void RegisterRPCalls(std::unordered_map<std::string, RExecDetails::InvokerInterface *> fvm) 
+        {
+            localFuncMap = std::move(fvm);
+        }
+
+        nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
+        {
+            if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
+                localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
+            {
+                auto fu = std::make_shared<Promise<nlohmann::json>>();
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr{ std::move(rpcAttr) }]() 
+                {
+                    fu->SetValue(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
+                });
+                return std::move(fu->GetFuture().Get());
+            }
+            return {};
+        }
+
+        void CreateRPBatchCall(nlohmann::json rpcAttr) 
+        {
+            if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
+                localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
+            {
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr{ std::move(rpcAttr) }]() 
+                {
+                    auto jResult = localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]);
+                    if (remote != nullptr) 
+                    {
+                        auto vReq = nlohmann::json::to_cbor(jResult);
+                        for (int i = 0; i < 3; i++)
+                        {
+                            if (mqtt_publish(remote->mq, const_cast<char *>("/mach/func/request"), nvoid_new(vReq.data(), vReq.size())))
+                            {
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        }
 
         template <typename Fn, typename... Args>
         TaskHandle CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
@@ -199,6 +243,7 @@ namespace JAMScript
         TimePoint schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
         std::unordered_map<std::string, std::any> lexecFuncMap;
+        std::unordered_map<std::string, RExecDetails::InvokerInterface *> localFuncMap;
 
         JAMStorageTypes::BatchQueueType bQueue;
         JAMStorageTypes::InteractiveReadyStackType iCancelStack;
