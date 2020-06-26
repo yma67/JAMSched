@@ -198,8 +198,8 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     DECISION_BATCH:
                     {
                         std::unique_lock<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
-                        while (GetThiefSizes() < bQueue.size() + iEDFPriorityQueue.size() + iCancelStack.size() &&
-                               bQueue.size() > 1 && bQueue.begin()->CanSteal())
+                        while (GetThiefSizes() <= (bQueue.size() + iEDFPriorityQueue.size() + iCancelStack.size()) / thiefs.size() &&
+                               bQueue.size() >= 1 && bQueue.begin()->CanSteal())
                         {
                             auto *nSteal = &(*bQueue.begin());
                             bQueue.pop_front();
@@ -242,12 +242,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             {
                                 iCancelStack.push_front(*pTop);
                             }
-                        }
-                        while (iCancelStack.size() > 3)
-                        {
-                            iCancelStack.end()->onCancel();
-                            iCancelStack.erase_and_dispose(iCancelStack.end(),
-                                                           [](TaskInterface *x) { delete x; });
                         }
                         if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
                         {
