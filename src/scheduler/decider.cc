@@ -63,7 +63,7 @@ uint64_t JAMScript::Decider::CalculateMatchCount(const std::vector<QType> &sched
         }
         while (!edfPQueue.empty())
         {
-            if (edfPQueue.top().first < slot.first)
+            if (edfPQueue.top().first <= slot.first)
             {
                 edfPQueue.pop();
             }
@@ -120,8 +120,10 @@ bool JAMScript::Decider::DecideNextScheduleToRun()
         });
     auto successCountNormal = CalculateMatchCount(normalSSSlot);
     auto successCountGreedy = CalculateMatchCount(greedySSSlot);
+#ifdef JAMSCRIPT_SCHED_AI_EXP
     std::cout << "Normal: " << successCountNormal << std::endl;
     std::cout << "Greedy: " << successCountGreedy << std::endl;
+#endif
     interactiveTaskRecord.clear();
     if (successCountGreedy <= successCountNormal)
     {
