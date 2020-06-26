@@ -48,7 +48,7 @@ namespace JAMScript
             ReadyBatchQueueHook;
 
         struct ReadyInteractiveStackTag;
-        typedef boost::intrusive::slist_member_hook<
+        typedef boost::intrusive::list_member_hook<
             boost::intrusive::tag<ReadyInteractiveStackTag>>
             ReadyInteractiveStackHook;
 

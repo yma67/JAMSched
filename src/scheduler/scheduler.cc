@@ -243,6 +243,15 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                                 iCancelStack.push_front(*pTop);
                             }
                         }
+                        auto itEdf = iCancelStack.cbegin();
+                        while (iCancelStack.size() > 3 && itEdf != iCancelStack.cend()) {
+                            itEdf = iCancelStack.erase_and_dispose(itEdf, 
+                                [](TaskInterface* x) { 
+                                    x->onCancel();
+                                    x->status = TASK_FINISHED;
+                                    delete x; 
+                            });
+                        }
                         if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
                         {
                             auto currentInteractiveIter = iCancelStack.begin();
