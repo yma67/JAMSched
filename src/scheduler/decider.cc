@@ -14,70 +14,97 @@ JAMScript::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule)
 void JAMScript::Decider::NotifyChangeOfSchedule(const std::vector<RealTimeSchedule> &normal,
                                                 const std::vector<RealTimeSchedule> &greedy)
 {
-    normalSpoadicServerAccumulator = CalculateAccumulator(normal);
-    greedySpoadicServerAccumulator = CalculateAccumulator(greedy);
-#ifdef JAMSCRIPT_SCHED_AI_EXP
-    std::cout << "GREEDY ACC: ";
-    for (auto &r : greedySpoadicServerAccumulator)
-        std::cout << r << '\t';
-    std::cout << std::endl
-              << "NORMAL ACC: ";
-    for (auto &r : normalSpoadicServerAccumulator)
-        std::cout << r << '\t';
-    std::cout << std::endl;
-#endif
-}
-
-std::vector<uint64_t> JAMScript::Decider::CalculateAccumulator(const std::vector<RealTimeSchedule> &schedule_)
-{
-    std::vector<RTaskEntry> schedule;
-    std::transform(
-        schedule_.begin(), schedule_.end(), std::back_inserter(schedule), [](const RealTimeSchedule &x) -> RTaskEntry {
-            return RTaskEntry(std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
-                              std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count(), x.taskId);
-        });
-    std::vector<uint64_t> accv(schedule.back().endTime / 1000 + 1, 0);
-    uint64_t prevTime = 0, prevAcc = 0;
-    for (auto &entry : schedule)
+    normalSSSlot.clear();
+    greedySSSlot.clear();
+    for (const auto &x : normal)
     {
-        if (entry.taskId == 0x0)
+        if (x.taskId == 0)
         {
-            for (uint64_t i = prevTime; i < entry.startTime / 1000; i++)
-            {
-                accv[i] = prevAcc;
-            }
-            if (entry.endTime - entry.startTime < 1000)
-            {
-                if (entry.endTime / 1000 != entry.startTime / 1000)
-                {
-                    accv[entry.startTime / 1000] = prevAcc;
-                    accv[entry.endTime / 1000] = prevAcc + (entry.endTime / 1000) * 1000 - entry.startTime;
-                    prevTime = entry.endTime / 1000 + 1;
-                    prevAcc = accv[prevTime - 1] + entry.endTime - (entry.endTime / 1000) * 1000;
-                }
-                else
-                {
-                    accv[entry.startTime / 1000] = prevAcc;
-                    prevTime = entry.endTime / 1000 + 1;
-                    prevAcc = accv[prevTime - 1] + entry.endTime - entry.startTime;
-                }
-                continue;
-            }
-            for (uint64_t i = entry.startTime / 1000; i < entry.endTime / 1000; i++)
-            {
-                accv[i] = prevAcc + (i * 1000 - entry.startTime);
-            }
-            prevTime = entry.endTime / 1000;
-            prevAcc = accv[prevTime - 1] + 1000;
+            normalSSSlot.push_back({std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
+                                    std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count()});
         }
     }
-    accv[prevTime] = prevAcc;
-    return accv;
+    for (const auto &x : greedy)
+    {
+        if (x.taskId == 0)
+        {
+            greedySSSlot.push_back({std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
+                                    std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count()});
+        }
+    }
+    period = std::chrono::duration_cast<std::chrono::microseconds>(normal.back().eTime).count();
+}
+
+uint64_t JAMScript::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
+{
+    uint64_t mCount = 0;
+    std::deque<ITaskEntry> tRecord(interactiveTaskRecord.begin(), interactiveTaskRecord.end());
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+    std::cout << "Arrived: " << std::endl;
+    for (auto &r : tRecord)
+    {
+        std::cout << "(" << r.arrival << ", " << r.burst << ", " << r.deadline << ")" << std::endl;
+    }
+#endif
+    std::priority_queue<QType, std::deque<QType>, std::greater<QType>> edfPQueue;
+    for (auto &slot : schedule)
+    {
+        while (!tRecord.empty())
+        {
+            if (tRecord.front().arrival >= slot.second)
+            {
+                break;
+            }
+            else
+            {
+                edfPQueue.push({tRecord.front().deadline, tRecord.front().burst});
+                tRecord.pop_front();
+            }
+        }
+        while (!edfPQueue.empty())
+        {
+            if (edfPQueue.top().first <= slot.first)
+            {
+                edfPQueue.pop();
+            }
+            else
+            {
+                break;
+            }
+        }
+        long tSlot = slot.second - slot.first;
+        while (tSlot > 0 && !edfPQueue.empty())
+        {
+            if (edfPQueue.top().second <= tSlot)
+            {
+                tSlot -= edfPQueue.top().second;
+                edfPQueue.pop();
+                mCount++;
+            }
+            else
+            {
+                auto tRef = edfPQueue.top();
+                tRef.second -= tSlot;
+                edfPQueue.pop();
+                tSlot = 0;
+                edfPQueue.push(tRef);
+            }
+        }
+        if (edfPQueue.empty() && tRecord.empty())
+        {
+            break;
+        }
+    }
+    return mCount;
 }
 
 void JAMScript::Decider::RecordInteractiveJobArrival(const ITaskEntry &aInteractiveTaskRecord)
 {
-    interactiveTaskRecord.push_back(aInteractiveTaskRecord);
+    interactiveTaskRecord.push_back({aInteractiveTaskRecord.deadline - scheduler->numberOfPeriods * period, aInteractiveTaskRecord.burst,
+                                     std::chrono::duration_cast<std::chrono::microseconds>(
+                                         std::chrono::high_resolution_clock::now() -
+                                         scheduler->GetCycleStartTime())
+                                         .count()});
 }
 
 bool JAMScript::Decider::DecideNextScheduleToRun()
@@ -86,66 +113,19 @@ bool JAMScript::Decider::DecideNextScheduleToRun()
     {
         return rand() % 2 == 0;
     }
-    std::sort(interactiveTaskRecord.begin(), interactiveTaskRecord.end(),
-              [](const ITaskEntry &e1, const ITaskEntry &e2) { return e1.deadline < e2.deadline; });
-    uint64_t accNormal = 0, successCountNormal = 0, accGreedy = 0, successCountGreedy = 0;
-    std::vector<ITaskEntry> scg, scn;
-    uint64_t period =
-        std::chrono::duration_cast<std::chrono::microseconds>(scheduler->rtScheduleNormal.back().eTime).count();
-    uint64_t st = (scheduler->numberOfPeriods - 1) * period;
-    uint64_t ed = st + period;
+    std::sort(
+        interactiveTaskRecord.begin(), interactiveTaskRecord.end(),
+        [](const ITaskEntry &x1, const ITaskEntry &x2) {
+            return x1.arrival < x2.arrival;
+        });
+    auto successCountNormal = CalculateMatchCount(normalSSSlot);
+    auto successCountGreedy = CalculateMatchCount(greedySSSlot);
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-    std::cout << "Start: " << st << ", End: " << ed << std::endl;
-#endif
-    for (auto &r : interactiveTaskRecord)
-    {
-#ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "b: " << r.burst << ", acc: " << accNormal << ", ddl: " << r.deadline << std::endl;
-#endif
-        if (st <= r.deadline && r.deadline <= ed &&
-            r.burst + accNormal <= normalSpoadicServerAccumulator[(r.deadline - st) / 1000])
-        {
-#ifdef JAMSCRIPT_SCHED_AI_EXP
-            std::cout << "accept" << std::endl;
-#endif
-            successCountNormal++;
-            accNormal += r.burst;
-            scn.push_back(r);
-        }
-    }
-    for (auto &r : interactiveTaskRecord)
-    {
-#ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "b: " << r.burst << ", acc: " << accGreedy << ", ddl: " << r.deadline << std::endl;
-#endif
-        if (st <= r.deadline && r.deadline <= ed &&
-            r.burst + accGreedy <= greedySpoadicServerAccumulator[(r.deadline - st) / 1000])
-        {
-#ifdef JAMSCRIPT_SCHED_AI_EXP
-            std::cout << "accept" << std::endl;
-#endif
-            successCountGreedy++;
-            accGreedy += r.burst;
-            scg.push_back(r);
-        }
-    }
-#ifdef JAMSCRIPT_SCHED_AI_EXP
-    std::cout << "greedy success: " << successCountGreedy << std::endl;
-    for (auto &r : scn)
-        std::cout << "(" << r.burst << ", " << r.deadline << "), ";
-    std::cout << std::endl;
-    std::cout << "normal success: " << successCountNormal << std::endl;
-    for (auto &r : scg)
-        std::cout << "(" << r.burst << ", " << r.deadline << "), ";
-    std::cout << std::endl;
-    std::cout << "=> ";
+    std::cout << "Normal: " << successCountNormal << std::endl;
+    std::cout << "Greedy: " << successCountGreedy << std::endl;
 #endif
     interactiveTaskRecord.clear();
-    if (successCountGreedy == successCountNormal)
-    {
-        return rand() % 2 == 0;
-    }
-    else if (successCountGreedy < successCountNormal)
+    if (successCountGreedy <= successCountNormal)
     {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
         std::cout << "MIN GI NORMAL" << std::endl;

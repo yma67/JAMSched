@@ -30,7 +30,7 @@ namespace JAMScript
     protected:
 
         TaskInterface *ownerTask;
-        uint32_t lockWord;
+        std::atomic<uint32_t> lockWord;
         SpinMutex m;
         std::condition_variable_any cv;
         

@@ -16,7 +16,7 @@ void JAMScript::Notifier::Join()
     std::unique_lock<SpinMutex> lock(m);
     while (lockWord < 0x80000000)
     {
-        //ownerTask->scheduler->Disable(ownerTask);
+        ownerTask->scheduler->Disable(ownerTask);
         lock.unlock();
         ownerTask->SwapOut();
         lock.lock();
@@ -59,7 +59,7 @@ void JAMScript::Notifier::Join(std::unique_lock<JAMScript::SpinMutex> &iLock)
     }
     while (lockWord < 0x80000000)
     {
-        // ownerTask->scheduler->Disable(ownerTask);
+        ownerTask->scheduler->Disable(ownerTask);
         iLock.unlock();
         ownerTask->SwapOut();
         iLock.lock();

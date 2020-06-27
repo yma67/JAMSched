@@ -1,7 +1,8 @@
 #include "scheduler/taskthief.hpp"
+#include "scheduler/scheduler.hpp"
 #include <algorithm>
 
-JAMScript::StealScheduler::StealScheduler(SchedulerBase *victim, uint32_t ssz) : SchedulerBase(ssz), victim(victim)
+JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) : SchedulerBase(ssz), victim(victim)
 {
     RunSchedulerMainLoop();
 }
@@ -18,7 +19,6 @@ JAMScript::StealScheduler::~StealScheduler()
     t.join();
     auto dTaskInf = [](TaskInterface *t) { delete t; };
     isReady.clear_and_dispose(dTaskInf);
-    isWait.clear_and_dispose(dTaskInf);
 }
 
 void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
@@ -33,9 +33,9 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
 void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
 {
     std::unique_lock<SpinMutex> lock(m);
-    if (isWait.find(reinterpret_cast<uintptr_t>(toEnable)) != isWait.end())
+    if (toEnable->wsHook.is_linked())
     {
-        isWait.erase(reinterpret_cast<uintptr_t>(toEnable));
+        toEnable->wsHook.unlink();
     }
     if (!toEnable->trHook.is_linked())
     {
@@ -47,16 +47,12 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
 
 void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)
 {
-    std::unique_lock<SpinMutex> lock(m);
-    if (isWait.find(reinterpret_cast<uintptr_t>(toDisable)) == isWait.end())
-    {
-        isWait.insert(*toDisable);
-    }
+    rCount--;
 }
 
 const uint32_t JAMScript::StealScheduler::Size() const
 {
-    return isWait.size() + isReady.size();
+    return rCount;
 }
 
 void JAMScript::StealScheduler::ShutDown_()
@@ -74,7 +70,7 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
         while (toContinue)
         {
             std::unique_lock<SpinMutex> lock(m);
-            while (rCount < 1 && toContinue)
+            while (isReady.empty() && toContinue)
             {
                 cv.wait(lock);
             }
@@ -84,10 +80,11 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             }
             auto iterNext = isReady.begin();
             auto *pNext = &(*iterNext);
-            isReady.erase(iterNext);
+            isReady.pop_front();
             rCount--;
             lock.unlock();
             pNext->SwapIn();
+            lock.lock();
             if (pNext->status == TASK_FINISHED)
             {
                 delete pNext;

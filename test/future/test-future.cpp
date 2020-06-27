@@ -10,8 +10,8 @@ TEST_CASE("Performance Future", "[future]")
 {
 
     std::chrono::duration dt = std::chrono::nanoseconds(0);
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
-    const int nIter = 3;
+#if defined(JAMSCRIPT_ENABLE_VALGRIND)
+    const int nIter = 1;
 #else
     const int nIter = 3000;
 #endif
@@ -51,7 +51,7 @@ TEST_CASE("Performance Future", "[future]")
 TEST_CASE("InterLock", "[future]")
 {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-    std::string sec("mahes");
+    std::string sec("");
 #else
     std::string sec("muthucumaru maheswaran loves java");
 #endif
@@ -94,6 +94,6 @@ TEST_CASE("LExec", "[future]")
         JAMScript::ThisTask::SleepFor(std::chrono::microseconds(100));
         REQUIRE(fu.Get() == 7);
         ribScheduler.ShutDown();
-    });
+    }).Detach();
     ribScheduler.RunSchedulerMainLoop();
 }

@@ -21,7 +21,6 @@ struct nlohmann::adl_serializer<char *>
     static void to_json(json &j, const char *&value)
     {
         j = std::string(value);
-        free(const_cast<char *>(value));
     }
     static void from_json(const json &j, char *&value)
     {
@@ -39,7 +38,6 @@ struct nlohmann::adl_serializer<const char *>
     static void to_json(json &j, const char *&value)
     {
         j = std::string(value, value + strlen(value));
-        free(const_cast<char *>(value));
     }
     static void from_json(const json &j, const char *&value)
     {
@@ -59,7 +57,6 @@ struct nlohmann::adl_serializer<nvoid_t *>
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
-        nvoid_free(const_cast<nvoid_t *>(value));
     }
     static void from_json(const json &j, nvoid_t *&value)
     {
@@ -75,7 +72,6 @@ struct nlohmann::adl_serializer<const nvoid_t *>
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
-        nvoid_free(const_cast<nvoid_t *>(value));
     }
     static void from_json(const json &j, const nvoid_t *&value)
     {
@@ -213,6 +209,100 @@ namespace JAMScript
                 }
             }
             std::function<void(Args...)> fn;
+        };
+
+        template <typename... Args>
+        struct Invoker<std::function<char *(Args...)>> : public InvokerInterface
+        {
+            Invoker(std::function<char *(Args...)> f) : fn(std::move(f)) {}
+            nlohmann::json Invoke(nlohmann::json vaList) override
+            {
+                try
+                {
+                    auto vaTuple = vaList.get<std::tuple<Args...>>();
+                    char * cString = std::apply(fn, vaTuple);
+                    nlohmann::json jxr = {"result", std::string(cString)};
+                    free(cString);
+                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
+                    return std::move(jxr);
+                }
+                catch (const std::exception &e)
+                {
+                    return nlohmann::json{"exception", std::string(e.what())};
+                }
+            }
+            std::function<char *(Args...)> fn;
+        };
+
+        template <typename... Args>
+        struct Invoker<std::function<const char *(Args...)>> : public InvokerInterface
+        {
+            Invoker(std::function<const char *(Args...)> f) : fn(std::move(f)) {}
+            nlohmann::json Invoke(nlohmann::json vaList) override
+            {
+                try
+                {
+                    auto vaTuple = vaList.get<std::tuple<Args...>>();
+                    char* cString = std::apply(fn, vaTuple);
+                    nlohmann::json jxr = {"result", std::string(cString)};
+                    free(const_cast<char*>(cString));
+                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
+                    return std::move(jxr);
+                }
+                catch (const std::exception &e)
+                {
+                    return nlohmann::json{"exception", std::string(e.what())};
+                }
+            }
+            std::function<const char *(Args...)> fn;
+        };
+
+        template <typename... Args>
+        struct Invoker<std::function<nvoid_t *(Args...)>> : public InvokerInterface
+        {
+            Invoker(std::function<nvoid_t *(Args...)> f) : fn(std::move(f)) {}
+            nlohmann::json Invoke(nlohmann::json vaList) override
+            {
+                try
+                {
+                    auto vaTuple = vaList.get<std::tuple<Args...>>();
+                    nvoid_t* nVoid = std::apply(fn, vaTuple);
+                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), reinterpret_cast<char *>(nVoid->data) + nVoid->len);
+                    nlohmann::json jxr = {"result", bArray };
+                    nvoid_free(nVoid);
+                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
+                    return std::move(jxr);
+                }
+                catch (const std::exception &e)
+                {
+                    return nlohmann::json{"exception", std::string(e.what())};
+                }
+            }
+            std::function<nvoid_t *(Args...)> fn;
+        };
+
+        template <typename... Args>
+        struct Invoker<std::function<const nvoid_t *(Args...)>> : public InvokerInterface
+        {
+            Invoker(std::function<const nvoid_t *(Args...)> f) : fn(std::move(f)) {}
+            nlohmann::json Invoke(nlohmann::json vaList) override
+            {
+                try
+                {
+                    auto vaTuple = vaList.get<std::tuple<Args...>>();
+                    const nvoid_t* nVoid = std::apply(fn, vaTuple);
+                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), reinterpret_cast<char *>(nVoid->data) + nVoid->len);
+                    nlohmann::json jxr = {"result", bArray };
+                    nvoid_free(const_cast<nvoid_t*>(nVoid));
+                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
+                    return std::move(jxr);
+                }
+                catch (const std::exception &e)
+                {
+                    return nlohmann::json{"exception", std::string(e.what())};
+                }
+            }
+            std::function<const nvoid_t *(Args...)> fn;
         };
 
     } // namespace RExecDetails

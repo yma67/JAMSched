@@ -16,8 +16,9 @@ namespace JAMScript
 
     struct ITaskEntry
     {
-        long deadline, burst;
+        long deadline, burst, arrival;
         ITaskEntry(long deadline, long burst) : deadline(deadline), burst(burst) {}
+        ITaskEntry(long deadline, long burst, long arrival) : deadline(deadline), burst(burst), arrival(arrival) {}
     };
 
     class RIBScheduler;
@@ -36,10 +37,12 @@ namespace JAMScript
     private:
 
         Decider() = delete;
+        using QType = std::pair<uint64_t, uint64_t>;
         RIBScheduler *scheduler;
-        std::vector<uint64_t> normalSpoadicServerAccumulator, greedySpoadicServerAccumulator;
+        long period;
+        std::vector<QType> normalSSSlot, greedySSSlot;
         std::vector<ITaskEntry> interactiveTaskRecord;
-        std::vector<uint64_t> CalculateAccumulator(const std::vector<RealTimeSchedule> &schedule);
+        uint64_t CalculateMatchCount(const std::vector<QType> &schedule);
 
     };
 

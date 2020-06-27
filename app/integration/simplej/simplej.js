@@ -29,5 +29,8 @@ setInterval(function () {
             var req = JAMP.createRemoteAsyncReq("RPCFunctionJAsync", [1, 2], "", 0, "device", 1, 1);
             mserv.publish(cmdparser.topic, cbor.encode('{"cmd": "REXEC-ASY", "actname": "RPCFunctionJAsync", "args": [1, 2]}'));
         break;
+        case 'strdup':
+            mserv.publish(cmdparser.topic, cbor.encode('{"cmd": "REXEC-ASY", "actname": "DuplicateCString", "args": ["command.c is causing memory leaks. "]}'));
+        break;
     }
 }, 300);

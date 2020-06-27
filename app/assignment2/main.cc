@@ -134,14 +134,14 @@ using ReadWriteLock = ReaderWriterFair;
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, 5);
+    JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.RegisterRPCalls(invokerMap);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}});
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::seconds(1000), 0}},
+                             {{std::chrono::milliseconds(0), std::chrono::seconds(1000), 0}});
     std::atomic_int32_t syncVar = 0, rTotal = 0;
     int var = 0;
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::high_resolution_clock::duration::max(), [&]() {
 #ifndef JAMSCRIPT_ENABLE_VALGRIND
+    ribScheduler.CreateBatchTask({false, 1024 * 256, true}, std::chrono::high_resolution_clock::duration::max(), [&]() {
         ReadWriteLock rw;
         std::vector<JAMScript::TaskHandle> rpool, wpool;
         for (int i = 0; i < 500; i++)
@@ -152,8 +152,7 @@ int main()
                     {
                         rw.ReadLock();
                         std::cout << "Read" << std::endl;
-                        // JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
-                        std::cout << rTotal++ << std::endl;
+                        JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
                         std::cout << var << std::endl;
                         rw.ReadUnlock();
                     }
@@ -162,25 +161,25 @@ int main()
         }
         for (int i = 0; i < 10; i++)
         {
-            wpool.push_back(ribScheduler.CreateInteractiveTask(
-                {true, 0, true}, std::chrono::high_resolution_clock::duration::max(), std::chrono::high_resolution_clock::duration::min(), []() {}, [&](int ntry) {
+            wpool.push_back(ribScheduler.CreateBatchTask(
+                {true, 0, true}, std::chrono::high_resolution_clock::duration::min(), [&](int ntry) {
                     for (int i = 0; i < ntry; i++)
                     {
                         rw.WriteLock();
                         syncVar++;
                         assert(syncVar <= 1);
                         std::cout << "Write" << std::endl;
-                        //JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
+                        JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
                         var += 10;
                         syncVar--;
                         rw.WriteUnlock();
                     } },
                 30));
         }
-        for (auto &x : rpool)
-            x.Join();
-        for (auto &x : wpool)
-            x.Join();
+        for (auto &x : rpool) x.Join();
+        for (auto &x : wpool) x.Join();
+#else
+    ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::high_resolution_clock::duration::max(), [&]() {
 #endif
         // supposed we received this Cbor
         nlohmann::json jx = {

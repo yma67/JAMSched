@@ -24,14 +24,13 @@ int RealTimeTaskFunction(JAMScript::RIBScheduler &jSched, std::vector<uint64_t> 
             std::function<int(JAMScript::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
             std::ref(jSched), std::ref(tasks), i)
         .Detach();
-    std::this_thread::sleep_for(std::chrono::nanoseconds(tasks[i] * 1000 - 500 * 1000));
-    /*while (std::chrono::duration_cast<std::chrono::nanoseconds>(
+    while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                std::chrono::high_resolution_clock::now() - tStart)
                    .count() +
                500000 <=
            tasks[i] * 1000) {
         std::this_thread::sleep_for(std::chrono::nanoseconds(50));
-    }*/
+    }
     return 8;
 }
 
@@ -102,7 +101,7 @@ int main(int argc, char *argv[])
                                    std::chrono::high_resolution_clock::duration(std::chrono::microseconds(burst))});
         }
         JAMScript::RIBScheduler jRIBScheduler(1024 * 256);
-        jRIBScheduler.CreateBatchTask({true, 0}, std::chrono::milliseconds(996), [&]() {
+        jRIBScheduler.CreateBatchTask({true, 0, true}, std::chrono::milliseconds(996), [&]() {
             while (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() -
                                                                          jRIBScheduler.GetSchedulerStartTime())
                        .count() <
@@ -118,8 +117,8 @@ int main(int argc, char *argv[])
                     {
                         jRIBScheduler
                             .CreateInteractiveTask(
-                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0})
-                                                   : (JAMScript::StackTraits{false, 1024 * 128})),
+                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0, false})
+                                                   : (JAMScript::StackTraits{false, 1024 * 128, false})),
                                 deadline, burst, []() {},
                                 [&jRIBScheduler, cBurst]() {
                                     std::cout << "Interac Exec" << std::endl;
@@ -158,8 +157,8 @@ int main(int argc, char *argv[])
                     {
                         jRIBScheduler
                             .CreateBatchTask(
-                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0})
-                                                   : (JAMScript::StackTraits{false, 1024 * 128})),
+                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0, false})
+                                                   : (JAMScript::StackTraits{false, 1024 * 128, false})),
                                 std::chrono::duration_cast<std::chrono::microseconds>(cBurst),
                                 [&jRIBScheduler, cBurst]() {
                                     auto tStart = std::chrono::high_resolution_clock::now();

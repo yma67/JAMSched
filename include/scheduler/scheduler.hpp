@@ -41,6 +41,7 @@ namespace JAMScript
     {
     public:
 
+        friend class ConditionVariableAny;
         friend class StealScheduler;
         friend class Decider;
         friend class Remote;
@@ -75,9 +76,11 @@ namespace JAMScript
                 auto fu = std::make_shared<Promise<nlohmann::json>>();
                 CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr{ std::move(rpcAttr) }]() 
                 {
-                    fu->SetValue(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
+                    auto jxe = localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]);
+                    fu->SetValue(std::move(jxe));
                 });
-                return std::move(fu->GetFuture().Get());
+                auto v = fu->GetFuture().Get();
+                return std::move(v);
             }
             return {};
         }
@@ -101,7 +104,7 @@ namespace JAMScript
                             }
                         }
                     }
-                });
+                }).Detach();
             }
         }
 
@@ -177,7 +180,7 @@ namespace JAMScript
         {
             auto pf = std::make_shared<Promise<T>>();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            auto tf = CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
+            CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
             {
                 pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
             }
@@ -193,7 +196,7 @@ namespace JAMScript
                     pf->SetException(std::make_exception_ptr(e));
                     delete tAttr;
                 }
-            });
+            }).Detach();
             return pf->GetFuture();
         }
 
@@ -250,11 +253,11 @@ namespace JAMScript
         JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
         JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
         JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
-        JAMStorageTypes::WaitSetType waitSet;
 
     private:
 
         uint32_t GetThiefSizes();
+        StealScheduler* GetMinThief();
         
     };
 

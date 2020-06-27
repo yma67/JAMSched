@@ -26,19 +26,18 @@ namespace JAMScript
         void ShutDown() override;
         void RunSchedulerMainLoop();
 
-        StealScheduler(SchedulerBase *victim, uint32_t ssz);
+        StealScheduler(RIBScheduler *victim, uint32_t ssz);
         ~StealScheduler();
 
     protected:
 
-        SpinMutex m;
-        unsigned int rCount = 0;
+        mutable SpinMutex m;
+        std::atomic<unsigned int> rCount = 0;
         bool isRunning;
         std::condition_variable_any cv;
         std::vector<std::thread> tx;
         std::thread t;
-        SchedulerBase *victim;
-        JAMStorageTypes::ThiefSetType isWait;
+        RIBScheduler *victim;
         JAMStorageTypes::ThiefQueueType isReady;
 
     };
