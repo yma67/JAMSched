@@ -275,6 +275,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             auto *pItEdf = &(*itEdf);
                             iCancelStack.pop_back();
                             pItEdf->onCancel();
+                            pItEdf->notifier->Notify();
                             delete pItEdf;
                         }
                         if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
