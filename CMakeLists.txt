@@ -5,6 +5,10 @@ project(JAMScript DESCRIPTION "JAMScript Scheduler & Runtime" LANGUAGES C CXX AS
 set(CMAKE_BUILD_TYPE Debug)
 # add_compile_definitions(JAMSCRIPT_ENABLE_VALGRIND)
 # add_compile_definitions(JAMSCRIPT_SCHED_AI_EXP)
+if (NOT DEFINED JAMSCRIPT_ON_TRAVIS)
+    SET(JAMSCRIPT_ON_TRAVIS 0)
+endif()
+add_definitions(-DJAMSCRIPT_ON_TRAVIS=${JAMSCRIPT_ON_TRAVIS})
 
 add_subdirectory(src)
 add_subdirectory(app)

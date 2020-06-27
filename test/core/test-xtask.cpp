@@ -78,8 +78,7 @@ public:
     JAMScript::TaskInterface *onlyTask = nullptr;
 };
 
-#if defined(__linux__) && !defined(JAMSCRIPT_ENABLE_VALGRIND) && !defined(JAMSCRIPT_ON_TRAVIS)
-
+#if defined(__linux__) && !defined(JAMSCRIPT_ENABLE_VALGRIND) && JAMSCRIPT_ON_TRAVIS == 0
 TEST_CASE("Performance XTask", "[xtask]")
 {
     struct rlimit hlmt;
@@ -129,15 +128,6 @@ TEST_CASE("Performance XTask", "[xtask]")
     if (setrlimit(RLIMIT_AS, &prev))
     {
         REQUIRE(false);
-    }
-}
-#else
-TEST_CASE("Performance XTask", "[xtask]")
-{
-    {
-        BenchSchedXS bSched2(1024 * 128);
-        bSched2.RunSchedulerMainLoop();
-        REQUIRE(coro_count > 30);
     }
 }
 #endif
