@@ -237,6 +237,8 @@ namespace JAMScript
         void Enable() { scheduler->Enable(this); }
 
         const TaskType GetTaskType() const { return taskType; }
+        const SchedulerBase* GetScheduler() const { return scheduler; }
+        const SchedulerBase* GetBaseScheduler() const { return baseScheduler; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
 
         std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
