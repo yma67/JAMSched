@@ -32,8 +32,8 @@ before_install:
 before_script:
   - mkdir build
   - cd build
-  - cmake ..
+  - cmake .. -DJAMSCRIPT_ON_TRAVIS=1
 
 script:
   - make
-  - make test
+  - ctest
