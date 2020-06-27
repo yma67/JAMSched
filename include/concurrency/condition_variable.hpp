@@ -25,19 +25,21 @@ namespace JAMScript
     {
     public:
 
-        void notify_one() noexcept;
-        void notify_all() noexcept;
+        void notify_one();
+        void notify_all();
 
         template <typename Tl>
         void wait(Tl &li)
         {
             std::unique_lock<SpinMutex> lkList(wListLock);
-            waitList.push_back(ThisTask::Active());
+            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting before?\n");
+            waitList.push_back(*ThisTask::Active());
             ThisTask::Active()->Disable();
             li.unlock();
             lkList.unlock();
             ThisTask::Active()->SwapOut();
             li.lock();
+            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting after?\n");
         }
 
         template <typename Tl, typename Tp>
@@ -55,12 +57,13 @@ namespace JAMScript
             std::cv_status isTimeout = std::cv_status::no_timeout;
             TimePoint timeoutTime = convert(timeoutTime_);
             std::unique_lock<SpinMutex> lk(wListLock);
-            waitList.push_back(ThisTask::Active());
+            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting before?\n");
+            waitList.push_back(*ThisTask::Active());
             ThisTask::Active()->Disable();
             lt.unlock();
             ThisTask::SleepUntil(timeoutTime, lk, ThisTask::Active());
-            if (Clock::now() >= timeoutTime)
-                isTimeout = std::cv_status::timeout;
+            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting after?\n");
+            if (Clock::now() >= timeoutTime) isTimeout = std::cv_status::timeout;
             return isTimeout;
         }
 
@@ -90,6 +93,7 @@ namespace JAMScript
         }
 
         ConditionVariableAny() = default;
+        ~ConditionVariableAny() { BOOST_ASSERT(waitList.empty()); }
 
     private:
 
@@ -98,7 +102,7 @@ namespace JAMScript
         ConditionVariableAny &operator=(ConditionVariableAny &&) = delete;
         ConditionVariableAny(ConditionVariableAny &&) = delete;
 
-        std::deque<TaskInterface *> waitList;
+        JAMStorageTypes::WaitListType waitList;
         SpinMutex wListLock;
 
     };
@@ -106,15 +110,9 @@ namespace JAMScript
     class ConditionVariable
     {
     public:
-        void notify_one() noexcept
-        {
-            cv.notify_one();
-        }
 
-        void notify_all() noexcept
-        {
-            cv.notify_all();
-        }
+        void notify_one() { cv.notify_one(); }
+        void notify_all() { cv.notify_all(); }
 
         template <typename Tl>
         void wait(Tl &li)

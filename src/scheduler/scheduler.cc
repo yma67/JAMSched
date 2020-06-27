@@ -29,7 +29,6 @@ JAMScript::RIBScheduler::~RIBScheduler()
     iEDFPriorityQueue.clear_and_dispose(dTaskInf);
     iCancelStack.clear_and_dispose(dTaskInf);
     bQueue.clear_and_dispose(dTaskInf);
-    waitSet.clear_and_dispose(dTaskInf);
     std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { delete ss; });
 }
 
@@ -59,11 +58,6 @@ void JAMScript::RIBScheduler::ShutDown()
 
 void JAMScript::RIBScheduler::Disable(TaskInterface *toEnable)
 {
-    std::lock_guard<SpinMutex> lock(qMutexWithType[toEnable->taskType]);
-    if (waitSet.find(reinterpret_cast<uintptr_t>(toEnable)) == waitSet.end())
-    {
-        waitSet.insert(*toEnable);
-    }
 }
 
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
@@ -71,9 +65,9 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
         std::lock_guard<SpinMutex> lock(qMutexWithType[INTERACTIVE_TASK_T]);
-        if (waitSet.find(reinterpret_cast<uintptr_t>(toEnable)) != waitSet.end())
+        if (toEnable->wsHook.is_linked())
         {
-            waitSet.erase(reinterpret_cast<uintptr_t>(toEnable));
+            toEnable->wsHook.unlink();
         }
         if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
         {
@@ -93,9 +87,9 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
     if (toEnable->taskType == BATCH_TASK_T)
     {
         std::lock_guard<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
-        if (waitSet.find(reinterpret_cast<uintptr_t>(toEnable)) != waitSet.end())
+        if (toEnable->wsHook.is_linked())
         {
-            waitSet.erase(reinterpret_cast<uintptr_t>(toEnable));
+            toEnable->wsHook.unlink();
         }
         if (!toEnable->rbQueueHook.is_linked())
         {
@@ -110,6 +104,21 @@ uint32_t JAMScript::RIBScheduler::GetThiefSizes()
     for (StealScheduler *ss : thiefs)
         sz += ss->Size();
     return sz;
+}
+
+JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
+{
+    StealScheduler *minThief = nullptr;
+    unsigned int minSize = std::numeric_limits<unsigned int>::max();
+    for (auto thief : thiefs)
+    {
+        if (minSize > thief->Size())
+        {
+            minThief = thief;
+            minSize = thief->Size();
+        }
+    }
+    return minThief;
 }
 
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
@@ -198,13 +207,26 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     DECISION_BATCH:
                     {
                         std::unique_lock<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
-                        while (GetThiefSizes() <= (bQueue.size() + iEDFPriorityQueue.size() + iCancelStack.size()) / thiefs.size() &&
-                               bQueue.size() >= 1 && bQueue.begin()->CanSteal())
+                        if (!thiefs.empty())
                         {
-                            auto *nSteal = &(*bQueue.begin());
-                            bQueue.pop_front();
-                            thiefs[cThief]->Steal(nSteal);
-                            cThief = (cThief + 1) % thiefs.size();
+                            auto itBatch = bQueue.begin();
+                            while (itBatch != bQueue.end())
+                            {
+                                if (itBatch->CanSteal())
+                                {
+                                    auto *pNextSteal = &(*itBatch);
+                                    auto *pNextThief = GetMinThief();
+                                    if (pNextThief != nullptr)
+                                    {
+                                        pNextThief->Steal(pNextSteal);
+                                    }
+                                    itBatch = bQueue.erase(itBatch);
+                                }
+                                else
+                                {
+                                    itBatch++;
+                                }
+                            }
                         }
                         if (bQueue.empty())
                         {
@@ -216,6 +238,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         lock.unlock();
                         auto tStart = Clock::now();
                         cBatchPtr->SwapIn();
+                        lock.lock();
                         vClockB += Clock::now() - tStart;
                         if (cBatchPtr->status == TASK_FINISHED)
                         {
@@ -233,24 +256,26 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         {
                             auto *pTop = &(*iEDFPriorityQueue.top());
                             iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
-                            if (pTop->CanSteal())
+                            if (!thiefs.empty() && pTop->CanSteal())
                             {
-                                thiefs[cThief]->Steal(pTop);
-                                cThief = (cThief + 1) % thiefs.size();
+                                auto *pNextThief = GetMinThief();
+                                if (pNextThief != nullptr)
+                                {
+                                    pNextThief->Steal(pTop);
+                                }
                             }
                             else
                             {
                                 iCancelStack.push_front(*pTop);
                             }
                         }
-                        auto itEdf = iCancelStack.cbegin();
-                        while (iCancelStack.size() > 3 && itEdf != iCancelStack.cend()) {
-                            itEdf = iCancelStack.erase_and_dispose(itEdf, 
-                                [](TaskInterface* x) { 
-                                    x->onCancel();
-                                    x->status = TASK_FINISHED;
-                                    delete x; 
-                            });
+                        auto itEdf = iCancelStack.rbegin();
+                        while (iCancelStack.size() > 3 && itEdf != iCancelStack.rend())
+                        {
+                            auto *pItEdf = &(*itEdf);
+                            iCancelStack.pop_back();
+                            pItEdf->onCancel();
+                            delete pItEdf;
                         }
                         if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
                         {
@@ -260,6 +285,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             lock.unlock();
                             auto tStart = Clock::now();
                             cIPtr->SwapIn();
+                            lock.lock();
                             auto tDelta = Clock::now() - tStart;
                             vClockI += tDelta;
                             cIPtr->burst -= tDelta;
@@ -274,6 +300,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             lock.unlock();
                             auto tStart = Clock::now();
                             cInteracPtr->SwapIn();
+                            lock.lock();
                             auto tDelta = Clock::now() - tStart;
                             vClockI += tDelta;
                             cInteracPtr->burst -= tDelta;
@@ -293,16 +320,20 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         }
         numberOfPeriods++;
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-        std::cout << "Jitters: ";
-        long tj = 0, nj = 0;
-        for (auto &j : eStats.jitters)
+
+        if (!eStats.jitters.empty())
         {
-            std::cout << std::chrono::duration_cast<std::chrono::microseconds>(j).count() << " ";
-            tj += std::chrono::duration_cast<std::chrono::microseconds>(j).count();
-            nj++;
+            std::cout << "Jitters: ";
+            long tj = 0, nj = 0;
+            for (auto &j : eStats.jitters)
+            {
+                std::cout << std::chrono::duration_cast<std::chrono::microseconds>(j).count() << " ";
+                tj += std::chrono::duration_cast<std::chrono::microseconds>(j).count();
+                nj++;
+            }
+            std::cout << "AVG: " << tj / nj << std::endl;
+            eStats.jitters.clear();
         }
-        std::cout << "AVG: " << tj / nj << std::endl;
-        eStats.jitters.clear();
 #endif
     }
 }

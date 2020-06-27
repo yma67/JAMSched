@@ -1,21 +1,24 @@
 #include "concurrency/condition_variable.hpp"
 
-void JAMScript::ConditionVariableAny::notify_one() noexcept
+void JAMScript::ConditionVariableAny::notify_one()
 {
     std::unique_lock<SpinMutex> lk(wListLock);
     if (!waitList.empty())
     {
-        waitList.front()->Enable();
+        auto* pFr = &(*waitList.begin());
         waitList.pop_front();
+        BOOST_ASSERT(!pFr->wsHook.is_linked());
+        pFr->Enable();
     }
 }
 
-void JAMScript::ConditionVariableAny::notify_all() noexcept
+void JAMScript::ConditionVariableAny::notify_all()
 {
     std::unique_lock<SpinMutex> lk(wListLock);
     while (!waitList.empty())
     {
-        waitList.front()->Enable();
+        auto* pFr = &(*waitList.begin());
         waitList.pop_front();
+        pFr->Enable();
     }
 }

@@ -44,42 +44,42 @@ namespace JAMScript
 
         struct ReadyBatchQueueTag;
         typedef boost::intrusive::list_member_hook<
-            boost::intrusive::tag<ReadyBatchQueueTag>>
+            boost::intrusive::tag<ReadyBatchQueueTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>>
             ReadyBatchQueueHook;
 
         struct ReadyInteractiveStackTag;
         typedef boost::intrusive::list_member_hook<
-            boost::intrusive::tag<ReadyInteractiveStackTag>>
+            boost::intrusive::tag<ReadyInteractiveStackTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>>
             ReadyInteractiveStackHook;
 
         struct ReadyInteractiveEdfTag;
         typedef boost::intrusive::bs_set_member_hook<
-            boost::intrusive::tag<ReadyInteractiveEdfTag>>
+            boost::intrusive::tag<ReadyInteractiveEdfTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>>
             ReadyInteractiveEdfHook;
 
         struct RealTimeTag;
         typedef boost::intrusive::unordered_set_member_hook<
-            boost::intrusive::tag<RealTimeTag>>
+            boost::intrusive::tag<RealTimeTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>>
             RealTimeHook;
 
         struct WaitQueueTag;
         typedef boost::intrusive::list_member_hook<
-            boost::intrusive::tag<WaitQueueTag>>
+            boost::intrusive::tag<WaitQueueTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>>
             WaitQueueHook;
 
         struct WaitSetTag;
-        typedef boost::intrusive::set_member_hook<
-            boost::intrusive::tag<WaitSetTag>
+        typedef boost::intrusive::list_member_hook<
+            boost::intrusive::tag<WaitSetTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>
         >   WaitSetHook;
 
         struct ThiefQueueTag;
         typedef boost::intrusive::list_member_hook<
-            boost::intrusive::tag<ThiefQueueTag>>
+            boost::intrusive::tag<ThiefQueueTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>>
             ThiefQueueHook;
 
         struct ThiefSetTag;
         typedef boost::intrusive::set_member_hook<
-            boost::intrusive::tag<ThiefSetTag>
+            boost::intrusive::tag<ThiefSetTag>, boost::intrusive::link_mode<boost::intrusive::auto_unlink>
         >   ThiefSetHook;
 
     } // namespace JAMHookTypes
@@ -156,6 +156,25 @@ namespace JAMScript
         REAL_TIME_TASK_T = 2
     };
 
+    enum TaskStatus
+    {
+        TASK_READY = 0,
+        TASK_PENDING = 1,
+        TASK_FINISHED = 2,
+        TASK_RUNNING
+    };
+
+    enum TaskReturn
+    {
+        SUCCESS_TASK,
+        ERROR_TASK_CONTEXT_INIT,
+        ERROR_TASK_INVALID_ARGUMENT,
+        ERROR_TASK_STACK_OVERFLOW,
+        ERROR_TASK_CONTEXT_SWITCH,
+        ERROR_TASK_WRONG_TYPE,
+        ERROR_TASK_CANCELLED
+    };
+
     class TaskInterface;
 
     class TaskHandle
@@ -207,6 +226,7 @@ namespace JAMScript
         JAMScript::JAMHookTypes::WaitSetHook wsHook;
         JAMScript::JAMHookTypes::ThiefQueueHook trHook;
         JAMScript::JAMHookTypes::ThiefSetHook twHook;
+        TaskStatus status;
 
         virtual void SwapOut() = 0;
         virtual void SwapIn() = 0;
@@ -234,7 +254,7 @@ namespace JAMScript
         TaskInterface &operator=(TaskInterface const &) = delete;
         TaskInterface &operator=(TaskInterface &&) = delete;
 
-        std::atomic<unsigned int> status;
+        
         std::atomic<TaskType> taskType;
         std::atomic_bool isStealable;
         SchedulerBase *scheduler, *baseScheduler;
@@ -271,25 +291,6 @@ namespace JAMScript
         {
             return reinterpret_cast<uintptr_t>(&v);
         }
-    };
-
-    enum TaskStatus
-    {
-        TASK_READY = 0,
-        TASK_PENDING = 1,
-        TASK_FINISHED = 2,
-        TASK_RUNNING
-    };
-
-    enum TaskReturn
-    {
-        SUCCESS_TASK,
-        ERROR_TASK_CONTEXT_INIT,
-        ERROR_TASK_INVALID_ARGUMENT,
-        ERROR_TASK_STACK_OVERFLOW,
-        ERROR_TASK_CONTEXT_SWITCH,
-        ERROR_TASK_WRONG_TYPE,
-        ERROR_TASK_CANCELLED
     };
 
     template <typename Fn, typename... Args>
@@ -503,6 +504,7 @@ namespace JAMScript
                 TaskInterface,
                 JAMHookTypes::ReadyInteractiveEdfHook,
                 &TaskInterface::riEdfHook>,
+            boost::intrusive::constant_time_size< false >, 
             boost::intrusive::priority<EdfPriority>>
             InteractiveEdfPriorityQueueType;
 
@@ -513,6 +515,7 @@ namespace JAMScript
                 TaskInterface,
                 boost::intrusive::unordered_set_member_hook<>,
                 &TaskInterface::rtHook>,
+            boost::intrusive::constant_time_size< false >, 
             boost::intrusive::key_of_value<RealTimeIdKeyType>>
             RealTimeIdMultiMapType;
 
@@ -522,34 +525,34 @@ namespace JAMScript
             boost::intrusive::member_hook<
                 TaskInterface,
                 JAMHookTypes::ReadyBatchQueueHook,
-                &TaskInterface::rbQueueHook>>
+                &TaskInterface::rbQueueHook>, boost::intrusive::constant_time_size< false >>
             BatchQueueType;
         
-        typedef boost::intrusive::slist<
+        typedef boost::intrusive::list<
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface,
                 JAMHookTypes::ReadyInteractiveStackHook,
-                &TaskInterface::riStackHook>>
+                &TaskInterface::riStackHook>, boost::intrusive::constant_time_size< false >>
             InteractiveReadyStackType;
 
         // Wait Queue
-        typedef boost::intrusive::set<
+        typedef boost::intrusive::list<
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface, 
                 JAMHookTypes::WaitSetHook, 
                 &TaskInterface::wsHook
             >,
-            boost::intrusive::key_of_value<BIIdKeyType>>
-            WaitSetType;
+            boost::intrusive::constant_time_size< false >>
+            WaitListType;
         
         typedef boost::intrusive::list<
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface,
                 JAMScript::JAMHookTypes::ThiefQueueHook,
-                &TaskInterface::trHook>>
+                &TaskInterface::trHook>, boost::intrusive::constant_time_size< false >>
             ThiefQueueType;
         
         typedef boost::intrusive::set<
@@ -559,8 +562,10 @@ namespace JAMScript
                 JAMHookTypes::ThiefSetHook, 
                 &TaskInterface::twHook
             >,
+            boost::intrusive::constant_time_size< false >,
             boost::intrusive::key_of_value<BIIdKeyType>>
             ThiefSetType;
+        
 
     } // namespace JAMStorageTypes
 
