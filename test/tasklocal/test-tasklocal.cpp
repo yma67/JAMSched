@@ -87,11 +87,11 @@ TEST_CASE("Task Local", "[tasklocal]")
             .CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), CiteLabAdditionFunctionInteractive, 1,
                              2, float(0.5), 3, double(1.25), 4, std::string("citelab loves java interactive"))
             .Join();
-        ribScheduler
+        /*ribScheduler
             .CreateBatchTask({true, 0}, std::chrono::milliseconds(90), CiteLabAdditionFunctionRealTime, 1, 2,
                              float(0.5), 3, double(1.25), 4, std::string("citelab loves java real time"))
             .Join();
-        /*ribScheduler
+        ribScheduler
             .CreateInteractiveTask(
                 {true, 0}, std::chrono::milliseconds(9000), std::chrono::milliseconds(90), []() {},
                 CiteLabAdditionFunctionBatch, 1, 2, float(0.5), 3, double(1.25), 4,
