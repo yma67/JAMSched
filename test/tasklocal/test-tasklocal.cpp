@@ -76,7 +76,7 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
     REQUIRE(validator == "citelab loves java batch");
     return a + b + d + f;
 }
-#ifndef JAMSCRIPT_ON_TRAVIS
+//#ifndef JAMSCRIPT_ON_TRAVIS
 TEST_CASE("Task Local", "[tasklocal]")
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
@@ -101,4 +101,4 @@ TEST_CASE("Task Local", "[tasklocal]")
     });
     ribScheduler.RunSchedulerMainLoop();
 }
-#endif
+//#endif
