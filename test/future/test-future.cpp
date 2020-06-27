@@ -13,7 +13,7 @@ TEST_CASE("Performance Future", "[future]")
 #if defined(JAMSCRIPT_ENABLE_VALGRIND)
     const int nIter = 1;
 #elif JAMSCRIPT_ON_TRAVIS == 1
-    const int nIter = 30;
+    const int nIter = 0;
     WARN(nIter);
 #else
     const int nIter = 3000;
