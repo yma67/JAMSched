@@ -13,7 +13,7 @@ TEST_CASE("Performance Future", "[future]")
 #if defined(JAMSCRIPT_ENABLE_VALGRIND)
     const int nIter = 1;
 #elif JAMSCRIPT_ON_TRAVIS == 1
-    const int nIter = 0;
+    const int nIter = 30;
     WARN(nIter);
 #else
     const int nIter = 3000;
@@ -84,6 +84,7 @@ TEST_CASE("InterLock", "[future]")
     ribScheduler.RunSchedulerMainLoop();
 }
 
+#if JAMSCRIPT_ON_TRAVIS == 0
 TEST_CASE("LExec", "[future]")
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
@@ -97,6 +98,7 @@ TEST_CASE("LExec", "[future]")
         JAMScript::ThisTask::SleepFor(std::chrono::microseconds(100));
         REQUIRE(fu.Get() == 7);
         ribScheduler.ShutDown();
-    });
+    }).Detach();
     ribScheduler.RunSchedulerMainLoop();
 }
+#endif

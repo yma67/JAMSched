@@ -104,7 +104,7 @@ namespace JAMScript
                             }
                         }
                     }
-                });
+                }).Detach();
             }
         }
 
@@ -180,7 +180,7 @@ namespace JAMScript
         {
             auto pf = std::make_shared<Promise<T>>();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            auto tf = CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
+            CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
             {
                 pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
             }
@@ -196,7 +196,7 @@ namespace JAMScript
                     pf->SetException(std::make_exception_ptr(e));
                     delete tAttr;
                 }
-            });
+            }).Detach();
             return pf->GetFuture();
         }
 
