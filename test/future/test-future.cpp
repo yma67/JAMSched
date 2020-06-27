@@ -12,9 +12,6 @@ TEST_CASE("Performance Future", "[future]")
     std::chrono::duration dt = std::chrono::nanoseconds(0);
 #if defined(JAMSCRIPT_ENABLE_VALGRIND)
     const int nIter = 1;
-#elif JAMSCRIPT_ON_TRAVIS == 1
-    const int nIter = 30;
-    WARN(nIter);
 #else
     const int nIter = 3000;
 #endif

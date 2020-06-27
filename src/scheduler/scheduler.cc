@@ -269,10 +269,9 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                                 iCancelStack.push_front(*pTop);
                             }
                         }
-                        auto itEdf = iCancelStack.rbegin();
-                        while (iCancelStack.size() > 3 && itEdf != iCancelStack.rend())
+                        while (iCancelStack.size() > 3)
                         {
-                            auto *pItEdf = &(*itEdf);
+                            auto *pItEdf = &(iCancelStack.back());
                             iCancelStack.pop_back();
                             pItEdf->onCancel();
                             pItEdf->notifier->Notify();

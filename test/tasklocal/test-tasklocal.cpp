@@ -79,6 +79,7 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
 
 TEST_CASE("Task Local", "[tasklocal]")
 {
+    WARN("Done");
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
