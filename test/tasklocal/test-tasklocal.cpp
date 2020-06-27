@@ -77,6 +77,7 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
     return a + b + d + f;
 }
 
+#if JAMSCRIPT_ON_TRAVIS == 0
 TEST_CASE("Task Local", "[tasklocal]")
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
@@ -101,3 +102,4 @@ TEST_CASE("Task Local", "[tasklocal]")
     });
     ribScheduler.RunSchedulerMainLoop();
 }
+#endif

@@ -78,7 +78,7 @@ public:
     JAMScript::TaskInterface *onlyTask = nullptr;
 };
 
-#if defined(__linux__) && !defined(JAMSCRIPT_ENABLE_VALGRIND) && JAMSCRIPT_ON_TRAVIS == 0
+#if defined(__linux__) && !defined(JAMSCRIPT_ENABLE_VALGRIND)
 TEST_CASE("Performance XTask", "[xtask]")
 {
     struct rlimit hlmt;
