@@ -29,7 +29,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     auto *scheduler = static_cast<RIBScheduler *>(ctx);
     std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
     nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
-    if (!strcmp(topicname, "/app-1/mach/func/request") && rMsg.contains("cmd") && rMsg["cmd"].is_string())
+    if (std::string(topicname) == std::string("app-1") + "mach/func/request" && rMsg.contains("cmd") && rMsg["cmd"].is_string())
     {
         std::string cmd = rMsg["cmd"].get<std::string>();
         if (cmd == "REXEC-SYN" || cmd == "REXEC-ASY")

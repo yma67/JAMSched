@@ -1,4 +1,5 @@
 #include "scheduler/scheduler.hpp"
+#include "core/task/task.hpp"
 #include <algorithm>
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs)
@@ -56,8 +57,9 @@ void JAMScript::RIBScheduler::ShutDown()
     }
 }
 
-void JAMScript::RIBScheduler::Disable(TaskInterface *toEnable)
+void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
 {
+    toDisable->status = TASK_PENDING;
 }
 
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
@@ -96,6 +98,7 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
             bQueue.push_back(*toEnable);
         }
     }
+    toEnable->status = TASK_READY;
 }
 
 uint32_t JAMScript::RIBScheduler::GetThiefSizes()
