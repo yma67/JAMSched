@@ -42,12 +42,14 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
         isReady.push_back(*toEnable);
     }
     rCount++;
+    toEnable->status = TASK_READY;
     cv.notify_all();
 }
 
 void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)
 {
     rCount--;
+    toDisable->status = TASK_PENDING;
 }
 
 const uint32_t JAMScript::StealScheduler::Size() const

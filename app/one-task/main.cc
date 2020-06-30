@@ -12,6 +12,12 @@ int JCalc(std::string a, std::string b) {
     return std::stoi(a) + std::stoi(b);
 }
 
+bool is_number(const std::string& s)
+{
+    return !s.empty() && std::find_if(s.begin(), 
+        s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
+}
+
 struct timespec time1, time2;
 
 struct timespec diff(struct timespec start, struct timespec end)
@@ -33,29 +39,70 @@ struct timespec diff(struct timespec start, struct timespec end)
 class BenchSched : public JAMScript::SchedulerBase
 {
 public:
-    JAMScript::TaskInterface *NextTask() override { return onlyTask; }
+    JAMScript::TaskInterface *NextTask() override { return nullptr; }
     void Enable() {}
     void RunSchedulerMainLoop()
     {
-        this->onlyTask->SwapIn();
-        this->onlyTask->SwapIn();
+        for (auto task: tasks) {
+            task->SwapIn();
+            clock_gettime(CLOCK_MONOTONIC, &time1);
+            task->SwapIn();
+        }
     }
     BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
-    ~BenchSched() { delete onlyTask; }
-    JAMScript::TaskInterface *onlyTask = nullptr;
+    ~BenchSched() { 
+        std::for_each(tasks.begin(), tasks.end(), [] (JAMScript::TaskInterface *t) { delete t; });
+    }
+    std::vector<JAMScript::TaskInterface *> tasks;
 };
 
-int main()
+uint64_t glbCount = 0;
+
+BenchSched bSched(256 * 1024), bMSched(1024 * 256);
+
+int main(int argc, char *argv[])
 {
-    BenchSched bSched(256 * 1024);
-    bSched.onlyTask = new JAMScript::StandAloneStackTask(&bSched, 1024 * 256, []() {
-        clock_gettime(CLOCK_MONOTONIC, &time1);
+    if (argc != 2 || !is_number(std::string(argv[1]))) {
+        return EXIT_FAILURE;
+    }
+
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(0, &cpuset);
+    int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
+    sched_param sch;
+    int policy; 
+    pthread_getschedparam(pthread_self(), &policy, &sch);
+    sch.sched_priority = 50;
+    pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch);
+
+    bSched.tasks.push_back(new JAMScript::StandAloneStackTask(&bSched, 1024 * 256, []() {
         JAMScript::ThisTask::Yield();
         clock_gettime(CLOCK_MONOTONIC, &time2);
-        std::cout << "2xCtx switch time: " << diff(time1, time2).tv_nsec << " ns" << std::endl;
-    });
+        // std::cout << "1 task ctx switch time: " << diff(time1, time2).tv_nsec << " ns" << std::endl;
+    }));
+
     bSched.RunSchedulerMainLoop();
-    std::cout << typeid(JCalc).name() << std::endl;
+
+    // allocate 1M coroutines, and swap in/out FIFO order
+    for (int i = 0; i < 1000000; i++) {
+        bMSched.tasks.push_back(new JAMScript::SharedCopyStackTask(&bSched, [argv]() {
+            unsigned int stackSize = atoi(argv[1]);
+            char arr[stackSize];
+            int idx = rand() % stackSize;
+            arr[idx] = rand() % 256;
+            srand(arr[idx]);
+            for (int i = 0; i < rand() % stackSize; i++) {
+                arr[i] = arr[rand() % stackSize] + rand() % 256;
+            }
+            JAMScript::ThisTask::Yield();
+            clock_gettime(CLOCK_MONOTONIC, &time2);
+            glbCount += diff(time1, time2).tv_nsec;
+        }));
+    }
+    bMSched.RunSchedulerMainLoop();
+    std::cout << "Avg (1M): " << glbCount / 1000000 << "ns" << std::endl;
     nlohmann::json jx;
     jx.push_back(1);
     jx.push_back(2);
@@ -63,9 +110,6 @@ int main()
     char charr[40];
     std::vector<char> chvec(charr, charr + 40);
     nlohmann::json jxe = { { "args", jx }, { "name", "jxe" }, { "bytes",  chvec } };
-    for (auto& rv: jxe["args"].get<std::vector<int>>()) {
-        std::cout << rv << std::endl;
-    }
     std::cout << jxe["bytes"].is_array() << std::endl;
     assert(jxe["bytes"].get<std::vector<char>>() == chvec);
     return 0;

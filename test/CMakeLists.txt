@@ -2,7 +2,10 @@ include(FetchContent)
 FetchContent_Declare(catch2 GIT_REPOSITORY https://github.com/catchorg/Catch2.git GIT_TAG v2.12.1)
 FetchContent_MakeAvailable(catch2)
 
-# add_compile_definitions(CATCH_CONFIG_ENABLE_BENCHMARKING)
+if (JAMSCRIPT_TEST_BENCHMARKING_OPT)
+    add_compile_definitions(CATCH_CONFIG_ENABLE_BENCHMARKING)
+endif(JAMSCRIPT_TEST_BENCHMARKING_OPT)
+
 file(GLOB_RECURSE JAMTEST_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 set(JAMTEST_SOURCES_LIST "")
 foreach(jamtest_source ${JAMTEST_SOURCES})
