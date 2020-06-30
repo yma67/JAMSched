@@ -17,20 +17,75 @@ var copts = {
 
 var mserv = mqtt.connect("tcp://localhost:" + cmdparser.port, copts);
 
+mserv.subscribe('/' + cmdparser.app + '/replies/up');
+mserv.subscribe('/' + cmdparser.app + '/requests/up');
+
+
+function runAsyncCallback(cmsg, callback) {
+    console.log("ASYNC Executing... ", cmsg.actname);
+    cmsg.cmd = "REXEC-ACK";
+    callback(cmsg);
+}
+
+function runSyncCallback(cmsg, callback) {
+    console.log("SYNC Executing... ", cmsg.actname);    
+    cmsg.cmd = "REXEC-ACK";
+    callback('first', cmsg);
+    setTimeout(callback, 2, 'second', cmsg);
+}
+
+mserv.on('message', function(topic, buf) {    
+    cbor.decodeFirst(buf, function(error, msg) {
+        var cmsg = JSON.parse(msg);
+        switch (topic) {
+            case '/' + cmdparser.app + '/replies/up':
+                if (cmsg.cmd == "REXEC-ACK") {
+                    console.log("ACK Received .. msg.actid = ", cmsg.actid);                    
+                } else if (cmsg.cmd == "REXEC-RES") {
+                    console.log("RES Received .. value =", cmsg.args);
+                }
+            break;
+            case '/' + cmdparser.app + '/requests/up':
+                if (cmsg.cmd == "REXEC-ASY") {
+                    runAsyncCallback(cmsg, function(smsg) {
+                        mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(smsg)));
+                    });
+                } else if (cmsg.cmd == "REXEC-SYN") {
+                    runSyncCallback(cmsg, function(step, smsg) {
+                        switch (step) {
+                            case 'first':
+                                mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(smsg)));
+                            break;
+                            case 'second':
+                                smsg.cmd = "REXEC-RES";
+                                smsg.args = [100];
+                                mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(smsg)));
+                            break;
+                        }
+                    });
+                }
+            break;
+        }
+    });
+});
+
+
 setInterval(function () {
     switch (cmdparser.command) {
         case 'sync':
             console.log("Sending sync command...");
             var req = JAMP.createRemoteSyncReq("RPCFunctionJSync", [1, 2], "", 0, "device", 1, 1);
-            mserv.publish(cmdparser.topic, cbor.encode('{"cmd": "REXEC-SYN", "actname": "RPCFunctionJSync", "args": [1, 2]}'));
+            mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(req)));
         break;
         case 'async':
             console.log("Sending async command...");
             var req = JAMP.createRemoteAsyncReq("RPCFunctionJAsync", [1, 2], "", 0, "device", 1, 1);
-            mserv.publish(cmdparser.topic, cbor.encode('{"cmd": "REXEC-ASY", "actname": "RPCFunctionJAsync", "args": [1, 2]}'));
-        break;
-        case 'strdup':
-            mserv.publish(cmdparser.topic, cbor.encode('{"cmd": "REXEC-ASY", "actname": "DuplicateCString", "args": ["command.c is causing memory leaks. "]}'));
+            mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(req)));
+	break;
+	case 'strdup':
+	    console.log("Sending strdup command...");
+            var req = JAMP.createRemoteAsyncReq("DuplicateCString", ["command.c, args_t, combo_ptr"], "", 0, "device", 1, 1);
+            mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(req)));
         break;
     }
 }, 300);
