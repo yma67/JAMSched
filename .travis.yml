@@ -32,7 +32,7 @@ before_install:
 before_script:
   - mkdir build
   - cd build
-  - cmake -DJAMSCRIPT_ON_TRAVIS=ON ..
+  - cmake -DJAMSCRIPT_ON_TRAVIS_OPT=ON ..
 
 script:
   - make
