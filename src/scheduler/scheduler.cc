@@ -35,8 +35,10 @@ JAMScript::RIBScheduler::~RIBScheduler()
 
 void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy)
 {
+    std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
     rtScheduleNormal = std::move(normal);
     rtScheduleGreedy = std::move(greedy);
+    cvReadyRTSchedule.notify_all();
 }
 
 const JAMScript::TimePoint &JAMScript::RIBScheduler::GetSchedulerStartTime() const
@@ -64,9 +66,9 @@ void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
 
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
 {
+    std::lock_guard lock(qMutex);
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
-        std::lock_guard<SpinMutex> lock(qMutexWithType[INTERACTIVE_TASK_T]);
         if (toEnable->wsHook.is_linked())
         {
             toEnable->wsHook.unlink();
@@ -88,7 +90,6 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
     }
     if (toEnable->taskType == BATCH_TASK_T)
     {
-        std::lock_guard<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
         if (toEnable->wsHook.is_linked())
         {
             toEnable->wsHook.unlink();
@@ -98,6 +99,7 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
             bQueue.push_back(*toEnable);
         }
     }
+    cvQMutex.notify_all();
     toEnable->status = TASK_READY;
 }
 
@@ -167,7 +169,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
             timer.NotifyAllTimeouts();
             if (rtItem.sTime <= cTime - cycleStartTime && cTime - cycleStartTime <= rtItem.eTime)
             {
-                std::unique_lock<SpinMutex> lockrt(qMutexWithType[REAL_TIME_TASK_T]);
+                std::unique_lock lockrt(qMutex);
                 if (rtItem.taskId != 0 && rtRegisterTable.count(rtItem.taskId) > 0)
                 {
                     auto currentRTIter = rtRegisterTable.find(rtItem.taskId);
@@ -175,8 +177,10 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     eStats.jitters.push_back((cTime - cycleStartTime) - rtItem.sTime);
                     currentRTIter->SwapIn();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
-                    while (Clock::now() - cycleStartTime < rtItem.eTime)
-                        ;
+#ifdef JAMSCRIPT_BLOCK_WAIT
+                    std::this_thread::sleep_until(GetCycleStartTime() + (rtItem.eTime - std::chrono::microseconds(200)));
+#endif
+                    while (Clock::now() - cycleStartTime < rtItem.eTime);
                 }
                 else
                 {
@@ -185,31 +189,33 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     {
                         timer.NotifyAllTimeouts();
                         cTime = Clock::now();
+                        std::unique_lock lock(qMutex);
+#ifdef JAMSCRIPT_BLOCK_WAIT
+                        cvQMutex.wait_until(lock, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
+                            return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty()); 
+                        });
+#endif
+                        if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
                         {
-                            std::scoped_lock<SpinMutex, SpinMutex> lock2(qMutexWithType[0], qMutexWithType[1]);
-                            if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
-                            {
-                                goto END_LOOP;
-                            }
-                            else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
-                            {
-                                goto DECISION_BATCH;
-                            }
-                            else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty()))
-                            {
+                            goto END_LOOP;
+                        }
+                        else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+                        {
+                            goto DECISION_BATCH;
+                        }
+                        else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty()))
+                        {
+                            goto DECISION_INTERACTIVE;
+                        }
+                        else
+                        {
+                            if (vClockB > vClockI)
                                 goto DECISION_INTERACTIVE;
-                            }
                             else
-                            {
-                                if (vClockB > vClockI)
-                                    goto DECISION_INTERACTIVE;
-                                else
-                                    goto DECISION_BATCH;
-                            }
+                                goto DECISION_BATCH;
                         }
                     DECISION_BATCH:
                     {
-                        std::unique_lock<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
                         if (!thiefs.empty())
                         {
                             auto itBatch = bQueue.begin();
@@ -251,7 +257,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     }
                     DECISION_INTERACTIVE:
                     {
-                        std::unique_lock<SpinMutex> lock(qMutexWithType[INTERACTIVE_TASK_T]);
                         while (!iEDFPriorityQueue.empty() && iEDFPriorityQueue.top()->deadline -
                                                                      iEDFPriorityQueue.top()->burst +
                                                                      schedulerStartTime <
@@ -293,7 +298,9 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             vClockI += tDelta;
                             cIPtr->burst -= tDelta;
                             if (cIPtr->status == TASK_FINISHED)
+                            {
                                 delete cIPtr;
+                            }
                         }
                         else if (!iEDFPriorityQueue.empty())
                         {
@@ -308,7 +315,9 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                             vClockI += tDelta;
                             cInteracPtr->burst -= tDelta;
                             if (cInteracPtr->status == TASK_FINISHED)
+                            {
                                 delete cInteracPtr;
+                            }
                         }
                         goto END_LOOP;
                     }

@@ -162,7 +162,7 @@ namespace JAMScript
         {
             virtual nlohmann::json Invoke(nlohmann::json vaList)
             {
-                return nlohmann::json{"result", {}};
+                return nlohmann::json::object({"args", {}});
             }
         };
 
@@ -178,13 +178,13 @@ namespace JAMScript
                 try
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
-                    nlohmann::json jxr = {"result", std::apply(fn, vaTuple)};
+                    nlohmann::json jxr = nlohmann::json::object({{"args", std::apply(fn, vaTuple)}});
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return std::move(jxr);
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json{"exception", std::string(e.what())};
+                    return nlohmann::json::object({{"exception", std::string(e.what())}});
                 }
             }
             std::function<R(Args...)> fn;
@@ -201,11 +201,11 @@ namespace JAMScript
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     std::apply(fn, vaTuple);
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
-                    return nlohmann::json{"result", {}};
+                    return nlohmann::json::object({{"args", {}}});
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json{"exception", std::string(e.what())};
+                    return nlohmann::json::object({{"exception", std::string(e.what())}});
                 }
             }
             std::function<void(Args...)> fn;
@@ -221,14 +221,14 @@ namespace JAMScript
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     char * cString = std::apply(fn, vaTuple);
-                    nlohmann::json jxr = {"result", std::string(cString)};
+                    nlohmann::json jxr = nlohmann::json::object({{"args", std::string(cString)}});
                     free(cString);
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return std::move(jxr);
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json{"exception", std::string(e.what())};
+                    return nlohmann::json::object({{"exception", std::string(e.what())}});
                 }
             }
             std::function<char *(Args...)> fn;
@@ -244,14 +244,14 @@ namespace JAMScript
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     char* cString = std::apply(fn, vaTuple);
-                    nlohmann::json jxr = {"result", std::string(cString)};
+                    nlohmann::json jxr = nlohmann::json::object({{"args", std::string(cString)}});
                     free(const_cast<char*>(cString));
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return std::move(jxr);
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json{"exception", std::string(e.what())};
+                    return nlohmann::json::object({{"exception", std::string(e.what())}});
                 }
             }
             std::function<const char *(Args...)> fn;
@@ -268,14 +268,14 @@ namespace JAMScript
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     nvoid_t* nVoid = std::apply(fn, vaTuple);
                     std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), reinterpret_cast<char *>(nVoid->data) + nVoid->len);
-                    nlohmann::json jxr = {"result", bArray };
+                    nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(nVoid);
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return std::move(jxr);
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json{"exception", std::string(e.what())};
+                    return nlohmann::json::object({{"exception", std::string(e.what())}});
                 }
             }
             std::function<nvoid_t *(Args...)> fn;
@@ -292,14 +292,14 @@ namespace JAMScript
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     const nvoid_t* nVoid = std::apply(fn, vaTuple);
                     std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), reinterpret_cast<char *>(nVoid->data) + nVoid->len);
-                    nlohmann::json jxr = {"result", bArray };
+                    nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(const_cast<nvoid_t*>(nVoid));
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return std::move(jxr);
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json{"exception", std::string(e.what())};
+                    return nlohmann::json::object({{"exception", std::string(e.what())}});
                 }
             }
             std::function<const nvoid_t *(Args...)> fn;
@@ -318,12 +318,13 @@ namespace JAMScript
         Future<nlohmann::json> CreateRExec(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
-                {"funcName", eName},
+                {"cmd", "REXEC-ASY"},
+                {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
                 {"condstr", condstr},
                 {"condvec", condvec}};
             std::unique_lock lk(mRexec);
-            rexRequest.push_back({"execId", eIdFactory});
+            rexRequest.push_back({"actid", eIdFactory});
             auto pr = std::make_shared<Promise<nlohmann::json>>();
             rLookup[eIdFactory++] = pr;
             lk.unlock();
@@ -352,6 +353,8 @@ namespace JAMScript
         std::mutex mRexec;
         uint32_t eIdFactory;
         mqtt_adapter_t *mq;
+        const std::string devId, appId;
+        std::string replyUp, replyDown, requestUp, requestDown, announceDown;
         std::unordered_map<uint32_t, std::shared_ptr<Promise<nlohmann::json>>> rLookup;
 
     };

@@ -15,6 +15,7 @@ endif()
 find_package(Boost 1.65.0)
 include_directories(${Boost_INCLUDE_DIRS})
 
+# Find C/C++ sources
 file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 set(JAMCOMPONENTS_SOURCES_LIST "")
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
@@ -30,7 +31,9 @@ list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/remote/mqtt/
 list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/remote/mqtt/nvoid.c")
 
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
-# set(CMAKE_CXX_FLAGS "${CXXFLAGS} -ggdb")
+if (JAMSCRIPT_DEBUG_LINEINFO_OPT)
+    set(CMAKE_CXX_FLAGS "${CXXFLAGS} -ggdb")
+endif(JAMSCRIPT_DEBUG_LINEINFO_OPT)
 
 find_package(Threads)
 add_library(jamsched ${JAMCOMPONENTS_SOURCES_LIST})

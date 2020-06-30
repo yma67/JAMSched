@@ -136,8 +136,8 @@ int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.RegisterRPCalls(invokerMap);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::seconds(1000), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::seconds(1000), 0}});
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}},
+                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}});
     std::atomic_int32_t syncVar = 0, rTotal = 0;
     int var = 0;
 #ifndef JAMSCRIPT_ENABLE_VALGRIND

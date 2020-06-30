@@ -76,36 +76,38 @@ namespace JAMScript
                 auto fu = std::make_shared<Promise<nlohmann::json>>();
                 CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr{ std::move(rpcAttr) }]() 
                 {
-                    auto jxe = localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]);
+                    auto jxe = std::move(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     fu->SetValue(std::move(jxe));
-                });
+                }).Detach();
                 auto v = fu->GetFuture().Get();
                 return std::move(v);
             }
             return {};
         }
 
-        void CreateRPBatchCall(nlohmann::json rpcAttr) 
+        bool CreateRPBatchCall(nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
-                localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
+                localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end() &&
+                remote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
                 CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr{ std::move(rpcAttr) }]() 
                 {
-                    auto jResult = localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]);
-                    if (remote != nullptr) 
+                    auto jResult = std::move(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
+                    jResult["actid"] = rpcAttr["actid"].get<std::string>();
+                    jResult["cmd"] = "REXEC-RES";
+                    auto vReq = nlohmann::json::to_cbor(jResult.dump());
+                    for (int i = 0; i < 3; i++)
                     {
-                        auto vReq = nlohmann::json::to_cbor(jResult.dump());
-                        for (int i = 0; i < 3; i++)
+                        if (mqtt_publish(remote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
                         {
-                            if (mqtt_publish(remote->mq, const_cast<char *>("/mach/func/request"), nvoid_new(vReq.data(), vReq.size())))
-                            {
-                                break;
-                            }
+                            break;
                         }
                     }
                 }).Detach();
+                return true;
             }
+            return false;
         }
 
         template <typename Fn, typename... Args>
@@ -126,11 +128,12 @@ namespace JAMScript
             fn->deadline = deadline;
             fn->onCancel = onCancel;
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard<SpinMutex> lock(qMutexWithType[INTERACTIVE_TASK_T]);
+            std::lock_guard lock(qMutex);
             decider.RecordInteractiveJobArrival(
                 {std::chrono::duration_cast<std::chrono::microseconds>(deadline).count(),
                  std::chrono::duration_cast<std::chrono::microseconds>(burst).count()});
             iEDFPriorityQueue.insert(*fn);
+            cvQMutex.notify_all();
             return fn->notifier;
         }
 
@@ -149,8 +152,9 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = burst;
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard<SpinMutex> lock(qMutexWithType[BATCH_TASK_T]);
+            std::lock_guard lock(qMutex);
             bQueue.push_back(*fn);
+            cvQMutex.notify_all();
             return fn->notifier;
         }
 
@@ -169,8 +173,9 @@ namespace JAMScript
             fn->taskType = REAL_TIME_TASK_T;
             fn->id = id;
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard<SpinMutex> lock(qMutexWithType[REAL_TIME_TASK_T]);
+            std::lock_guard lock(qMutex);
             rtRegisterTable.insert(*fn);
+            cvQMutex.notify_all();
             return fn->notifier;
         }
 
@@ -240,9 +245,8 @@ namespace JAMScript
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
-        SpinMutex qMutexWithType[3];
-        std::mutex sReadyRTSchedule;
-        std::condition_variable cvReadyRTSchedule;
+        std::mutex sReadyRTSchedule, qMutex;
+        std::condition_variable cvReadyRTSchedule, cvQMutex;
         TimePoint schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
         std::unordered_map<std::string, std::any> lexecFuncMap;
