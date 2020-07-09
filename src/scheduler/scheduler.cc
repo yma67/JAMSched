@@ -178,7 +178,10 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     currentRTIter->SwapIn();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    std::this_thread::sleep_until(GetCycleStartTime() + (rtItem.eTime - std::chrono::microseconds(200)));
+                    if (currentSchedule.back().eTime > std::chrono::microseconds(200))
+                    {
+                        std::this_thread::sleep_until(GetCycleStartTime() + (rtItem.eTime - std::chrono::microseconds(200)));
+                    }
 #endif
                     while (Clock::now() - cycleStartTime < rtItem.eTime);
                 }
