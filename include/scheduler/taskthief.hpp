@@ -31,7 +31,6 @@ namespace JAMScript
 
     protected:
 
-        mutable SpinMutex m;
         std::atomic<unsigned int> rCount = 0;
         bool isRunning;
         std::condition_variable_any cv;
