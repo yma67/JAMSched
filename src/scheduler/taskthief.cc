@@ -9,7 +9,7 @@ JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) : 
 
 JAMScript::StealScheduler::~StealScheduler()
 {
-    std::unique_lock lk(m);
+    std::unique_lock lk(qMutex);
     if (toContinue)
     {
         toContinue = false;
@@ -23,7 +23,7 @@ JAMScript::StealScheduler::~StealScheduler()
 
 void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
 {
-    std::unique_lock<SpinMutex> lock(m);
+    std::unique_lock lk(qMutex);
     toSteal->Steal(this);
     isReady.push_back(*toSteal);
     cv.notify_all();
@@ -32,7 +32,7 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
 
 void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
 {
-    std::unique_lock<SpinMutex> lock(m);
+    std::unique_lock lk(qMutex);
     if (toEnable->wsHook.is_linked())
     {
         toEnable->wsHook.unlink();
@@ -71,7 +71,8 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
     t = std::thread([this]() {
         while (toContinue)
         {
-            std::unique_lock<SpinMutex> lock(m);
+            victim->timer.NotifyAllTimeouts();
+            std::unique_lock lock(qMutex);
             while (isReady.empty() && toContinue)
             {
                 cv.wait(lock);

@@ -245,7 +245,7 @@ namespace JAMScript
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
-        std::mutex sReadyRTSchedule, qMutex;
+        std::mutex sReadyRTSchedule;
         std::condition_variable cvReadyRTSchedule, cvQMutex;
         TimePoint schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
