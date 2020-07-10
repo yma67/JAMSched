@@ -33,8 +33,10 @@ namespace JAMScript
         bool useSharedStack;
         uint32_t stackSize;
         bool canSteal;
-        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs) {}
+        int pinCore;
+        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
     };
 
     class RIBScheduler : public SchedulerBase
@@ -153,8 +155,29 @@ namespace JAMScript
             fn->burst = burst;
             fn->isStealable = stackTraits.canSteal;
             std::lock_guard lock(qMutex);
-            bQueue.push_back(*fn);
-            cvQMutex.notify_all();
+            if (fn->isStealable)
+            {
+                StealScheduler *pNextThief = nullptr;
+                if (stackTraits.pinCore > -1 && 
+                    stackTraits.pinCore < thiefs.size() && 
+                    thiefs[stackTraits.pinCore] != nullptr) 
+                {
+                    pNextThief = thiefs[stackTraits.pinCore];
+                } 
+                else 
+                {
+                    pNextThief = GetMinThief();
+                }
+                if (pNextThief != nullptr)
+                {
+                    pNextThief->Steal(fn);
+                }
+            } 
+            else 
+            {
+                bQueue.push_back(*fn);
+                cvQMutex.notify_all();
+            }
             return fn->notifier;
         }
 

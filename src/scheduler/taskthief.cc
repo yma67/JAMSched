@@ -2,8 +2,8 @@
 #include "scheduler/scheduler.hpp"
 #include <algorithm>
 
-JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) : SchedulerBase(ssz), victim(victim)
-{}
+JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
+    : SchedulerBase(ssz), victim(victim) {}
 
 JAMScript::StealScheduler::~StealScheduler()
 {

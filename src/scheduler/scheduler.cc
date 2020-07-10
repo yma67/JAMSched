@@ -224,27 +224,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         }
                     DECISION_BATCH:
                     {
-                        if (!thiefs.empty())
-                        {
-                            auto itBatch = bQueue.begin();
-                            while (itBatch != bQueue.end())
-                            {
-                                if (itBatch->CanSteal())
-                                {
-                                    auto *pNextSteal = &(*itBatch);
-                                    auto *pNextThief = GetMinThief();
-                                    if (pNextThief != nullptr)
-                                    {
-                                        pNextThief->Steal(pNextSteal);
-                                    }
-                                    itBatch = bQueue.erase(itBatch);
-                                }
-                                else
-                                {
-                                    itBatch++;
-                                }
-                            }
-                        }
                         if (bQueue.empty())
                         {
                             goto END_LOOP;
