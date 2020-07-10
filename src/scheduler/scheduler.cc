@@ -11,6 +11,10 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs
     {
         thiefs.push_back(new StealScheduler{this, sharedStackSize});
     }
+    for (auto thief: thiefs)
+    {
+        thief->RunSchedulerMainLoop();
+    }
 }
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize)
@@ -176,6 +180,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     lockrt.unlock();
                     eStats.jitters.push_back((cTime - cycleStartTime) - rtItem.sTime);
                     currentRTIter->SwapIn();
+                    lockrt.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
                     if (currentSchedule.back().eTime > std::chrono::microseconds(200))

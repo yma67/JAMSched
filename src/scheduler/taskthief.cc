@@ -3,9 +3,7 @@
 #include <algorithm>
 
 JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) : SchedulerBase(ssz), victim(victim)
-{
-    RunSchedulerMainLoop();
-}
+{}
 
 JAMScript::StealScheduler::~StealScheduler()
 {
@@ -28,6 +26,34 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
     isReady.push_back(*toSteal);
     cv.notify_all();
     rCount++;
+    iCount++;
+}
+
+size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
+{
+    std::scoped_lock sLock(qMutex, toSteal->qMutex);
+    if (toSteal->iCount > 1) {
+        auto toStealCount = toSteal->iCount / 2;
+        auto supposeTo = toStealCount;
+        auto itBatch = toSteal->isReady.begin();
+        while (itBatch != toSteal->isReady.end() && toStealCount > 0)
+        {
+            if (itBatch->CanSteal())
+            {
+                auto *pNextSteal = &(*itBatch);
+                pNextSteal->Steal(this);
+                itBatch = toSteal->isReady.erase(itBatch);
+                isReady.push_back(*pNextSteal);
+                toStealCount--;
+            }
+            else
+            {
+                itBatch++;
+            }
+        }
+        return supposeTo - toStealCount;
+    }
+    return 0;
 }
 
 void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
@@ -73,6 +99,21 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
         {
             victim->timer.NotifyAllTimeouts();
             std::unique_lock lock(qMutex);
+            if (isReady.empty())
+            {
+                lock.unlock();
+                // During time of Cluster Headache...
+                size_t rStart = rand() % victim->thiefs.size();
+                for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
+                {
+                    if (victim->thiefs[(rStart + T_T) % victim->thiefs.size()] != this && 
+                        StealFrom(victim->thiefs[(rStart + T_T) % victim->thiefs.size()])) 
+                    {
+                        break;
+                    }
+                }
+                lock.lock();
+            }
             while (isReady.empty() && toContinue)
             {
                 cv.wait(lock);
@@ -84,6 +125,11 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             auto iterNext = isReady.begin();
             auto *pNext = &(*iterNext);
             isReady.pop_front();
+            if (pNext->CanSteal()) 
+            {
+                pNext->isStealable = false;
+                iCount--;
+            }
             rCount--;
             lock.unlock();
             pNext->SwapIn();

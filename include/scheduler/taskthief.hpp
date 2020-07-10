@@ -19,6 +19,7 @@ namespace JAMScript
         friend class RIBScheduler;
 
         void Steal(TaskInterface *toSteal);
+        size_t StealFrom(StealScheduler *toSteal);
         void Enable(TaskInterface *toEnable) override;
         void Disable(TaskInterface *toDisable) override;
         const uint32_t Size() const;
@@ -31,10 +32,9 @@ namespace JAMScript
 
     protected:
 
-        std::atomic<unsigned int> rCount = 0;
+        std::atomic<unsigned int> rCount = 0, iCount = 0;
         bool isRunning;
         std::condition_variable_any cv;
-        std::vector<std::thread> tx;
         std::thread t;
         RIBScheduler *victim;
         JAMStorageTypes::ThiefQueueType isReady;
