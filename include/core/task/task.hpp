@@ -114,9 +114,9 @@ namespace JAMScript
         friend class RIBScheduler;
         friend class StealScheduler;
 
-        virtual TaskInterface *NextTask() { return nullptr; }
-        virtual void Enable(TaskInterface *toEnable) {}
-        virtual void Disable(TaskInterface *toEnable) {}
+        virtual void RunSchedulerMainLoop() = 0;
+        virtual void Enable(TaskInterface *toEnable) = 0;
+        virtual void Disable(TaskInterface *toEnable) = 0;
         virtual void ShutDown()
         {
             if (toContinue)
@@ -248,7 +248,7 @@ namespace JAMScript
         TaskInterface(SchedulerBase *scheduler);
         virtual ~TaskInterface();
 
-    protected:
+    private:
 
         TaskInterface() = delete;
 
@@ -309,7 +309,7 @@ namespace JAMScript
         TaskAttr(Fn &&tf, Args &&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
         virtual ~TaskAttr() {}
 
-    protected:
+    private:
 
         TaskAttr() = delete;
         typename std::decay<Fn>::type tFunction;
@@ -488,7 +488,7 @@ namespace JAMScript
             delete[] reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp);
         }
 
-    protected:
+    private:
 
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         uint64_t v_stack_id;

@@ -50,11 +50,10 @@ TEST_CASE("C++ Thread", "[core]")
 class BenchSched : public JAMScript::SchedulerBase
 {
 public:
-    JAMScript::TaskInterface *NextTask() override
-    {
-        return onlyTask;
-    }
-    void RunSchedulerMainLoop()
+
+    void Enable(JAMScript::TaskInterface *toEnable) override {}
+    void Disable(JAMScript::TaskInterface *toEnable) override {}
+    void RunSchedulerMainLoop() override
     {
         this->onlyTask->SwapIn();
     }

@@ -39,8 +39,9 @@ struct timespec diff(struct timespec start, struct timespec end)
 class BenchSched : public JAMScript::SchedulerBase
 {
 public:
-    JAMScript::TaskInterface *NextTask() override { return nullptr; }
-    void Enable() {}
+
+    void Enable(JAMScript::TaskInterface *toEnable) {}
+    void Disable(JAMScript::TaskInterface *toEnable) {}
     void RunSchedulerMainLoop()
     {
         for (auto task: tasks) {

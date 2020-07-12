@@ -23,15 +23,14 @@ namespace JAMScript
         void Enable(TaskInterface *toEnable) override;
         void Disable(TaskInterface *toDisable) override;
         const uint32_t Size() const;
-        void ShutDown_();
         void ShutDown() override;
-        void RunSchedulerMainLoop();
+        void RunSchedulerMainLoop() override;
 
         StealScheduler(RIBScheduler *victim, uint32_t ssz);
         ~StealScheduler();
 
-    protected:
-
+    private:
+        void ShutDown_();
         std::atomic<unsigned int> rCount = 0, iCount = 0;
         bool isRunning;
         std::condition_variable_any cv;

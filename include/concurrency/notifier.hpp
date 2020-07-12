@@ -27,7 +27,7 @@ namespace JAMScript
         Notifier() : ownerTask(nullptr), lockWord(0) {}
         Notifier(TaskInterface *ownerTask) : ownerTask(ownerTask), lockWord(0) {}
 
-    protected:
+    private:
 
         TaskInterface *ownerTask;
         std::atomic<uint32_t> lockWord;
