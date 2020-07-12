@@ -85,7 +85,10 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             auto actId = rMsg["actid"].get<uint32_t>();
             if (scheduler->remote->rLookup.find(actId) != scheduler->remote->rLookup.end()) 
             {
-                scheduler->remote->rLookup[actId]->SetValue(rMsg["args"]);
+                auto* pVal = scheduler->remote->rLookup[actId];
+                pVal->SetValue(rMsg["args"]);
+                delete pVal;
+                scheduler->remote->rLookup.erase(actId);
             }
         }
     });

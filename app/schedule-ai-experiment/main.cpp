@@ -101,7 +101,8 @@ int main(int argc, char *argv[])
                                    std::chrono::high_resolution_clock::duration(std::chrono::microseconds(burst))});
         }
         JAMScript::RIBScheduler jRIBScheduler(1024 * 256);
-        jRIBScheduler.CreateBatchTask({true, 0, true}, std::chrono::milliseconds(996), [&]() {
+        auto tuPeriod = std::chrono::microseconds(996);
+        jRIBScheduler.CreateBatchTask({true, 0, true}, tuPeriod, [&]() {
             while (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() -
                                                                          jRIBScheduler.GetSchedulerStartTime())
                        .count() <
@@ -211,6 +212,10 @@ int main(int argc, char *argv[])
                 std::cout << e.what() << std::endl;
             }
             std::cout << "Secret3 " << &sec3 << " is: \"" << frp.Get() << "\"" << std::endl;
+            while (std::chrono::high_resolution_clock::now() < jRIBScheduler.GetSchedulerStartTime() + nrounds * tuPeriod) {
+                std::this_thread::sleep_for(std::chrono::microseconds(25));
+                JAMScript::ThisTask::Yield();
+            }
             jRIBScheduler.ShutDown();
             return 3;
         });

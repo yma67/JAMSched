@@ -75,14 +75,15 @@ namespace JAMScript
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
             {
-                auto fu = std::make_shared<Promise<nlohmann::json>>();
+                auto* fu = new Promise<nlohmann::json>();
                 CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr{ std::move(rpcAttr) }]() 
                 {
                     auto jxe = std::move(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     fu->SetValue(std::move(jxe));
+                    delete fu;
                 }).Detach();
-                auto v = fu->GetFuture().Get();
-                return std::move(v);
+                auto fut = fu->GetFuture();
+                return std::move(fut.Get());
             }
             return {};
         }
@@ -206,7 +207,7 @@ namespace JAMScript
         Future<T> CreateLocalNamedInteractiveExecution(StackTraits stackTraits, Duration deadline, Duration burst, 
                                                         const std::string &eName, Args &&... eArgs) 
         {
-            auto pf = std::make_shared<Promise<T>>();
+            auto* pf = new Promise<T>();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
             CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
             {
@@ -224,8 +225,9 @@ namespace JAMScript
                     pf->SetException(std::make_exception_ptr(e));
                     delete tAttr;
                 }
+                delete pf;
             }).Detach();
-            return pf->GetFuture();
+            return std::move(pf->GetFuture());
         }
 
         template<typename Fn>
