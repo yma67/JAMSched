@@ -1,8 +1,8 @@
 #ifndef JAMSCRIPT_SEMAPHORE_HH
 #define JAMSCRIPT_SEMAPHORE_HH
 #include "concurrency/condition_variable.hpp"
-
 #include <cstdint>
+
 namespace JAMScript
 {
     class ConditionVariable;
@@ -11,7 +11,6 @@ namespace JAMScript
     class Semaphore
     {
     public:
-
         void Signal()
         {
             std::unique_lock lock(mutex);
@@ -26,6 +25,23 @@ namespace JAMScript
                 return count > 0;
             });
             count -= 1;
+        }
+
+        int GetCount()
+        {
+            std::unique_lock lock(mutex);
+            return count;
+        }
+
+        bool TryWait()
+        {
+            std::unique_lock lock(mutex);
+            if (count > 0)
+            {
+                count--;
+                return true;
+            }
+            return false;
         }
 
         Semaphore(int c = 1) : count(c) {}

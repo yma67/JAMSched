@@ -3,6 +3,8 @@
 #include <scheduler/tasklocal.hpp>
 #include <remote/remote.hpp>
 #include <concurrency/semaphore.hpp>
+#include <concurrency/mutex.hpp>
+
 #include <thread>
 #include <chrono>
 #include <vector>
@@ -40,7 +42,7 @@ struct ReaderWriterReadPriortized
 {
 private:
     int read_count, write_count;
-    JAMScript::SpinMutex lock;
+    JAMScript::Mutex lock;
     JAMScript::ConditionVariable read_queue, write_queue;
 
 public:
@@ -48,7 +50,7 @@ public:
 
     void ReadLock()
     {
-        std::unique_lock<JAMScript::SpinMutex> lc(lock);
+        std::unique_lock lc(lock);
         read_count += 1;
         read_queue.wait(lc, [this]() -> bool {
             return !(write_count > 0);
@@ -58,7 +60,7 @@ public:
 
     void ReadUnlock()
     {
-        std::unique_lock<JAMScript::SpinMutex> lc(lock);
+        std::unique_lock lc(lock);
         read_count -= 1;
         if (read_count == 0)
             write_queue.notify_one();
@@ -66,7 +68,7 @@ public:
 
     void WriteLock()
     {
-        std::unique_lock<JAMScript::SpinMutex> lc(lock);
+        std::unique_lock lc(lock);
         write_queue.wait(lc, [this]() -> bool {
             return !(read_count > 0 || write_count > 0);
         });
@@ -75,7 +77,7 @@ public:
 
     void WriteUnlock()
     {
-        std::unique_lock<JAMScript::SpinMutex> lc(lock);
+        std::unique_lock lc(lock);
         write_count -= 1;
         if (read_count > 0)
             read_queue.notify_one();
@@ -130,7 +132,7 @@ public:
     }
 };
 
-using ReadWriteLock = ReaderWriterFair;
+using ReadWriteLock = ReaderWriterReadPriortized;
 
 int main()
 {
@@ -158,6 +160,7 @@ int main()
                     }
                 },
                 60));
+            if (i % 2) JAMScript::ThisTask::Yield();
         }
         for (int i = 0; i < 10; i++)
         {
@@ -175,6 +178,7 @@ int main()
                         rw.WriteUnlock();
                     } },
                 30));
+            if (i % 2) JAMScript::ThisTask::Yield();
         }
         for (auto &x : rpool) x.Join();
         for (auto &x : wpool) x.Join();
