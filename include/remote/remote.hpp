@@ -325,8 +325,7 @@ namespace JAMScript
                 {"condvec", condvec}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
-            auto pr = std::make_shared<Promise<nlohmann::json>>();
-            rLookup[eIdFactory++] = pr;
+            auto* pr = rLookup[eIdFactory++] = new Promise<nlohmann::json>();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest);
             for (int i = 0; i < 3; i++)
@@ -355,7 +354,7 @@ namespace JAMScript
         mqtt_adapter_t *mq;
         const std::string devId, appId;
         std::string replyUp, replyDown, requestUp, requestDown, announceDown;
-        std::unordered_map<uint32_t, std::shared_ptr<Promise<nlohmann::json>>> rLookup;
+        std::unordered_map<uint32_t, Promise<nlohmann::json> *> rLookup;
 
     };
 

@@ -132,7 +132,7 @@ public:
     }
 };
 
-using ReadWriteLock = ReaderWriterReadPriortized;
+using ReadWriteLock = ReaderWriterFair;
 
 int main()
 {
