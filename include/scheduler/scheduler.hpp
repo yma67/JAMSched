@@ -63,7 +63,7 @@ namespace JAMScript
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
         void ShutDown() override;
         bool Empty();
-        void RunSchedulerMainLoop();
+        void RunSchedulerMainLoop() override;
 
         void RegisterRPCalls(std::unordered_map<std::string, RExecDetails::InvokerInterface *> fvm) 
         {
@@ -252,7 +252,7 @@ namespace JAMScript
                      const std::string &appName, const std::string &devName);
         ~RIBScheduler() override;
 
-    protected:
+    private:
 
         struct ExecutionStats
         {

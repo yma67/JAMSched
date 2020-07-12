@@ -35,7 +35,7 @@ namespace JAMScript
         Timer(RIBScheduler *scheduler);
         ~Timer();
 
-    protected:
+    private:
 
         Timer() = delete;
         void UpdateTimeout_();
