@@ -32,16 +32,9 @@ int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCalls(invokerMap);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::high_resolution_clock::duration::max(), [&]() {
-        while (true)
-        {
-            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(2));
-        }
-    });
+    auto tuPeriod = std::chrono::milliseconds(500);
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), tuPeriod, 0}},
+                             {{std::chrono::milliseconds(0), tuPeriod, 0}});
     ribScheduler.RunSchedulerMainLoop();
     return 0;
 }
