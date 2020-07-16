@@ -167,12 +167,12 @@ namespace JAMScript
         };
 
         template <typename T>
-        struct Invoker;
+        struct RoutineRemote;
 
         template <typename R, typename... Args>
-        struct Invoker<std::function<R(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<R(Args...)>> : public InvokerInterface
         {
-            Invoker(std::function<R(Args...)> f) : fn(std::move(f)) {}
+            RoutineRemote(std::function<R(Args...)> f) : fn(std::move(f)) {}
             nlohmann::json Invoke(nlohmann::json vaList) override
             {
                 try
@@ -191,9 +191,9 @@ namespace JAMScript
         };
 
         template <typename... Args>
-        struct Invoker<std::function<void(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<void(Args...)>> : public InvokerInterface
         {
-            Invoker(std::function<void(Args...)> f) : fn(std::move(f)) {}
+            RoutineRemote(std::function<void(Args...)> f) : fn(std::move(f)) {}
             nlohmann::json Invoke(nlohmann::json vaList) override
             {
                 try
@@ -212,9 +212,9 @@ namespace JAMScript
         };
 
         template <typename... Args>
-        struct Invoker<std::function<char *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<char *(Args...)>> : public InvokerInterface
         {
-            Invoker(std::function<char *(Args...)> f) : fn(std::move(f)) {}
+            RoutineRemote(std::function<char *(Args...)> f) : fn(std::move(f)) {}
             nlohmann::json Invoke(nlohmann::json vaList) override
             {
                 try
@@ -235,9 +235,9 @@ namespace JAMScript
         };
 
         template <typename... Args>
-        struct Invoker<std::function<const char *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<const char *(Args...)>> : public InvokerInterface
         {
-            Invoker(std::function<const char *(Args...)> f) : fn(std::move(f)) {}
+            RoutineRemote(std::function<const char *(Args...)> f) : fn(std::move(f)) {}
             nlohmann::json Invoke(nlohmann::json vaList) override
             {
                 try
@@ -258,9 +258,9 @@ namespace JAMScript
         };
 
         template <typename... Args>
-        struct Invoker<std::function<nvoid_t *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<nvoid_t *(Args...)>> : public InvokerInterface
         {
-            Invoker(std::function<nvoid_t *(Args...)> f) : fn(std::move(f)) {}
+            RoutineRemote(std::function<nvoid_t *(Args...)> f) : fn(std::move(f)) {}
             nlohmann::json Invoke(nlohmann::json vaList) override
             {
                 try
@@ -282,9 +282,9 @@ namespace JAMScript
         };
 
         template <typename... Args>
-        struct Invoker<std::function<const nvoid_t *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<const nvoid_t *(Args...)>> : public InvokerInterface
         {
-            Invoker(std::function<const nvoid_t *(Args...)> f) : fn(std::move(f)) {}
+            RoutineRemote(std::function<const nvoid_t *(Args...)> f) : fn(std::move(f)) {}
             nlohmann::json Invoke(nlohmann::json vaList) override
             {
                 try

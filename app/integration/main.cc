@@ -16,11 +16,11 @@ int RPCFunctionJAsync(int a, int b)
 }
 
 auto RPCFunctionJSyncFunctor = std::function(RPCFunctionJSync);
-auto RPCFunctionJSyncInvoker = JAMScript::RExecDetails::Invoker<decltype(RPCFunctionJSyncFunctor)>(RPCFunctionJSyncFunctor);
+auto RPCFunctionJSyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJSyncFunctor)>(RPCFunctionJSyncFunctor);
 auto RPCFunctionJAsyncFunctor = std::function(RPCFunctionJAsync);
-auto RPCFunctionJAsyncInvoker = JAMScript::RExecDetails::Invoker<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
+auto RPCFunctionJAsyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
 auto DuplicateCStringFunctor = std::function(strdup);
-auto DuplicateCStringInvoker = JAMScript::RExecDetails::Invoker<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
+auto DuplicateCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
 
 std::unordered_map<std::string, JAMScript::RExecDetails::InvokerInterface *> invokerMap = {
     {std::string("RPCFunctionJSync"), &RPCFunctionJSyncInvoker},
