@@ -106,8 +106,9 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
                 size_t rStart = rand() % victim->thiefs.size();
                 for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
                 {
-                    if (victim->thiefs[(rStart + T_T) % victim->thiefs.size()] != this && 
-                        StealFrom(victim->thiefs[(rStart + T_T) % victim->thiefs.size()])) 
+                    if ((victim->thiefs[(rStart + T_T) % victim->thiefs.size()] != this && 
+                        StealFrom(victim->thiefs[(rStart + T_T) % victim->thiefs.size()])) || 
+                        !isReady.empty()) 
                     {
                         break;
                     }
