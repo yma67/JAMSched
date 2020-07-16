@@ -27,11 +27,11 @@ std::string PrintResultWithGrade(int rex, char *grade, std::string comment, nvoi
 }
 
 auto PrintResultWithGradeFunctor = std::function(PrintResultWithGrade);
-auto PrintResultWithGradeInvoker = JAMScript::RExecDetails::Invoker<decltype(PrintResultWithGradeFunctor)>(PrintResultWithGradeFunctor);
+auto PrintResultWithGradeInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(PrintResultWithGradeFunctor)>(PrintResultWithGradeFunctor);
 auto CompareCStringFunctor = std::function(strcmp);
-auto CompareCStringInvoker = JAMScript::RExecDetails::Invoker<decltype(CompareCStringFunctor)>(CompareCStringFunctor);
+auto CompareCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(CompareCStringFunctor)>(CompareCStringFunctor);
 auto CStringLengthFunctor = std::function(strlen);
-auto CStringLengthInvoker = JAMScript::RExecDetails::Invoker<decltype(CStringLengthFunctor)>(CStringLengthFunctor);
+auto CStringLengthInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(CStringLengthFunctor)>(CStringLengthFunctor);
 
 std::unordered_map<std::string, JAMScript::RExecDetails::InvokerInterface *> invokerMap = {
     {std::string("PrintResultWithGrade"), &PrintResultWithGradeInvoker},
