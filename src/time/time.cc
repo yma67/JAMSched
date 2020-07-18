@@ -13,6 +13,10 @@ JAMScript::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
 
 JAMScript::Timer::~Timer()
 {
+    timeouts_update(timingWheelPtr, std::numeric_limits<uint64_t>::max());
+    struct timeout *timeOut;
+    while ((timeOut = timeouts_get(timingWheelPtr)))
+        timeOut->callback.fn(timeOut->callback.arg);
     timeouts_close(timingWheelPtr);
 }
 

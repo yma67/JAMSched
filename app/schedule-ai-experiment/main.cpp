@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
         }
         JAMScript::RIBScheduler jRIBScheduler(1024 * 256);
         auto tuPeriod = std::chrono::microseconds(996);
-        jRIBScheduler.CreateBatchTask({true, 0, true}, tuPeriod, [&]() {
+        jRIBScheduler.CreateBatchTask({true, 0, false}, tuPeriod, [&]() {
             while (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() -
                                                                          jRIBScheduler.GetSchedulerStartTime())
                        .count() <
@@ -183,6 +183,10 @@ int main(int argc, char *argv[])
                 std::this_thread::sleep_for(std::chrono::microseconds(25));
                 JAMScript::ThisTask::Yield();
             }
+            while (std::chrono::high_resolution_clock::now() < jRIBScheduler.GetSchedulerStartTime() + nrounds * tuPeriod) {
+                std::this_thread::sleep_for(std::chrono::microseconds(25));
+                JAMScript::ThisTask::Yield();
+            }
             auto sec3 = std::make_shared<std::string>();
             auto p = std::make_shared<JAMScript::Promise<std::string>>();
             auto ep = std::make_shared<JAMScript::Promise<void>>();
@@ -212,9 +216,23 @@ int main(int argc, char *argv[])
                 std::cout << e.what() << std::endl;
             }
             std::cout << "Secret3 " << &sec3 << " is: \"" << frp.Get() << "\"" << std::endl;
-            while (std::chrono::high_resolution_clock::now() < jRIBScheduler.GetSchedulerStartTime() + nrounds * tuPeriod) {
-                std::this_thread::sleep_for(std::chrono::microseconds(25));
-                JAMScript::ThisTask::Yield();
+            // Test GetFor, GetUntil
+            // Success
+            JAMScript::Promise<std::string> prCouldArrive;
+            std::thread([&prCouldArrive](){
+                prCouldArrive.SetValue("GetUntil Success! ");
+            }).detach();
+            auto fuCouldArrive = prCouldArrive.GetFuture();
+            // auto couldArriveVal = fuCouldArrive.GetUntil(std::chrono::steady_clock::now() + std::chrono::seconds(100));
+            auto couldArriveVal = fuCouldArrive.GetFor(std::chrono::seconds(100));
+            std::cout << couldArriveVal << std::endl;
+            // Fail
+            JAMScript::Promise<std::string> prNeverArrive;
+            auto fuNeverArrive = prNeverArrive.GetFuture();
+            try {
+                fuNeverArrive.GetFor(std::chrono::milliseconds(500));
+            } catch (const std::exception& e) {
+                std::cout << e.what() << std::endl;
             }
             jRIBScheduler.ShutDown();
             return 3;

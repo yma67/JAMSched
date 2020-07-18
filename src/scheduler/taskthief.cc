@@ -24,7 +24,7 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
     std::unique_lock lk(qMutex);
     toSteal->Steal(this);
     isReady.push_back(*toSteal);
-    cv.notify_all();
+    cv.notify_one();
     rCount++;
     iCount++;
 }
@@ -69,7 +69,7 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
     }
     rCount++;
     toEnable->status = TASK_READY;
-    cv.notify_all();
+    cv.notify_one();
 }
 
 void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)

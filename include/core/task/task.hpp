@@ -90,10 +90,19 @@ namespace JAMScript
         extern thread_local TaskInterface *thisTask;
 
         TaskInterface *Active();
-        void SleepFor(Duration dt);
-        void SleepUntil(TimePoint tp);
-        void SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-        void SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt);
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp);
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+
         void Yield();
 
     } // namespace ThisTask
@@ -207,10 +216,6 @@ namespace JAMScript
         friend struct BIIdKeyType;
 
         friend TaskInterface *ThisTask::Active();
-        friend void ThisTask::SleepFor(Duration dt);
-        friend void ThisTask::SleepUntil(TimePoint tp);
-        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
         friend void ThisTask::Yield();
 
         friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
@@ -239,7 +244,7 @@ namespace JAMScript
 
         const TaskType GetTaskType() const { return taskType; }
         const SchedulerBase* GetScheduler() const { return scheduler; }
-        const SchedulerBase* GetBaseScheduler() const { return baseScheduler; }
+        SchedulerBase* GetBaseScheduler() const { return baseScheduler; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
 
         std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;

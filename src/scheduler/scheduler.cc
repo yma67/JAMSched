@@ -42,7 +42,7 @@ void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, 
     std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
     rtScheduleNormal = std::move(normal);
     rtScheduleGreedy = std::move(greedy);
-    cvReadyRTSchedule.notify_all();
+    cvReadyRTSchedule.notify_one();
 }
 
 const JAMScript::TimePoint &JAMScript::RIBScheduler::GetSchedulerStartTime() const
@@ -79,14 +79,14 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
         }
         if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
         {
-            if (!toEnable->riStackHook.is_linked())
+            if (!toEnable->riEdfHook.is_linked() && !toEnable->riStackHook.is_linked())
             {
                 iCancelStack.push_front(*toEnable);
             }
         }
         else
         {
-            if (!toEnable->riEdfHook.is_linked())
+            if (!toEnable->riEdfHook.is_linked() && !toEnable->riStackHook.is_linked())
             {
                 iEDFPriorityQueue.insert(*toEnable);
             }
@@ -103,7 +103,7 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
             bQueue.push_back(*toEnable);
         }
     }
-    cvQMutex.notify_all();
+    cvQMutex.notify_one();
     toEnable->status = TASK_READY;
 }
 
