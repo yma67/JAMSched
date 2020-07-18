@@ -8,6 +8,7 @@ namespace JAMScript
     class ConditionVariable;
     class SpinMutex;
 
+    template <std::size_t SemaphoreSize>
     class Semaphore
     {
     public:
@@ -44,7 +45,7 @@ namespace JAMScript
             return false;
         }
 
-        Semaphore(int c = 1) : count(c) {}
+        Semaphore() : count(SemaphoreSize) {}
 
     private:
         SpinMutex mutex;

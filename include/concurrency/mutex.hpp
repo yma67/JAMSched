@@ -22,7 +22,7 @@ namespace JAMScript
         }
 
     private:
-        Semaphore s;
+        Semaphore<1> s;
     };
 } // namespace JAMScript
 
