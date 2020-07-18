@@ -79,26 +79,6 @@ JAMScript::TaskInterface *JAMScript::ThisTask::Active()
     return thisTask;
 }
 
-void JAMScript::ThisTask::SleepFor(Duration dt)
-{
-    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutFor(thisTask, dt);
-}
-
-void JAMScript::ThisTask::SleepUntil(TimePoint tp)
-{
-    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutUntil(thisTask, tp);
-}
-
-void JAMScript::ThisTask::SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *t)
-{
-    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutFor(thisTask, dt, lk, t);
-}
-
-void JAMScript::ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *t)
-{
-    static_cast<RIBScheduler *>(thisTask->baseScheduler)->timer.SetTimeoutUntil(thisTask, tp, lk, t);
-}
-
 void JAMScript::ThisTask::Yield()
 {
     if (thisTask->status != TASK_FINISHED) 

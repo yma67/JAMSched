@@ -15,10 +15,10 @@
 namespace JAMScript
 {
 
-    template <typename Clock, typename Duration>
-    std::chrono::high_resolution_clock::time_point convert(std::chrono::time_point<Clock, Duration> const &timeout_time)
+    template <typename _Clock, typename _Duration>
+    std::chrono::high_resolution_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
     {
-        return std::chrono::high_resolution_clock::now() + (timeout_time - Clock::now());
+        return std::chrono::high_resolution_clock::now() + (timeout_time - _Clock::now());
     }
 
     class ConditionVariableAny
@@ -55,7 +55,7 @@ namespace JAMScript
         std::cv_status wait_until(Tl &lt, std::chrono::time_point<_Clock, _Dur> const &timeoutTime_)
         {
             std::cv_status isTimeout = std::cv_status::no_timeout;
-            TimePoint timeoutTime = convert(timeoutTime_);
+            TimePoint timeoutTime = std::move(convert(timeoutTime_));
             std::unique_lock<SpinMutex> lk(wListLock);
             BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*ThisTask::Active());

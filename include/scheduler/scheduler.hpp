@@ -49,10 +49,19 @@ namespace JAMScript
         friend class Remote;
 
         friend TaskInterface *ThisTask::Active();
-        friend void ThisTask::SleepFor(Duration dt);
-        friend void ThisTask::SleepUntil(TimePoint tp);
-        friend void ThisTask::SleepFor(Duration dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-        friend void ThisTask::SleepUntil(TimePoint tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+
+        template <typename _Clock, typename _Dur>
+        friend void ThisTask::SleepFor(std::chrono::duration<_Clock, _Dur> const &dt);
+
+        template <typename _Clock, typename _Dur>
+        friend void ThisTask::SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp);
+
+        template <typename _Clock, typename _Dur>
+        friend void ThisTask::SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+
+        template <typename _Clock, typename _Dur>
+        friend void ThisTask::SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+
         friend void ThisTask::Yield();
 
         void Enable(TaskInterface *toEnable) override;
@@ -136,7 +145,7 @@ namespace JAMScript
                 {std::chrono::duration_cast<std::chrono::microseconds>(deadline).count(),
                  std::chrono::duration_cast<std::chrono::microseconds>(burst).count()});
             iEDFPriorityQueue.insert(*fn);
-            cvQMutex.notify_all();
+            cvQMutex.notify_one();
             return fn->notifier;
         }
 
@@ -177,7 +186,7 @@ namespace JAMScript
             else 
             {
                 bQueue.push_back(*fn);
-                cvQMutex.notify_all();
+                cvQMutex.notify_one();
             }
             return fn->notifier;
         }
@@ -199,7 +208,7 @@ namespace JAMScript
             fn->isStealable = stackTraits.canSteal;
             std::lock_guard lock(qMutex);
             rtRegisterTable.insert(*fn);
-            cvQMutex.notify_all();
+            cvQMutex.notify_one();
             return fn->notifier;
         }
 
@@ -289,6 +298,34 @@ namespace JAMScript
         StealScheduler* GetMinThief();
         
     };
+
+    namespace ThisTask {
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt)
+        {
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::chrono::duration_cast<Duration>(dt));
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp)
+        {
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, convert(tp));
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
+        {
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::chrono::duration_cast<Duration>(dt), lk, f);
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
+        {
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, convert(tp), lk, f);
+        }
+
+    } // namespace ThisTask
 
 } // namespace JAMScript
 

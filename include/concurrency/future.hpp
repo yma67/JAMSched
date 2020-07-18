@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "concurrency/condition_variable.hpp"
+#include "exception/exception.hpp"
 
 namespace JAMScript
 {
@@ -79,18 +80,58 @@ namespace JAMScript
                 throw std::runtime_error("WTF");
             }
 
+            template <typename _Clock, typename _Dur>
+            bool wait_for(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const
+            {
+                std::unique_lock<LockType> ul(mtx);
+                return available.wait_for(ul, timeoutTime_, [&] { return state || error; });
+            }
+
+            template <typename _Clock, typename _Dur>
+            T &get_for(std::chrono::duration<_Clock, _Dur> const &timeoutTime_)
+            {
+                std::unique_lock<LockType> ul(mtx);
+                if (!available.wait_for(ul, timeoutTime_, [&] { return state || error; }))
+                    throw InvalidArgumentException("Timeout, but value/error not ready. ");
+                if (state)
+                    return *state;
+                if (error)
+                    std::rethrow_exception(error);
+                throw InvalidArgumentException("Possibly duplicated get? ");
+            }
+
+            template <typename _Clock, typename _Dur>
+            bool wait_until(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const
+            {
+                std::unique_lock<LockType> ul(mtx);
+                return available.wait_until(ul, timeoutTime_, [&] { return state || error; });
+            }
+
+            template <typename _Clock, typename _Dur>
+            T &get_until(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_)
+            {
+                std::unique_lock<LockType> ul(mtx);
+                if (!available.wait_until(ul, timeoutTime_, [&] { return state || error; }))
+                    throw InvalidArgumentException("Timeout, but value/error not ready. ");
+                if (state)
+                    return *state;
+                if (error)
+                    std::rethrow_exception(error);
+                throw InvalidArgumentException("Possibly duplicated get? ");
+            }
+
             template <typename U>
             void set_value(U &&value)
             {
                 std::unique_lock<LockType> ul(mtx);
                 state.Initialize(std::forward<U>(value));
-                available.notify_all();
+                available.notify_one();
             }
             void set_exception(std::exception_ptr e)
             {
                 std::unique_lock<LockType> ul(mtx);
                 error = e;
-                available.notify_all();
+                available.notify_one();
             }
 
         private:
@@ -127,6 +168,18 @@ namespace JAMScript
         bool Valid() const noexcept { return box != nullptr; }
 
         void Wait() const { box->wait(); }
+
+        template <typename _Clock, typename _Dur>
+        T GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_for(timeoutTime_)); }
+
+        template <typename _Clock, typename _Dur>
+        void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
+
+        template <typename _Clock, typename _Dur>
+        T GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_until(timeoutTime_)); }
+
+        template <typename _Clock, typename _Dur>
+        void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }
 
     private:
         std::shared_ptr<detail::future_shared_state_box<T>> box = nullptr;
@@ -199,12 +252,53 @@ namespace JAMScript
                 throw std::runtime_error("WTF");
             }
 
+            template <typename _Clock, typename _Dur>
+            bool wait_for(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const
+            {
+                std::unique_lock<LockType> ul(mtx);
+                return available.wait_for(ul, timeoutTime_, [&] { return state || error; });
+            }
+
+            template <typename _Clock, typename _Dur>
+            void get_for(std::chrono::duration<_Clock, _Dur> const &timeoutTime_)
+            {
+                std::unique_lock<LockType> ul(mtx);
+                if (!available.wait_for(ul, timeoutTime_, [&] { return state || error; }))
+                    throw InvalidArgumentException("Timeout, but value/error not ready. ");
+                if (state)
+                    return;
+                if (error)
+                    std::rethrow_exception(error);
+                throw InvalidArgumentException("Possibly duplicated get? ");
+            }
+
+            template <typename _Clock, typename _Dur>
+            bool wait_until(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const
+            {
+                std::unique_lock<LockType> ul(mtx);
+                return available.wait_until(ul, timeoutTime_, [&] { return state || error; });
+            }
+
+            template <typename _Clock, typename _Dur>
+            void get_until(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_)
+            {
+                std::unique_lock<LockType> ul(mtx);
+                if (!available.wait_until(ul, timeoutTime_, [&] { return state || error; }))
+                    throw InvalidArgumentException("Timeout, but value/error not ready. ");
+                if (state)
+                    return;
+                if (error)
+                    std::rethrow_exception(error);
+                throw InvalidArgumentException("Possibly duplicated get? ");
+            }
+
             void set_value()
             {
                 std::unique_lock<LockType> ul(mtx);
                 state = true;
                 available.notify_all();
             }
+
             void set_exception(std::exception_ptr e)
             {
                 std::unique_lock<LockType> ul(mtx);
@@ -243,6 +337,18 @@ namespace JAMScript
         bool Valid() const noexcept { return box != nullptr; }
 
         void Wait() const { box->wait(); }
+
+        template <typename _Clock, typename _Dur>
+        void GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_for(timeoutTime_)); }
+
+        template <typename _Clock, typename _Dur>
+        void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
+
+        template <typename _Clock, typename _Dur>
+        void GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_until(timeoutTime_)); }
+
+        template <typename _Clock, typename _Dur>
+        void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }
 
     private:
         std::shared_ptr<detail::future_shared_state_box<void>> box = nullptr;
@@ -314,6 +420,46 @@ namespace JAMScript
                 throw std::runtime_error("WTF");
             }
 
+            template <typename _Clock, typename _Dur>
+            bool wait_for(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const
+            {
+                std::unique_lock<LockType> ul(mtx);
+                return available.wait_for(ul, timeoutTime_, [&] { return state || error; });
+            }
+
+            template <typename _Clock, typename _Dur>
+            R& get_for(std::chrono::duration<_Clock, _Dur> const &timeoutTime_)
+            {
+                std::unique_lock<LockType> ul(mtx);
+                if (!available.wait_for(ul, timeoutTime_, [&] { return state || error; }))
+                    throw InvalidArgumentException("Timeout, but value/error not ready. ");
+                if (state)
+                    return *state;
+                if (error)
+                    std::rethrow_exception(error);
+                throw InvalidArgumentException("Possibly duplicated get? ");
+            }
+
+            template <typename _Clock, typename _Dur>
+            bool wait_until(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const
+            {
+                std::unique_lock<LockType> ul(mtx);
+                return available.wait_until(ul, timeoutTime_, [&] { return state || error; });
+            }
+
+            template <typename _Clock, typename _Dur>
+            R& get_until(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_)
+            {
+                std::unique_lock<LockType> ul(mtx);
+                if (!available.wait_until(ul, timeoutTime_, [&] { return state || error; }))
+                    throw InvalidArgumentException("Timeout, but value/error not ready. ");
+                if (state)
+                    return *state;
+                if (error)
+                    std::rethrow_exception(error);
+                throw InvalidArgumentException("Possibly duplicated get? ");
+            }
+
             template <typename U>
             void set_value(const U &value)
             {
@@ -359,6 +505,18 @@ namespace JAMScript
         bool Valid() const noexcept { return box != nullptr; }
 
         void Wait() const { box->wait(); }
+
+        template <typename _Clock, typename _Dur>
+        R& GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_for(timeoutTime_)); }
+
+        template <typename _Clock, typename _Dur>
+        void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
+
+        template <typename _Clock, typename _Dur>
+        R& GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_until(timeoutTime_)); }
+
+        template <typename _Clock, typename _Dur>
+        void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }
 
     private:
         std::shared_ptr<detail::future_shared_state_box<R &>> box = nullptr;
