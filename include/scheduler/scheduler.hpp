@@ -214,7 +214,7 @@ namespace JAMScript
 
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedInteractiveExecution(StackTraits stackTraits, Duration deadline, Duration burst, 
-                                                        const std::string &eName, Args &&... eArgs) 
+                                                       const std::string &eName, Args &&... eArgs) 
         {
             auto* pf = new Promise<T>();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
@@ -223,6 +223,29 @@ namespace JAMScript
                 pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
             }
             , [pf, tAttr]() 
+            {
+                try 
+                {
+                    pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    delete tAttr;
+                } 
+                catch (const std::exception& e) 
+                {
+                    pf->SetException(std::make_exception_ptr(e));
+                    delete tAttr;
+                }
+                delete pf;
+            }).Detach();
+            return std::move(pf->GetFuture());
+        }
+
+        template <typename T, typename... Args>
+        Future<T> CreateLocalNamedBatchExecution(StackTraits stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
+        {
+            auto* pf = new Promise<T>();
+            auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
+            CreateBatchTask(std::move(stackTraits), std::move(burst),
+            [pf, tAttr]() 
             {
                 try 
                 {
