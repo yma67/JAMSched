@@ -89,7 +89,7 @@ public:
 struct ReaderWriterFair
 {
 private:
-    JAMScript::Semaphore qMutex, rwMutex, cMutex;
+    JAMScript::Semaphore<1> qMutex, rwMutex, cMutex;
     long rCount;
 
 public:
