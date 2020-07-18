@@ -25,6 +25,7 @@ namespace JAMScript
 
         friend class RIBScheduler;
 
+        void operator()();
         void NotifyAllTimeouts();
         void UpdateTimeout();
         void SetTimeoutFor(TaskInterface *task, Duration dt);

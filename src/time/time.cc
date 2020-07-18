@@ -20,6 +20,13 @@ JAMScript::Timer::~Timer()
     timeouts_close(timingWheelPtr);
 }
 
+void JAMScript::Timer::operator()() {
+    while (scheduler->toContinue) {
+        NotifyAllTimeouts();
+        std::this_thread::sleep_for(std::chrono::nanoseconds(500));
+    }
+}
+
 void JAMScript::Timer::NotifyAllTimeouts()
 {
     std::lock_guard lk(sl);

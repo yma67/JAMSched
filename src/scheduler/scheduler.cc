@@ -133,7 +133,7 @@ JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
-    timer.UpdateTimeout();
+    std::thread(std::ref(timer)).detach();
     while (toContinue)
     {
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
@@ -170,7 +170,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         for (auto &rtItem : currentSchedule)
         {
             auto cTime = Clock::now();
-            timer.NotifyAllTimeouts();
             if (rtItem.sTime <= cTime - cycleStartTime && cTime - cycleStartTime <= rtItem.eTime)
             {
                 std::unique_lock lockrt(qMutex);
@@ -195,7 +194,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     lockrt.unlock();
                     while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime)
                     {
-                        timer.NotifyAllTimeouts();
                         cTime = Clock::now();
                         std::unique_lock lock(qMutex);
 #ifdef JAMSCRIPT_BLOCK_WAIT
@@ -319,7 +317,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         }
         numberOfPeriods++;
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-
         if (!eStats.jitters.empty())
         {
             std::cout << "Jitters: ";
