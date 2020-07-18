@@ -97,7 +97,6 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
     t = std::thread([this]() {
         while (toContinue)
         {
-            victim->timer.NotifyAllTimeouts();
             std::unique_lock lock(qMutex);
             if (isReady.empty())
             {
