@@ -101,7 +101,7 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             if (isReady.empty())
             {
                 lock.unlock();
-                // During time of Cluster Headache...
+                // During time of Trigeminal Neuralgia...
                 size_t rStart = rand() % victim->thiefs.size();
                 for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
                 {
