@@ -62,6 +62,7 @@ namespace JAMScript
             ThisTask::Active()->Disable();
             lt.unlock();
             ThisTask::SleepUntil(timeoutTime, lk, ThisTask::Active());
+            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting after?\n");
             if (Clock::now() >= timeoutTime) isTimeout = std::cv_status::timeout;
             return isTimeout;
         }

@@ -39,22 +39,6 @@ namespace JAMScript
         StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
     };
 
-    /*namespace ThisTask {
-
-        template <typename _Clock, typename _Dur>
-        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt);
-
-        template <typename _Clock, typename _Dur>
-        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp);
-
-        template <typename _Clock, typename _Dur>
-        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-
-        template <typename _Clock, typename _Dur>
-        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-
-    } // namespace ThisTask*/
-
     class RIBScheduler : public SchedulerBase
     {
     public:

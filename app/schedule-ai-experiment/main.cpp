@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
         }
         JAMScript::RIBScheduler jRIBScheduler(1024 * 256);
         auto tuPeriod = std::chrono::microseconds(996);
-        jRIBScheduler.CreateBatchTask({true, 0, false}, tuPeriod, [&]() {
+        jRIBScheduler.CreateBatchTask({true, 0, true}, tuPeriod, [&]() {
             while (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() -
                                                                          jRIBScheduler.GetSchedulerStartTime())
                        .count() <
@@ -223,6 +223,7 @@ int main(int argc, char *argv[])
                 prCouldArrive.SetValue("GetUntil Success! ");
             }).detach();
             auto fuCouldArrive = prCouldArrive.GetFuture();
+            // comment out to test GetUntil
             // auto couldArriveVal = fuCouldArrive.GetUntil(std::chrono::steady_clock::now() + std::chrono::seconds(100));
             auto couldArriveVal = fuCouldArrive.GetFor(std::chrono::seconds(100));
             std::cout << couldArriveVal << std::endl;
