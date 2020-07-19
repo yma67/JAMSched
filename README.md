@@ -35,8 +35,7 @@ ribScheduler.RegisterNamedExecution("TestExec", [](int a, int b) -> int {
 ```
 #### Example of Invocation
 ```cpp
-JAMScript::Future<int> fu = 
-ribScheduler.CreateLocalNamedInteractiveExecution<int>(
+auto fu = ribScheduler.CreateLocalNamedInteractiveExecution<int>(
     // Interactive Task Attributes
     {false, 1024}, std::chrono::milliseconds(1000), std::chrono::microseconds(50),
     // Execution Name
