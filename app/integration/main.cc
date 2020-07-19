@@ -54,17 +54,19 @@ int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCalls(invokerMap);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
+    auto slotSize = 1;
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
+                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
                         
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::high_resolution_clock::duration::max(), [&]() {
         while (true)
         {
-            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
+            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
+                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
                                      
+            auto sleepStart = JAMScript::Clock::now();
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
-            printf("==============================================\n");
+            std::cout << "JSleep Latency: " << std::chrono::duration_cast<std::chrono::microseconds>(JAMScript::Clock::now() - sleepStart - std::chrono::milliseconds(70)).count() << " us" << std::endl;
             JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
  //         auto q = ribScheduler.ExtractRemote<int>(jf);
 //            jf.Get();
@@ -77,9 +79,9 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::high_resolution_clock::duration::max(), [&]() {
         while (true)
         {
-            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-                                     
+            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
+                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
+            
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             printf(">>...........\n");
             JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);

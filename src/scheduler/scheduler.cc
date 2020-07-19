@@ -2,8 +2,8 @@
 #include "core/task/task.hpp"
 #include <algorithm>
 
-#ifndef RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS
-#define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS 10
+#ifndef RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS
+#define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS 0
 #endif
 
 #ifndef END_OF_RT_SLOT_SPIN_MAX_MS
@@ -260,12 +260,12 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
             std::unique_lock lQMutexScheduleReady(qMutex);
             auto haveBITaskToExecute = TryExecuteAnInteractiveBatchTask(lQMutexScheduleReady);
             lScheduleReady.lock();
-#if RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS > 0
+#if RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS > 0
             if (!haveBITaskToExecute)
             {
                 cvReadyRTSchedule.wait_for(
                     lScheduleReady, 
-                    std::chrono::microseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS)
+                    std::chrono::nanoseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS)
                 );
             }
 #endif
