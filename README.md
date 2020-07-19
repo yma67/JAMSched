@@ -17,7 +17,8 @@
 ```cpp
 auto DuplicateCStringFunctor = std::function(strdup);
 using StrdupFuncType = decltype(DuplicateCStringFunctor);
-auto DuplicateCStringInvoker = JAMScript::RExecDetails::RoutineRemote<StrdupFuncType>(DuplicateCStringFunctor);
+auto DuplicateCStringInvoker = 
+JAMScript::RExecDetails::RoutineRemote<StrdupFuncType>(DuplicateCStringFunctor);
 std::unordered_map<std::string, JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
     {std::string("DuplicateCString"), &DuplicateCStringInvoker}
 };
