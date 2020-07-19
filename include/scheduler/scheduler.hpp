@@ -16,6 +16,10 @@
 #include "scheduler/decider.hpp"
 #include "scheduler/taskthief.hpp"
 
+#ifndef RT_MMAP_BUCKET_SIZE
+#define RT_MMAP_BUCKET_SIZE 200
+#endif
+
 namespace JAMScript
 {
 
@@ -74,11 +78,17 @@ namespace JAMScript
         bool Empty();
         void RunSchedulerMainLoop() override;
 
-        void RegisterRPCalls(std::unordered_map<std::string, RExecDetails::InvokerInterface *> fvm) 
+        void RegisterARPCall(const std::string &fName, const RExecDetails::RoutineInterface &rpcFunc) 
         {
-            localFuncMap = std::move(fvm);
+            localFuncMap[fName] = &rpcFunc;
         }
 
+        void RegisterRPCalls(std::unordered_map<std::string, const RExecDetails::RoutineInterface *> fvm) 
+        {
+            localFuncMap.insert(fvm.begin(), fvm.end());
+        }
+
+        // Not using const ref for memory safety
         nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
@@ -97,6 +107,7 @@ namespace JAMScript
             return {};
         }
 
+        // Not using const ref for memory safety
         bool CreateRPBatchCall(nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
@@ -123,8 +134,8 @@ namespace JAMScript
         }
 
         template <typename Fn, typename... Args>
-        TaskHandle CreateInteractiveTask(StackTraits stackTraits, Duration deadline, Duration burst,
-                                             std::function<void()> onCancel, Fn &&tf, Args &&... args)
+        TaskHandle CreateInteractiveTask(const StackTraits &stackTraits, Duration deadline, Duration burst,
+                                         std::function<void()> onCancel, Fn &&tf, Args &&... args)
         {
             TaskInterface *fn = nullptr;
             if (stackTraits.useSharedStack)
@@ -136,9 +147,9 @@ namespace JAMScript
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = INTERACTIVE_TASK_T;
-            fn->burst = burst;
-            fn->deadline = deadline;
-            fn->onCancel = onCancel;
+            fn->burst = std::move(burst);
+            fn->deadline = std::move(deadline);
+            fn->onCancel = std::move(onCancel);
             fn->isStealable = stackTraits.canSteal;
             std::lock_guard lock(qMutex);
             decider.RecordInteractiveJobArrival(
@@ -150,7 +161,7 @@ namespace JAMScript
         }
 
         template <typename Fn, typename... Args>
-        TaskHandle CreateBatchTask(StackTraits stackTraits, Duration burst, Fn &&tf, Args &&... args)
+        TaskHandle CreateBatchTask(const StackTraits &stackTraits, Duration burst, Fn &&tf, Args &&... args)
         {
             TaskInterface *fn = nullptr;
             if (stackTraits.useSharedStack)
@@ -162,7 +173,7 @@ namespace JAMScript
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = BATCH_TASK_T;
-            fn->burst = burst;
+            fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
             std::lock_guard lock(qMutex);
             if (fn->isStealable)
@@ -192,7 +203,7 @@ namespace JAMScript
         }
 
         template <typename Fn, typename... Args>
-        TaskHandle CreateRealTimeTask(StackTraits stackTraits, uint32_t id, Fn &&tf, Args &&... args)
+        TaskHandle CreateRealTimeTask(const StackTraits &stackTraits, uint32_t id, Fn &&tf, Args &&... args)
         {
             TaskInterface *fn = nullptr;
             if (stackTraits.useSharedStack)
@@ -213,12 +224,12 @@ namespace JAMScript
         }
 
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedInteractiveExecution(StackTraits stackTraits, Duration deadline, Duration burst, 
+        Future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
                                                        const std::string &eName, Args &&... eArgs) 
         {
             auto* pf = new Promise<T>();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            CreateInteractiveTask(std::move(stackTraits), std::move(deadline), std::move(burst), [pf]() 
+            CreateInteractiveTask(stackTraits, std::forward<Duration>(deadline), std::forward<Duration>(burst), [pf]() 
             {
                 pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
             }
@@ -240,11 +251,11 @@ namespace JAMScript
         }
 
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedBatchExecution(StackTraits stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
+        Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
         {
             auto* pf = new Promise<T>();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            CreateBatchTask(std::move(stackTraits), std::move(burst),
+            CreateBatchTask(stackTraits, std::forward<Duration>(burst),
             [pf, tAttr]() 
             {
                 try 
@@ -304,14 +315,14 @@ namespace JAMScript
         Duration vClockI, vClockB;
         std::mutex sReadyRTSchedule;
         std::condition_variable cvReadyRTSchedule, cvQMutex;
-        TimePoint schedulerStartTime, cycleStartTime;
+        TimePoint currentTime, schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
         std::unordered_map<std::string, std::any> lexecFuncMap;
-        std::unordered_map<std::string, RExecDetails::InvokerInterface *> localFuncMap;
+        std::unordered_map<std::string, const RExecDetails::RoutineInterface *> localFuncMap;
 
         JAMStorageTypes::BatchQueueType bQueue;
         JAMStorageTypes::InteractiveReadyStackType iCancelStack;
-        JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[200];
+        JAMStorageTypes::RealTimeIdMultiMapType::bucket_type bucket[RT_MMAP_BUCKET_SIZE];
         JAMStorageTypes::RealTimeIdMultiMapType rtRegisterTable;
         JAMStorageTypes::InteractiveEdfPriorityQueueType iEDFPriorityQueue;
 
@@ -319,33 +330,34 @@ namespace JAMScript
 
         uint32_t GetThiefSizes();
         StealScheduler* GetMinThief();
+        bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
         
     };
 
     namespace ThisTask {
 
         template <typename _Clock, typename _Dur>
-        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt)
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt)
         {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::chrono::duration_cast<Duration>(dt));
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::move(std::chrono::duration_cast<Duration>(dt)));
         }
 
         template <typename _Clock, typename _Dur>
-        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp)
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp)
         {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, convert(tp));
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, std::move(convert(tp)));
         }
 
         template <typename _Clock, typename _Dur>
-        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
         {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::chrono::duration_cast<Duration>(dt), lk, f);
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::move(std::chrono::duration_cast<Duration>(dt)), lk, f);
         }
 
         template <typename _Clock, typename _Dur>
-        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
         {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, convert(tp), lk, f);
+            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, std::move(convert(tp)), lk, f);
         }
 
     } // namespace ThisTask

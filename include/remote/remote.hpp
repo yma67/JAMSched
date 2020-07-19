@@ -158,22 +158,19 @@ namespace JAMScript
             return true;
         }
 
-        struct InvokerInterface
+        struct RoutineInterface
         {
-            virtual nlohmann::json Invoke(nlohmann::json vaList)
-            {
-                return nlohmann::json::object({"args", {}});
-            }
+            virtual nlohmann::json Invoke(const nlohmann::json &vaList) const = 0;
         };
 
         template <typename T>
         struct RoutineRemote;
 
         template <typename R, typename... Args>
-        struct RoutineRemote<std::function<R(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<R(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<R(Args...)> f) : fn(std::move(f)) {}
-            nlohmann::json Invoke(nlohmann::json vaList) override
+            nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
                 {
@@ -184,17 +181,17 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json::object({{"exception", std::string(e.what())}});
+                    return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
             }
             std::function<R(Args...)> fn;
         };
 
         template <typename... Args>
-        struct RoutineRemote<std::function<void(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<void(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<void(Args...)> f) : fn(std::move(f)) {}
-            nlohmann::json Invoke(nlohmann::json vaList) override
+            nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
                 {
@@ -205,17 +202,17 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json::object({{"exception", std::string(e.what())}});
+                    return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
             }
             std::function<void(Args...)> fn;
         };
 
         template <typename... Args>
-        struct RoutineRemote<std::function<char *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<char *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<char *(Args...)> f) : fn(std::move(f)) {}
-            nlohmann::json Invoke(nlohmann::json vaList) override
+            nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
                 {
@@ -228,17 +225,17 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json::object({{"exception", std::string(e.what())}});
+                    return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
             }
             std::function<char *(Args...)> fn;
         };
 
         template <typename... Args>
-        struct RoutineRemote<std::function<const char *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<const char *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<const char *(Args...)> f) : fn(std::move(f)) {}
-            nlohmann::json Invoke(nlohmann::json vaList) override
+            nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
                 {
@@ -251,17 +248,17 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json::object({{"exception", std::string(e.what())}});
+                    return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
             }
             std::function<const char *(Args...)> fn;
         };
 
         template <typename... Args>
-        struct RoutineRemote<std::function<nvoid_t *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<nvoid_t *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<nvoid_t *(Args...)> f) : fn(std::move(f)) {}
-            nlohmann::json Invoke(nlohmann::json vaList) override
+            nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
                 {
@@ -275,17 +272,17 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json::object({{"exception", std::string(e.what())}});
+                    return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
             }
             std::function<nvoid_t *(Args...)> fn;
         };
 
         template <typename... Args>
-        struct RoutineRemote<std::function<const nvoid_t *(Args...)>> : public InvokerInterface
+        struct RoutineRemote<std::function<const nvoid_t *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<const nvoid_t *(Args...)> f) : fn(std::move(f)) {}
-            nlohmann::json Invoke(nlohmann::json vaList) override
+            nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
                 {
@@ -299,7 +296,7 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    return nlohmann::json::object({{"exception", std::string(e.what())}});
+                    return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
             }
             std::function<const nvoid_t *(Args...)> fn;

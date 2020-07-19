@@ -2,10 +2,18 @@
 #include "core/task/task.hpp"
 #include <algorithm>
 
+#ifndef RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS
+#define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS 10
+#endif
+
+#ifndef END_OF_RT_SLOT_SPIN_MAX_MS
+#define END_OF_RT_SLOT_SPIN_MAX_MS 200
+#endif
+
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs)
     : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
       decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)),
-      numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, 200))
+      numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {
     for (uint32_t i = 0; i < nThiefs; i++)
     {
@@ -130,6 +138,115 @@ JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
     return minThief;
 }
 
+bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock) {
+    if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+    {
+        return false;
+    }
+    else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+    {
+        goto DECISION_BATCH;
+    }
+    else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty()))
+    {
+        goto DECISION_INTERACTIVE;
+    }
+    else
+    {
+        if (vClockB > vClockI)
+            goto DECISION_INTERACTIVE;
+        else
+            goto DECISION_BATCH;
+    }
+    DECISION_BATCH:
+    {
+        if (bQueue.empty())
+        {
+            goto END_LOOP;
+        }
+        auto currentBatchIter = bQueue.begin();
+        auto *cBatchPtr = &(*currentBatchIter);
+        bQueue.erase(currentBatchIter);
+        lock.unlock();
+        auto tStart = Clock::now();
+        cBatchPtr->SwapIn();
+        lock.lock();
+        vClockB += Clock::now() - tStart;
+        if (cBatchPtr->status == TASK_FINISHED)
+        {
+            delete cBatchPtr;
+        }
+        goto END_LOOP;
+    }
+    DECISION_INTERACTIVE:
+    {
+        while (!iEDFPriorityQueue.empty() && iEDFPriorityQueue.top()->deadline -
+                                                        iEDFPriorityQueue.top()->burst +
+                                                        schedulerStartTime <
+                                                        currentTime)
+        {
+            auto *pTop = &(*iEDFPriorityQueue.top());
+            iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
+            if (!thiefs.empty() && pTop->CanSteal())
+            {
+                auto *pNextThief = GetMinThief();
+                if (pNextThief != nullptr)
+                {
+                    pNextThief->Steal(pTop);
+                }
+            }
+            else
+            {
+                iCancelStack.push_front(*pTop);
+            }
+        }
+        while (iCancelStack.size() > 3)
+        {
+            auto *pItEdf = &(iCancelStack.back());
+            iCancelStack.pop_back();
+            pItEdf->onCancel();
+            pItEdf->notifier->Notify();
+            delete pItEdf;
+        }
+        if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
+        {
+            auto currentInteractiveIter = iCancelStack.begin();
+            auto *cIPtr = &(*currentInteractiveIter);
+            iCancelStack.erase(currentInteractiveIter);
+            lock.unlock();
+            auto tStart = Clock::now();
+            cIPtr->SwapIn();
+            lock.lock();
+            auto tDelta = Clock::now() - tStart;
+            vClockI += tDelta;
+            cIPtr->burst -= tDelta;
+            if (cIPtr->status == TASK_FINISHED)
+            {
+                delete cIPtr;
+            }
+        }
+        else if (!iEDFPriorityQueue.empty())
+        {
+            auto currentInteractiveIter = iEDFPriorityQueue.top();
+            iEDFPriorityQueue.erase(currentInteractiveIter);
+            auto *cInteracPtr = &(*currentInteractiveIter);
+            lock.unlock();
+            auto tStart = Clock::now();
+            cInteracPtr->SwapIn();
+            lock.lock();
+            auto tDelta = Clock::now() - tStart;
+            vClockI += tDelta;
+            cInteracPtr->burst -= tDelta;
+            if (cInteracPtr->status == TASK_FINISHED)
+            {
+                delete cInteracPtr;
+            }
+        }
+        goto END_LOOP;
+    }
+    END_LOOP: return true;
+}
+
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
@@ -139,7 +256,19 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
         while (rtScheduleGreedy.empty() || rtScheduleNormal.empty())
         {
-            cvReadyRTSchedule.wait(lScheduleReady);
+            lScheduleReady.unlock();
+            std::unique_lock lQMutexScheduleReady(qMutex);
+            auto haveBITaskToExecute = TryExecuteAnInteractiveBatchTask(lQMutexScheduleReady);
+            lScheduleReady.lock();
+#if RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS > 0
+            if (!haveBITaskToExecute)
+            {
+                cvReadyRTSchedule.wait_for(
+                    lScheduleReady, 
+                    std::chrono::microseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS)
+                );
+            }
+#endif
         }
         decider.NotifyChangeOfSchedule(rtScheduleNormal, rtScheduleGreedy);
         decltype(rtScheduleGreedy) currentSchedule;
@@ -169,148 +298,47 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         cycleStartTime = Clock::now();
         for (auto &rtItem : currentSchedule)
         {
-            auto cTime = Clock::now();
-            if (rtItem.sTime <= cTime - cycleStartTime && cTime - cycleStartTime <= rtItem.eTime)
+            currentTime = Clock::now();
+            if (rtItem.sTime <= currentTime - cycleStartTime && currentTime - cycleStartTime <= rtItem.eTime)
             {
-                std::unique_lock lockrt(qMutex);
+                std::unique_lock lockRT(qMutex);
                 if (rtItem.taskId != 0 && rtRegisterTable.count(rtItem.taskId) > 0)
                 {
                     auto currentRTIter = rtRegisterTable.find(rtItem.taskId);
-                    lockrt.unlock();
-                    eStats.jitters.push_back((cTime - cycleStartTime) - rtItem.sTime);
+                    lockRT.unlock();
+                    eStats.jitters.push_back((currentTime - cycleStartTime) - rtItem.sTime);
                     currentRTIter->SwapIn();
-                    lockrt.lock();
+                    lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule.back().eTime > std::chrono::microseconds(200))
+                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
                     {
-                        std::this_thread::sleep_until(GetCycleStartTime() + (rtItem.eTime - std::chrono::microseconds(200)));
+                        std::this_thread::sleep_until(
+                            GetCycleStartTime() + 
+                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
+                        );
                     }
 #endif
                     while (Clock::now() - cycleStartTime < rtItem.eTime);
                 }
                 else
                 {
-                    lockrt.unlock();
+                    lockRT.unlock();
                     while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime)
                     {
-                        cTime = Clock::now();
-                        std::unique_lock lock(qMutex);
-#ifdef JAMSCRIPT_BLOCK_WAIT
-                        cvQMutex.wait_until(lock, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
-                            return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty()); 
-                        });
-#endif
-                        if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+                        currentTime = Clock::now();
+                        std::unique_lock lockIBTask(qMutex);
+                        if (!TryExecuteAnInteractiveBatchTask(lockIBTask)) 
                         {
-                            goto END_LOOP;
+                            cvQMutex.wait_until(lockIBTask, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
+                                return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty()); 
+                            });
                         }
-                        else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+                        lockIBTask.unlock();
+                        if (!toContinue)
                         {
-                            goto DECISION_BATCH;
+                            return;
                         }
-                        else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty()))
-                        {
-                            goto DECISION_INTERACTIVE;
-                        }
-                        else
-                        {
-                            if (vClockB > vClockI)
-                                goto DECISION_INTERACTIVE;
-                            else
-                                goto DECISION_BATCH;
-                        }
-                    DECISION_BATCH:
-                    {
-                        if (bQueue.empty())
-                        {
-                            goto END_LOOP;
-                        }
-                        auto currentBatchIter = bQueue.begin();
-                        auto *cBatchPtr = &(*currentBatchIter);
-                        bQueue.erase(currentBatchIter);
-                        lock.unlock();
-                        auto tStart = Clock::now();
-                        cBatchPtr->SwapIn();
-                        lock.lock();
-                        vClockB += Clock::now() - tStart;
-                        if (cBatchPtr->status == TASK_FINISHED)
-                        {
-                            delete cBatchPtr;
-                        }
-                        goto END_LOOP;
-                    }
-                    DECISION_INTERACTIVE:
-                    {
-                        while (!iEDFPriorityQueue.empty() && iEDFPriorityQueue.top()->deadline -
-                                                                     iEDFPriorityQueue.top()->burst +
-                                                                     schedulerStartTime <
-                                                                 cTime)
-                        {
-                            auto *pTop = &(*iEDFPriorityQueue.top());
-                            iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
-                            if (!thiefs.empty() && pTop->CanSteal())
-                            {
-                                auto *pNextThief = GetMinThief();
-                                if (pNextThief != nullptr)
-                                {
-                                    pNextThief->Steal(pTop);
-                                }
-                            }
-                            else
-                            {
-                                iCancelStack.push_front(*pTop);
-                            }
-                        }
-                        while (iCancelStack.size() > 3)
-                        {
-                            auto *pItEdf = &(iCancelStack.back());
-                            iCancelStack.pop_back();
-                            pItEdf->onCancel();
-                            pItEdf->notifier->Notify();
-                            delete pItEdf;
-                        }
-                        if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
-                        {
-                            auto currentInteractiveIter = iCancelStack.begin();
-                            auto *cIPtr = &(*currentInteractiveIter);
-                            iCancelStack.erase(currentInteractiveIter);
-                            lock.unlock();
-                            auto tStart = Clock::now();
-                            cIPtr->SwapIn();
-                            lock.lock();
-                            auto tDelta = Clock::now() - tStart;
-                            vClockI += tDelta;
-                            cIPtr->burst -= tDelta;
-                            if (cIPtr->status == TASK_FINISHED)
-                            {
-                                delete cIPtr;
-                            }
-                        }
-                        else if (!iEDFPriorityQueue.empty())
-                        {
-                            auto currentInteractiveIter = iEDFPriorityQueue.top();
-                            iEDFPriorityQueue.erase(currentInteractiveIter);
-                            auto *cInteracPtr = &(*currentInteractiveIter);
-                            lock.unlock();
-                            auto tStart = Clock::now();
-                            cInteracPtr->SwapIn();
-                            lock.lock();
-                            auto tDelta = Clock::now() - tStart;
-                            vClockI += tDelta;
-                            cInteracPtr->burst -= tDelta;
-                            if (cInteracPtr->status == TASK_FINISHED)
-                            {
-                                delete cInteracPtr;
-                            }
-                        }
-                        goto END_LOOP;
-                    }
-                    END_LOOP:;
-                    }
-                    if (!toContinue)
-                    {
-                        return;
                     }
                 }
             }
