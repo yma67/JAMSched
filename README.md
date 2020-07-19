@@ -19,7 +19,7 @@ auto DuplicateCStringFunctor = std::function(strdup);
 using StrdupFuncType = decltype(DuplicateCStringFunctor);
 auto DuplicateCStringInvoker = 
 JAMScript::RExecDetails::RoutineRemote<StrdupFuncType>(DuplicateCStringFunctor);
-std::unordered_map<std::string, JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
+std::unordered_map<std::string, const JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
     {std::string("DuplicateCString"), &DuplicateCStringInvoker}
 };
 JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
