@@ -41,7 +41,7 @@ auto RPCFunctionJAsyncFunctor = std::function(RPCFunctionJAsync);
 auto RPCFunctionJAsyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
 auto DuplicateCStringFunctor = std::function(strdup);
 auto DuplicateCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
-std::unordered_map<std::string, JAMScript::RExecDetails::InvokerInterface *> invokerMap = {
+std::unordered_map<std::string, const JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
     {std::string("addNumbers"), &addNumberInvoker},
     {std::string("scaleNumber"), &scaleNumberInvoker},    
     {std::string("getTime"), &getTimeInvoker},

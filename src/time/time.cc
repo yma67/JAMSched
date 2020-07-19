@@ -44,12 +44,12 @@ void JAMScript::Timer::UpdateTimeout()
 
 void JAMScript::Timer::UpdateTimeout_()
 {
-    timeouts_update(timingWheelPtr, std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                        Clock::now() - scheduler->GetSchedulerStartTime())
-                                        .count());
+    timeouts_update(timingWheelPtr, 
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - scheduler->GetSchedulerStartTime())
+                    .count());
 }
 
-void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, Duration dt) { SetTimeout(task, dt, 0); }
+void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, Duration dt) { SetTimeout(task, std::forward<Duration>(dt), 0); }
 
 void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, TimePoint tp)
 {
@@ -78,7 +78,7 @@ void JAMScript::Timer::TimeoutCallback(void *args)
 void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, Duration dt, std::unique_lock<JAMScript::SpinMutex> &iLock,
                                      TaskInterface *f)
 {
-    SetTimeout(task, dt, 0, iLock, f);
+    SetTimeout(task, std::forward<Duration>(dt), 0, iLock, f);
 }
 
 void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, TimePoint tp, std::unique_lock<JAMScript::SpinMutex> &iLock,

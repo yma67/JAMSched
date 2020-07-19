@@ -33,7 +33,7 @@ auto CompareCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(Com
 auto CStringLengthFunctor = std::function(strlen);
 auto CStringLengthInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(CStringLengthFunctor)>(CStringLengthFunctor);
 
-std::unordered_map<std::string, JAMScript::RExecDetails::InvokerInterface *> invokerMap = {
+std::unordered_map<std::string, const JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
     {std::string("PrintResultWithGrade"), &PrintResultWithGradeInvoker},
     {std::string("CompareCString"), &CompareCStringInvoker},
     {std::string("CStringLength"), &CStringLengthInvoker}};

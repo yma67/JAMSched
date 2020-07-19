@@ -92,16 +92,16 @@ namespace JAMScript
         TaskInterface *Active();
 
         template <typename _Clock, typename _Dur>
-        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt);
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
 
         template <typename _Clock, typename _Dur>
-        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp);
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
 
         template <typename _Clock, typename _Dur>
-        void SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
 
         template <typename _Clock, typename _Dur>
-        void SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
 
         void Yield();
 
