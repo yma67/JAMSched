@@ -62,7 +62,7 @@ int main()
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCalls(invokerMap);
     auto slotSize = 1;
-    auto tuSleepTime = std::chrono::microseconds(100);
+    auto tuSleepTime = std::chrono::milliseconds(100);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::high_resolution_clock::duration::max(), [&]() {
@@ -88,7 +88,6 @@ int main()
         {
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
-            
             JAMScript::ThisTask::SleepFor(tuSleepTime);
             printf(">>...........\n");
             JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
