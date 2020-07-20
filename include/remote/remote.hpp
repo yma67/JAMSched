@@ -325,17 +325,7 @@ namespace JAMScript
             auto* pr = rLookup[eIdFactory++] = new Promise<nlohmann::json>();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest);
-            for (int i = 0; i < 3; i++)
-            {
-                if (mqtt_publish(mq, const_cast<char *>("/rexec-request"), nvoid_new(vReq.data(), vReq.size())))
-                {
-                    break;
-                }
-                if (i == 2)
-                {
-                    throw InvalidArgumentException("Rexec Failed After 3 Retries\n");
-                }
-            }
+            mqtt_publish(mq, const_cast<char *>("/rexec-request"), nvoid_new(vReq.data(), vReq.size()));
             return pr->GetFuture();
         }
 
