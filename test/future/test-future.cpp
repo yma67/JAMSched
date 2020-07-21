@@ -46,7 +46,7 @@ TEST_CASE("Performance Future", "[future]")
     }
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
-
+#ifndef JAMSCRIPT_ON_TRAVIS
 TEST_CASE("InterLock", "[future]")
 {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
@@ -54,7 +54,7 @@ TEST_CASE("InterLock", "[future]")
 #else
     std::string sec("muthucumaru maheswaran loves java");
 #endif
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, 1);
+    JAMScript::RIBScheduler ribScheduler(1024 * 256);
     auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
@@ -79,6 +79,7 @@ TEST_CASE("InterLock", "[future]")
     });
     ribScheduler.RunSchedulerMainLoop();
 }
+#endif
 
 TEST_CASE("LExec", "[future]")
 {
