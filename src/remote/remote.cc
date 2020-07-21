@@ -48,52 +48,55 @@ JAMScript::Remote::~Remote() { mqtt_deleteserver(mq); }
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
     auto *scheduler = static_cast<RIBScheduler *>(ctx);
-    std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
-    nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
-    RegisterTopic(scheduler->remote->requestDown, "PING", {
+    try {
+        std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
+        nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
+        RegisterTopic(scheduler->remote->requestDown, "PING", {
 
-    });
-    RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
+        });
+        RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
 
-    });
-    RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
+        });
+        RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
 
-    });
-    RegisterTopic(scheduler->remote->announceDown, "KILL", {
-        scheduler->ShutDown();
-    });
-    RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
-        if (rMsg.contains("actid")) 
-        {
-            auto actId = rMsg["actid"].get<std::string>();
-            if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
-                nlohmann::json jack = 
-                {
-                    {"actid", actId},
-                    {"cmd", "REXEC-ACK"}
-                };
-                auto vReq = nlohmann::json::to_cbor(jack.dump());
-                mqtt_publish(scheduler->remote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size()));
-            }
-        }
-    });
-    RegisterTopic(scheduler->remote->requestDown, "REXEC-SYN", {
-
-    });
-    RegisterTopic(scheduler->remote->replyDown, "REXEC-RES", {
-        if (rMsg.contains("actid") && rMsg.contains("args")) 
-        {
-            auto actId = rMsg["actid"].get<uint32_t>();
-            if (scheduler->remote->rLookup.find(actId) != scheduler->remote->rLookup.end()) 
+        });
+        RegisterTopic(scheduler->remote->announceDown, "KILL", {
+            scheduler->ShutDown();
+        });
+        RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
+            if (rMsg.contains("actid")) 
             {
-                auto* pVal = scheduler->remote->rLookup[actId];
-                pVal->SetValue(rMsg["args"]);
-                delete pVal;
-                scheduler->remote->rLookup.erase(actId);
+                auto actId = rMsg["actid"].get<std::string>();
+                if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
+                    nlohmann::json jack = 
+                    {
+                        {"actid", actId},
+                        {"cmd", "REXEC-ACK"}
+                    };
+                    auto vReq = nlohmann::json::to_cbor(jack.dump());
+                    mqtt_publish(scheduler->remote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size()));
+                }
             }
-        }
-    });
-    
+        });
+        RegisterTopic(scheduler->remote->requestDown, "REXEC-SYN", {
+
+        });
+        RegisterTopic(scheduler->remote->replyDown, "REXEC-RES", {
+            if (rMsg.contains("actid") && rMsg.contains("args")) 
+            {
+                auto actId = rMsg["actid"].get<uint32_t>();
+                if (scheduler->remote->rLookup.find(actId) != scheduler->remote->rLookup.end()) 
+                {
+                    auto* pVal = scheduler->remote->rLookup[actId];
+                    pVal->SetValue(rMsg["args"]);
+                    delete pVal;
+                    scheduler->remote->rLookup.erase(actId);
+                }
+            }
+        });
+    } catch (const std::exception& e) {
+        e.what();
+    }
 END_REMOTE:
     mqtt_free_topic_msg(topicname, &msg);
     return 1;
