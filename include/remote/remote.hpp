@@ -177,7 +177,7 @@ namespace JAMScript
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     nlohmann::json jxr = nlohmann::json::object({{"args", std::apply(fn, vaTuple)}});
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
-                    return std::move(jxr);
+                    return jxr;
                 }
                 catch (const std::exception &e)
                 {
@@ -221,7 +221,7 @@ namespace JAMScript
                     nlohmann::json jxr = nlohmann::json::object({{"args", std::string(cString)}});
                     free(cString);
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
-                    return std::move(jxr);
+                    return jxr;
                 }
                 catch (const std::exception &e)
                 {
@@ -244,7 +244,7 @@ namespace JAMScript
                     nlohmann::json jxr = nlohmann::json::object({{"args", std::string(cString)}});
                     free(const_cast<char*>(cString));
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
-                    return std::move(jxr);
+                    return jxr;
                 }
                 catch (const std::exception &e)
                 {
@@ -268,7 +268,7 @@ namespace JAMScript
                     nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(nVoid);
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
-                    return std::move(jxr);
+                    return jxr;
                 }
                 catch (const std::exception &e)
                 {
@@ -292,7 +292,7 @@ namespace JAMScript
                     nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(const_cast<nvoid_t*>(nVoid));
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
-                    return std::move(jxr);
+                    return jxr;
                 }
                 catch (const std::exception &e)
                 {
@@ -325,17 +325,7 @@ namespace JAMScript
             auto* pr = rLookup[eIdFactory++] = new Promise<nlohmann::json>();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest);
-            for (int i = 0; i < 3; i++)
-            {
-                if (mqtt_publish(mq, const_cast<char *>("/requests/up"), nvoid_new(vReq.data(), vReq.size())))
-                {
-                    break;
-                }
-                if (i == 2)
-                {
-                    throw InvalidArgumentException("Rexec Failed After 3 Retries\n");
-                }
-            }
+            mqtt_publish(mq, const_cast<char *>("/rexec-request"), nvoid_new(vReq.data(), vReq.size()));
             return pr->GetFuture();
         }
 

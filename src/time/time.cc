@@ -49,14 +49,17 @@ void JAMScript::Timer::UpdateTimeout_()
                     .count());
 }
 
-void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, Duration dt) { SetTimeout(task, std::forward<Duration>(dt), 0); }
+void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt) 
+{ 
+    SetTimeout(task, dt, 0); 
+}
 
-void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, TimePoint tp)
+void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp)
 {
     SetTimeout(task, tp - scheduler->GetSchedulerStartTime(), TIMEOUT_ABS);
 }
 
-void JAMScript::Timer::SetTimeout(TaskInterface *task, Duration dt, uint32_t mask)
+void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask)
 {
     std::unique_lock lk(sl);
     UpdateTimeout_();
@@ -75,30 +78,27 @@ void JAMScript::Timer::TimeoutCallback(void *args)
     t->scheduler->Enable(t);
 }
 
-void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, Duration dt, std::unique_lock<JAMScript::SpinMutex> &iLock,
-                                     TaskInterface *f)
+void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<JAMScript::SpinMutex> &iLock)
 {
-    SetTimeout(task, std::forward<Duration>(dt), 0, iLock, f);
+    SetTimeout(task, dt, 0, iLock);
 }
 
-void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, TimePoint tp, std::unique_lock<JAMScript::SpinMutex> &iLock,
-                                       TaskInterface *f)
+void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<JAMScript::SpinMutex> &iLock)
 {
-    SetTimeout(task, tp - scheduler->GetSchedulerStartTime(), TIMEOUT_ABS, iLock, f);
+    SetTimeout(task, tp - scheduler->GetSchedulerStartTime(), TIMEOUT_ABS, iLock);
 }
 
-void JAMScript::Timer::SetTimeout(TaskInterface *task, Duration dt, uint32_t mask,
-                                  std::unique_lock<JAMScript::SpinMutex> &iLock, TaskInterface *f)
+void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask,  std::unique_lock<JAMScript::SpinMutex> &iLock)
 {
     std::unique_lock lk(sl);
     UpdateTimeout_();
     struct timeout *timeOut = new struct timeout;
     timeOut = timeout_init(timeOut, mask);
-    timeout_setcb(timeOut, TimeoutCallback, f);
+    timeout_setcb(timeOut, TimeoutCallback, task);
     timeouts_add(timingWheelPtr, timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     iLock.unlock();
-    f->SwapOut();
+    task->SwapOut();
     iLock.lock();
     if (!timeout_expired(timeOut)) timeout_del(timeOut);
     delete timeOut;

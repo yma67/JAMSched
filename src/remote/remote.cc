@@ -12,7 +12,7 @@ static void connected(void *a)
 
 JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                           const std::string &appName, const std::string &devName)
-    : scheduler(scheduler), devId(devName), appId(appName), 
+    : scheduler(scheduler), devId(devName), appId(appName), eIdFactory(0U),
       requestUp(std::string("/") + appName + "/requests/up"),
       requestDown(std::string("/") + appName + "/requests/down"), 
       replyUp(std::string("/") + appName + "/replies/up"), 
@@ -65,10 +65,11 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
         if (rMsg.contains("actid")) 
         {
-            if (scheduler->CreateRPBatchCall(rMsg)) {
+            auto actId = rMsg["actid"].get<std::string>();
+            if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
                 nlohmann::json jack = 
                 {
-                    {"actid", rMsg["actid"].get<std::string>()},
+                    {"actid", actId},
                     {"cmd", "REXEC-ACK"}
                 };
                 auto vReq = nlohmann::json::to_cbor(jack.dump());

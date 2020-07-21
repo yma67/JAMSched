@@ -2,8 +2,8 @@
 #include "core/task/task.hpp"
 #include <algorithm>
 
-#ifndef RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS
-#define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS 10
+#ifndef RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS
+#define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS 10000
 #endif
 
 #ifndef END_OF_RT_SLOT_SPIN_MAX_MS
@@ -50,17 +50,38 @@ void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, 
     std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
     rtScheduleNormal = std::move(normal);
     rtScheduleGreedy = std::move(greedy);
+    decider.NotifyChangeOfSchedule(rtScheduleNormal, rtScheduleGreedy);
     cvReadyRTSchedule.notify_one();
 }
 
-const JAMScript::TimePoint &JAMScript::RIBScheduler::GetSchedulerStartTime() const
+JAMScript::TimePoint JAMScript::RIBScheduler::GetSchedulerStartTime() const
 {
-    return schedulerStartTime;
+    return { schedulerStartTime };
 }
 
-const JAMScript::TimePoint &JAMScript::RIBScheduler::GetCycleStartTime() const
+JAMScript::TimePoint JAMScript::RIBScheduler::GetCycleStartTime() const
 {
-    return cycleStartTime;
+    return { cycleStartTime };
+}
+
+void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
+{
+    timer.SetTimeoutFor(task, dt);
+}
+
+void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp) 
+{
+    timer.SetTimeoutUntil(task, tp);
+}
+
+void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) 
+{
+    timer.SetTimeoutFor(task, dt, lk);
+}
+
+void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
+{
+    timer.SetTimeoutUntil(task, tp, lk);
 }
 
 void JAMScript::RIBScheduler::ShutDown()
@@ -254,49 +275,45 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
     while (toContinue)
     {
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
-        while (rtScheduleGreedy.empty() || rtScheduleNormal.empty())
+        while (rtScheduleGreedy.empty() && rtScheduleNormal.empty())
         {
             lScheduleReady.unlock();
             std::unique_lock lQMutexScheduleReady(qMutex);
             auto haveBITaskToExecute = TryExecuteAnInteractiveBatchTask(lQMutexScheduleReady);
             lScheduleReady.lock();
-#if RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS > 0
+#if JAMSCRIPT_BLOCK_WAIT && RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS > 0
             if (!haveBITaskToExecute)
             {
                 cvReadyRTSchedule.wait_for(
                     lScheduleReady, 
-                    std::chrono::microseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_MS)
+                    std::chrono::nanoseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS)
                 );
             }
 #endif
         }
-        decider.NotifyChangeOfSchedule(rtScheduleNormal, rtScheduleGreedy);
-        decltype(rtScheduleGreedy) currentSchedule;
-        if (decider.DecideNextScheduleToRun())
+        decltype(rtScheduleGreedy)* currentSchedule = nullptr;
+        if (rtScheduleNormal.empty())
         {
-            if (remote == nullptr)
-            {
-                currentSchedule = rtScheduleNormal;
-            }
-            else
-            {
-                currentSchedule = std::move(rtScheduleNormal);
-            }
+            currentSchedule = &rtScheduleGreedy;
+        }
+        else if (rtScheduleGreedy.empty())
+        {
+            currentSchedule = &rtScheduleNormal;
         }
         else
         {
-            if (remote == nullptr)
+            if (decider.DecideNextScheduleToRun())
             {
-                currentSchedule = rtScheduleGreedy;
+                currentSchedule = &rtScheduleNormal;
             }
             else
             {
-                currentSchedule = std::move(rtScheduleGreedy);
+                currentSchedule = &rtScheduleGreedy;
             }
         }
         lScheduleReady.unlock();
         cycleStartTime = Clock::now();
-        for (auto &rtItem : currentSchedule)
+        for (auto &rtItem : *currentSchedule)
         {
             currentTime = Clock::now();
             if (rtItem.sTime <= currentTime - cycleStartTime && currentTime - cycleStartTime <= rtItem.eTime)
@@ -311,7 +328,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
+                    if (currentSchedule->back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
                     {
                         std::this_thread::sleep_until(
                             GetCycleStartTime() + 
