@@ -44,9 +44,11 @@ TEST_CASE("Performance Future", "[future]")
         t.detach();
         ribScheduler.RunSchedulerMainLoop();
     }
+    WARN("Ok");
+    pthread_barrier_destroy(&barrier);
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
-#ifndef JAMSCRIPT_ON_TRAVIS
+
 TEST_CASE("InterLock", "[future]")
 {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
@@ -79,7 +81,6 @@ TEST_CASE("InterLock", "[future]")
     });
     ribScheduler.RunSchedulerMainLoop();
 }
-#endif
 
 TEST_CASE("LExec", "[future]")
 {
