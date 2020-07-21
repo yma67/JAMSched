@@ -16,12 +16,16 @@ JAMScript::Timer::~Timer()
     timeouts_update(timingWheelPtr, std::numeric_limits<uint64_t>::max());
     struct timeout *timeOut;
     while ((timeOut = timeouts_get(timingWheelPtr)))
+    {
         timeOut->callback.fn(timeOut->callback.arg);
+    }
     timeouts_close(timingWheelPtr);
 }
 
-void JAMScript::Timer::operator()() {
-    while (scheduler->toContinue) {
+void JAMScript::Timer::operator()() 
+{
+    while (scheduler->toContinue) 
+    {
         NotifyAllTimeouts();
         std::this_thread::sleep_for(std::chrono::nanoseconds(500));
     }
@@ -29,11 +33,15 @@ void JAMScript::Timer::operator()() {
 
 void JAMScript::Timer::NotifyAllTimeouts()
 {
-    std::lock_guard lk(sl);
+    std::unique_lock lk(sl);
     UpdateTimeout_();
     struct timeout *timeOut;
     while ((timeOut = timeouts_get(timingWheelPtr)))
+    {
+        lk.unlock();
         timeOut->callback.fn(timeOut->callback.arg);
+        lk.lock();
+    }
 }
 
 void JAMScript::Timer::UpdateTimeout()
