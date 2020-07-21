@@ -12,7 +12,7 @@ JAMScript::StealScheduler::~StealScheduler()
     {
         toContinue = false;
     }
-    cv.notify_all();
+    cvQMutex.notify_all();
     lk.unlock();
     t.join();
     auto dTaskInf = [](TaskInterface *t) { delete t; };
@@ -24,7 +24,7 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
     std::unique_lock lk(qMutex);
     toSteal->Steal(this);
     isReady.push_back(*toSteal);
-    cv.notify_one();
+    cvQMutex.notify_one();
     rCount++;
     iCount++;
 }
@@ -69,7 +69,7 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
     }
     rCount++;
     toEnable->status = TASK_READY;
-    cv.notify_one();
+    cvQMutex.notify_one();
 }
 
 void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)
@@ -116,7 +116,7 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             }
             while (isReady.empty() && toContinue)
             {
-                cv.wait(lock);
+                cvQMutex.wait(lock);
             }
             if (!toContinue) 
             {
