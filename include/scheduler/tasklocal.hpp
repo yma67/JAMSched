@@ -16,9 +16,9 @@ namespace JAMScript
     T &GetByJTLSLocation(JTLSLocation location, Args &&... args)
     {
         std::unordered_map<JTLSLocation, std::any> *taskLocalPool = nullptr;
-        if (ThisTask::Active())
+        if (TaskInterface::Active())
         {
-            taskLocalPool = ThisTask::Active()->GetTaskLocalStoragePool();
+            taskLocalPool = TaskInterface::Active()->GetTaskLocalStoragePool();
         }
         else
         {

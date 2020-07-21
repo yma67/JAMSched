@@ -15,9 +15,9 @@ TEST_CASE("Performance Future", "[future]")
 #else
     const int nIter = 3000;
 #endif
-    pthread_barrier_t *barrier = new pthread_barrier_t;
-    ;
+    pthread_barrier_t *barrier = reinterpret_cast<pthread_barrier_t *>(calloc(sizeof(pthread_barrier_t), 1));
     pthread_barrier_init(barrier, NULL, 2);
+    std::vector<std::thread> tx;
     for (int i = 0; i < nIter; i++)
     {
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
@@ -36,22 +36,22 @@ TEST_CASE("Performance Future", "[future]")
                         ribScheduler.ShutDown();
                     })
             .Detach();
-        std::thread t([barrier, p]() {
+        tx.push_back(std::thread([barrier, p]() {
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
             p->SetValue(std::chrono::high_resolution_clock::now());
-        });
-        t.detach();
+        }));
         ribScheduler.RunSchedulerMainLoop();
     }
-    delete barrier;
+    for (auto& t: tx) t.join();
+    pthread_barrier_destroy(barrier);
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
 
 TEST_CASE("InterLock", "[future]")
 {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-    std::string sec("");
+    std::string sec("mm");
 #else
     std::string sec("muthucumaru maheswaran loves java");
 #endif

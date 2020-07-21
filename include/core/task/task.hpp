@@ -84,29 +84,6 @@ namespace JAMScript
 
     } // namespace JAMHookTypes
 
-    namespace ThisTask
-    {
-
-        extern thread_local TaskInterface *thisTask;
-
-        TaskInterface *Active();
-
-        template <typename _Clock, typename _Dur>
-        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
-
-        template <typename _Clock, typename _Dur>
-        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
-
-        template <typename _Clock, typename _Dur>
-        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-
-        template <typename _Clock, typename _Dur>
-        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-
-        void Yield();
-
-    } // namespace ThisTask
-
     class SchedulerBase
     {
     public:
@@ -122,6 +99,13 @@ namespace JAMScript
         friend class Notifier;
         friend class RIBScheduler;
         friend class StealScheduler;
+
+        virtual TimePoint GetSchedulerStartTime() const;
+        virtual TimePoint GetCycleStartTime() const;
+        virtual void SleepFor(TaskInterface* task, const Duration &dt) {}
+        virtual void SleepUntil(TaskInterface* task, const TimePoint &tp) {}
+        virtual void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) {}
+        virtual void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) {}
 
         virtual void RunSchedulerMainLoop() = 0;
         virtual void Enable(TaskInterface *toEnable) = 0;
@@ -193,9 +177,41 @@ namespace JAMScript
         void Join();
         void Detach();
         TaskHandle(std::shared_ptr<Notifier> h) : n(std::move(h)) {}
+        TaskHandle(TaskHandle &&other) : n(nullptr) {
+            n = other.n;
+            other.n = nullptr;
+        }
+        TaskHandle &operator=(TaskHandle &&other) {
+            if (this != &other) {
+                Detach();
+                n = other.n;
+                other.n = nullptr;
+            }
+            return *this;
+        }
+        TaskHandle &operator=(TaskHandle const &) = delete;
+        TaskHandle(TaskHandle const &) = delete;
     private:
         std::shared_ptr<Notifier> n;
     };
+
+    namespace ThisTask {
+
+        void Yield();
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
+
+    }
+
+    template <typename _Clock, typename _Duration>
+    std::chrono::high_resolution_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
+    {
+        return std::chrono::high_resolution_clock::now() + (timeout_time - _Clock::now());
+    }
 
     class TaskInterface
     {
@@ -211,12 +227,46 @@ namespace JAMScript
         friend class Notifier;
         friend class RIBScheduler;
         friend class StealScheduler;
+        friend class SpinMutex;
+        friend class ConditionVariableAny;
         friend struct EdfPriority;
         friend struct RealTimeIdKeyType;
         friend struct BIIdKeyType;
 
-        friend TaskInterface *ThisTask::Active();
+        template <typename T, typename... Args>
+        friend T &GetByJTLSLocation(JTLSLocation location, Args &&... args);
+
         friend void ThisTask::Yield();
+
+        template <typename _Clock, typename _Dur>
+        friend void ThisTask::SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
+
+        template <typename _Clock, typename _Dur>
+        friend void ThisTask::SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt) 
+        {
+            baseScheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt));
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp) 
+        {
+            baseScheduler->SleepUntil(this, convert(tp));
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk) 
+        {
+            baseScheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt), lk);
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk)
+        {
+            baseScheduler->SleepUntil(this, convert(tp), lk);
+        }
 
         friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
         friend bool operator>(const TaskInterface &a, const TaskInterface &b) noexcept;
@@ -232,7 +282,6 @@ namespace JAMScript
         JAMScript::JAMHookTypes::WaitSetHook wsHook;
         JAMScript::JAMHookTypes::ThiefQueueHook trHook;
         JAMScript::JAMHookTypes::ThiefSetHook twHook;
-        TaskStatus status;
 
         virtual void SwapOut() = 0;
         virtual void SwapIn() = 0;
@@ -243,8 +292,6 @@ namespace JAMScript
         void Enable() { scheduler->Enable(this); }
 
         const TaskType GetTaskType() const { return taskType; }
-        const SchedulerBase* GetScheduler() const { return scheduler; }
-        SchedulerBase* GetBaseScheduler() const { return baseScheduler; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
 
         std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
@@ -262,7 +309,9 @@ namespace JAMScript
         TaskInterface &operator=(TaskInterface const &) = delete;
         TaskInterface &operator=(TaskInterface &&) = delete;
 
-        
+        static TaskInterface* Active();
+        static thread_local TaskInterface *thisTask;
+
         std::atomic<TaskType> taskType;
         std::atomic_bool isStealable;
         SchedulerBase *scheduler, *baseScheduler;
@@ -270,10 +319,27 @@ namespace JAMScript
         long references;
         Duration deadline, burst;
         uint32_t id;
+        TaskStatus status;
         std::shared_ptr<Notifier> notifier;
         std::function<void()> onCancel;
 
     };
+
+    namespace ThisTask {
+
+        template <typename _Clock, typename _Dur>
+        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt)
+        {
+            TaskInterface::Active()->SleepFor(dt);
+        }
+
+        template <typename _Clock, typename _Dur>
+        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp)
+        {
+            TaskInterface::Active()->SleepUntil(tp);
+        }
+
+    } // namespace ThisTask
 
     struct EdfPriority
     {
@@ -359,12 +425,12 @@ namespace JAMScript
                     {
                         status = TASK_FINISHED;
                         scheduler->ShutDown();
-                        ThisTask::thisTask = nullptr;
+                        TaskInterface::thisTask = nullptr;
                         SwapToContext(&uContext, &scheduler->schedulerContext);
                     }
                 }
                 memcpy(privateStack, tos, privateStackSize);
-                ThisTask::thisTask = nullptr;
+                TaskInterface::thisTask = nullptr;
                 SwapToContext(&uContext, &scheduler->schedulerContext);
                 return;
             }
@@ -373,7 +439,7 @@ namespace JAMScript
         void SwapIn() override
         {
             memcpy(scheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
-            ThisTask::thisTask = this;
+            TaskInterface::thisTask = this;
             isStealable = false;
             this->status = TASK_RUNNING;
             SwapToContext(&scheduler->schedulerContext, &uContext);
@@ -436,7 +502,7 @@ namespace JAMScript
 
         void SwapOut() override
         {
-            ThisTask::thisTask = nullptr;
+            TaskInterface::thisTask = nullptr;
             auto *prev_scheduler = scheduler;
             scheduler->taskRunning = nullptr;
             SwapToContext(&uContext, &prev_scheduler->schedulerContext);
@@ -444,7 +510,7 @@ namespace JAMScript
 
         void SwapIn() override
         {
-            ThisTask::thisTask = this;
+            TaskInterface::thisTask = this;
             isStealable = false;
             scheduler->taskRunning = this;
             this->status = TASK_RUNNING;

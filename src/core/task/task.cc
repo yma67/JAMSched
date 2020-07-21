@@ -1,7 +1,7 @@
 #include "core/task/task.hpp"
-#include "concurrency/notifier.hpp"
 #include "scheduler/scheduler.hpp"
 #include "scheduler/tasklocal.hpp"
+#include "concurrency/notifier.hpp"
 
 JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
     : status(TASK_READY),
@@ -9,7 +9,7 @@ JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
       scheduler(scheduler),
       baseScheduler(scheduler),
       references(0),
-      notifier(std::make_shared<Notifier>(ThisTask::Active())),
+      notifier(std::make_shared<Notifier>(TaskInterface::Active())),
       id(0),
       taskLocalStoragePool(*GetGlobalJTLSMap()),
       deadline(std::chrono::microseconds(0)),
@@ -72,19 +72,29 @@ JAMScript::SchedulerBase::~SchedulerBase()
     delete[] sharedStackBegin;
 }
 
-thread_local JAMScript::TaskInterface *JAMScript::ThisTask::thisTask = nullptr;
+JAMScript::TimePoint JAMScript::SchedulerBase::GetSchedulerStartTime() const 
+{ 
+    return Clock::now(); 
+}
 
-JAMScript::TaskInterface *JAMScript::ThisTask::Active()
+JAMScript::TimePoint JAMScript::SchedulerBase::GetCycleStartTime() const 
+{
+    return Clock::now(); 
+}
+
+thread_local JAMScript::TaskInterface *JAMScript::TaskInterface::thisTask = nullptr;
+
+JAMScript::TaskInterface *JAMScript::TaskInterface::Active()
 {
     return thisTask;
 }
 
 void JAMScript::ThisTask::Yield()
 {
-    if (thisTask->status != TASK_FINISHED) 
+    if (TaskInterface::Active()->status != TASK_FINISHED) 
     {
-        thisTask->scheduler->Enable(thisTask);
-        thisTask->SwapOut();
+        TaskInterface::Active()->scheduler->Enable(TaskInterface::Active());
+        TaskInterface::Active()->SwapOut();
     }
 }
 

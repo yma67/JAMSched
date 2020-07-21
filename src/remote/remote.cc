@@ -65,10 +65,11 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
         if (rMsg.contains("actid")) 
         {
-            if (scheduler->CreateRPBatchCall(rMsg)) {
+            auto actId = rMsg["actid"].get<std::string>();
+            if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
                 nlohmann::json jack = 
                 {
-                    {"actid", rMsg["actid"].get<std::string>()},
+                    {"actid", actId},
                     {"cmd", "REXEC-ACK"}
                 };
                 auto vReq = nlohmann::json::to_cbor(jack.dump());
