@@ -6,7 +6,7 @@ void JAMScript::SpinMutex::lock()
     int cnt = 1;
     while (flag.test_and_set(std::memory_order_acquire))
     {
-        if (ThisTask::Active() != nullptr && (cnt) % 2000 == 0)
+        if (TaskInterface::Active() != nullptr && (cnt) % 2000 == 0)
         {
             ThisTask::Yield();
         }

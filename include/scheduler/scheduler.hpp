@@ -52,27 +52,18 @@ namespace JAMScript
         friend class Decider;
         friend class Remote;
 
-        friend TaskInterface *ThisTask::Active();
-
-        template <typename _Clock, typename _Dur>
-        friend void ThisTask::SleepFor(std::chrono::duration<_Clock, _Dur> const &dt);
-
-        template <typename _Clock, typename _Dur>
-        friend void ThisTask::SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp);
-
-        template <typename _Clock, typename _Dur>
-        friend void ThisTask::SleepFor(std::chrono::duration<_Clock, _Dur> const &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-
-        template <typename _Clock, typename _Dur>
-        friend void ThisTask::SleepUntil(std::chrono::time_point<_Clock, _Dur> const &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f);
-
         friend void ThisTask::Yield();
 
         void Enable(TaskInterface *toEnable) override;
         void Disable(TaskInterface *toEnable) override;
 
-        const TimePoint &GetSchedulerStartTime() const;
-        const TimePoint &GetCycleStartTime() const;
+        TimePoint GetSchedulerStartTime() const override;
+        TimePoint GetCycleStartTime() const override;
+        void SleepFor(TaskInterface* task, const Duration &dt) override;
+        void SleepUntil(TaskInterface* task, const TimePoint &tp) override;
+        void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) override;
+        void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) override;
+
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
         void ShutDown() override;
         bool Empty();
@@ -95,14 +86,14 @@ namespace JAMScript
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
             {
                 auto* fu = new Promise<nlohmann::json>();
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr{ std::move(rpcAttr) }]() 
+                auto fut = fu->GetFuture();
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr(std::move(rpcAttr))]() 
                 {
-                    auto jxe = std::move(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
+                    nlohmann::json jxe(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(std::move(rpcAttr["args"])));
                     fu->SetValue(std::move(jxe));
                     delete fu;
                 }).Detach();
-                auto fut = fu->GetFuture();
-                return std::move(fut.Get());
+                return fut.Get();
             }
             return {};
         }
@@ -114,9 +105,9 @@ namespace JAMScript
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end() &&
                 remote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr{ std::move(rpcAttr) }]() 
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr(std::move(rpcAttr))]() 
                 {
-                    auto jResult = std::move(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
+                    nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<std::string>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
@@ -157,7 +148,7 @@ namespace JAMScript
                  std::chrono::duration_cast<std::chrono::microseconds>(burst).count()});
             iEDFPriorityQueue.insert(*fn);
             cvQMutex.notify_one();
-            return fn->notifier;
+            return { fn->notifier };
         }
 
         template <typename Fn, typename... Args>
@@ -199,7 +190,7 @@ namespace JAMScript
                 bQueue.push_back(*fn);
                 cvQMutex.notify_one();
             }
-            return fn->notifier;
+            return { fn->notifier };
         }
 
         template <typename Fn, typename... Args>
@@ -220,7 +211,7 @@ namespace JAMScript
             std::lock_guard lock(qMutex);
             rtRegisterTable.insert(*fn);
             cvQMutex.notify_one();
-            return fn->notifier;
+            return { fn->notifier };
         }
 
         template <typename T, typename... Args>
@@ -228,6 +219,7 @@ namespace JAMScript
                                                        const std::string &eName, Args &&... eArgs) 
         {
             auto* pf = new Promise<T>();
+            auto fu = pf->GetFuture();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
             CreateInteractiveTask(stackTraits, std::forward<Duration>(deadline), std::forward<Duration>(burst), [pf]() 
             {
@@ -247,13 +239,14 @@ namespace JAMScript
                 }
                 delete pf;
             }).Detach();
-            return std::move(pf->GetFuture());
+            return fu;
         }
 
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
         {
             auto* pf = new Promise<T>();
+            auto fu = pf->GetFuture();
             auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
             CreateBatchTask(stackTraits, std::forward<Duration>(burst),
             [pf, tAttr]() 
@@ -270,7 +263,7 @@ namespace JAMScript
                 }
                 delete pf;
             }).Detach();
-            return std::move(pf->GetFuture());
+            return fu;
         }
 
         template<typename Fn>
@@ -282,13 +275,13 @@ namespace JAMScript
         template <typename... Args>
         Future<nlohmann::json> CreateRemoteExecution(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
-            return std::move(remote->CreateRExec(eName, condstr, condvec, std::forward<Args>(eArgs)...));
+            return remote->CreateRExec(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
         template <typename T>
         T ExtractRemote(Future<nlohmann::json>& future) 
         {
-            return std::move(future.Get().get<T>());
+            return future.Get().get<T>();
         }
 
         RIBScheduler(uint32_t sharedStackSize);
@@ -333,34 +326,6 @@ namespace JAMScript
         bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
         
     };
-
-    namespace ThisTask {
-
-        template <typename _Clock, typename _Dur>
-        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt)
-        {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::move(std::chrono::duration_cast<Duration>(dt)));
-        }
-
-        template <typename _Clock, typename _Dur>
-        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp)
-        {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, std::move(convert(tp)));
-        }
-
-        template <typename _Clock, typename _Dur>
-        void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
-        {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutFor(thisTask, std::move(std::chrono::duration_cast<Duration>(dt)), lk, f);
-        }
-
-        template <typename _Clock, typename _Dur>
-        void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk, TaskInterface *f)
-        {
-            static_cast<RIBScheduler *>(thisTask->GetBaseScheduler())->timer.SetTimeoutUntil(thisTask, std::move(convert(tp)), lk, f);
-        }
-
-    } // namespace ThisTask
 
 } // namespace JAMScript
 

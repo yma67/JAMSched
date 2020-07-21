@@ -15,12 +15,6 @@
 namespace JAMScript
 {
 
-    template <typename _Clock, typename _Duration>
-    std::chrono::high_resolution_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
-    {
-        return std::chrono::high_resolution_clock::now() + (timeout_time - _Clock::now());
-    }
-
     class ConditionVariableAny
     {
     public:
@@ -32,12 +26,13 @@ namespace JAMScript
         void wait(Tl &li)
         {
             std::unique_lock<SpinMutex> lkList(wListLock);
-            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting before?\n");
-            waitList.push_back(*ThisTask::Active());
-            ThisTask::Active()->Disable();
+            TaskInterface *taskToSleep = TaskInterface::Active();
+            BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
+            waitList.push_back(*taskToSleep);
+            taskToSleep->Disable();
             li.unlock();
             lkList.unlock();
-            ThisTask::Active()->SwapOut();
+            taskToSleep->SwapOut();
             li.lock();
             BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting after?\n");
         }
@@ -57,11 +52,12 @@ namespace JAMScript
             std::cv_status isTimeout = std::cv_status::no_timeout;
             TimePoint timeoutTime = std::move(convert(timeoutTime_));
             std::unique_lock<SpinMutex> lk(wListLock);
-            BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting before?\n");
-            waitList.push_back(*ThisTask::Active());
-            ThisTask::Active()->Disable();
+            TaskInterface *taskToSleep = TaskInterface::Active();
+            BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
+            waitList.push_back(*taskToSleep);
+            taskToSleep->Disable();
             lt.unlock();
-            ThisTask::SleepUntil(timeoutTime, lk, ThisTask::Active());
+            taskToSleep->SleepUntil(timeoutTime, lk);
             BOOST_ASSERT_MSG(!ThisTask::Active()->wsHook.is_linked(), "Maybe this task is waiting after?\n");
             if (Clock::now() >= timeoutTime) isTimeout = std::cv_status::timeout;
             return isTimeout;

@@ -36,6 +36,11 @@ namespace JAMScript
 
     private:
 
+        Decider(Decider const &) = delete;
+        Decider(Decider &&) = delete;
+        Decider &operator=(Decider const &) = delete;
+        Decider &operator=(Decider &&) = delete;
+
         Decider() = delete;
         using QType = std::pair<uint64_t, uint64_t>;
         RIBScheduler *scheduler;

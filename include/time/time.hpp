@@ -28,10 +28,10 @@ namespace JAMScript
         void operator()();
         void NotifyAllTimeouts();
         void UpdateTimeout();
-        void SetTimeoutFor(TaskInterface *task, Duration dt);
-        void SetTimeoutUntil(TaskInterface *task, TimePoint tp);
-        void SetTimeoutFor(TaskInterface *task, Duration dt, std::unique_lock<JAMScript::SpinMutex> &iLock, TaskInterface *f);
-        void SetTimeoutUntil(TaskInterface *task, TimePoint tp, std::unique_lock<JAMScript::SpinMutex> &iLock, TaskInterface *f);
+        void SetTimeoutFor(TaskInterface *task, const Duration &dt);
+        void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp);
+        void SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<JAMScript::SpinMutex> &iLock);
+        void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<JAMScript::SpinMutex> &iLock);
 
         Timer(RIBScheduler *scheduler);
         ~Timer();
@@ -41,9 +41,8 @@ namespace JAMScript
         Timer() = delete;
         void UpdateTimeout_();
         static void TimeoutCallback(void *args);
-        void SetTimeout(TaskInterface *task, Duration dt, uint32_t mask);
-        void SetTimeout(TaskInterface *task, Duration dt, uint32_t mask, std::unique_lock<JAMScript::SpinMutex> &iLock,
-                        TaskInterface *f);
+        void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask);
+        void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<JAMScript::SpinMutex> &iLock);
 
         struct timeouts *timingWheelPtr;
         RIBScheduler *scheduler;

@@ -54,14 +54,34 @@ void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, 
     cvReadyRTSchedule.notify_one();
 }
 
-const JAMScript::TimePoint &JAMScript::RIBScheduler::GetSchedulerStartTime() const
+JAMScript::TimePoint JAMScript::RIBScheduler::GetSchedulerStartTime() const
 {
-    return schedulerStartTime;
+    return { schedulerStartTime };
 }
 
-const JAMScript::TimePoint &JAMScript::RIBScheduler::GetCycleStartTime() const
+JAMScript::TimePoint JAMScript::RIBScheduler::GetCycleStartTime() const
 {
-    return cycleStartTime;
+    return { cycleStartTime };
+}
+
+void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
+{
+    timer.SetTimeoutFor(task, dt);
+}
+
+void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp) 
+{
+    timer.SetTimeoutUntil(task, tp);
+}
+
+void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) 
+{
+    timer.SetTimeoutFor(task, dt, lk);
+}
+
+void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
+{
+    timer.SetTimeoutUntil(task, tp, lk);
 }
 
 void JAMScript::RIBScheduler::ShutDown()
