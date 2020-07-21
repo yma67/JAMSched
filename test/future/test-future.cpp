@@ -15,11 +15,11 @@ TEST_CASE("Performance Future", "[future]")
 #else
     const int nIter = 3000;
 #endif
-    pthread_barrier_t *barrier = reinterpret_cast<pthread_barrier_t *>(calloc(sizeof(pthread_barrier_t), 1));
-    pthread_barrier_init(barrier, NULL, 2);
     std::vector<std::thread> tx;
     for (int i = 0; i < nIter; i++)
     {
+        pthread_barrier_t *barrier = reinterpret_cast<pthread_barrier_t *>(calloc(sizeof(pthread_barrier_t), 1));
+        pthread_barrier_init(barrier, NULL, 2);
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
         auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
@@ -42,9 +42,11 @@ TEST_CASE("Performance Future", "[future]")
             p->SetValue(std::chrono::high_resolution_clock::now());
         }));
         ribScheduler.RunSchedulerMainLoop();
+        tx.back().join();
+        pthread_barrier_destroy(barrier);
+        tx.pop_back();
     }
     for (auto& t: tx) t.join();
-    pthread_barrier_destroy(barrier);
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
 
