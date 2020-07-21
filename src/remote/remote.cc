@@ -12,7 +12,7 @@ static void connected(void *a)
 
 JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                           const std::string &appName, const std::string &devName)
-    : scheduler(scheduler), devId(devName), appId(appName), 
+    : scheduler(scheduler), devId(devName), appId(appName), eIdFactory(0U),
       requestUp(std::string("/") + appName + "/requests/up"),
       requestDown(std::string("/") + appName + "/requests/down"), 
       replyUp(std::string("/") + appName + "/replies/up"), 
