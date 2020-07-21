@@ -327,7 +327,7 @@ namespace JAMScript
             auto vReq = nlohmann::json::to_cbor(rexRequest);
             for (int i = 0; i < 3; i++)
             {
-                if (mqtt_publish(mq, const_cast<char *>("/rexec-request"), nvoid_new(vReq.data(), vReq.size())))
+                if (mqtt_publish(mq, const_cast<char *>("/requests/up"), nvoid_new(vReq.data(), vReq.size())))
                 {
                     break;
                 }
