@@ -59,7 +59,7 @@ TEST_CASE("InterLock", "[future]")
     auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [sec, p, &ribScheduler]() {
+    ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::milliseconds(90), [sec, p, &ribScheduler]() {
         auto pt = std::make_shared<JAMScript::Promise<std::string>>();
         auto prev = pt;
         for (auto ch : sec)
