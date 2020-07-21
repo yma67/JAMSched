@@ -1,0 +1,26 @@
+{
+    "name": "ccore",
+    "description": "Compiler for the JAMScript language",
+    "version": "0.1.0",
+    "license": "Apache 2.0",
+    "keywords": [
+        "c",
+        "c++",
+        "javascript",
+        "cloud-computing",
+        "iot-framework",
+        "iot",
+        "programming-language",
+        "iot-middleware",
+        "fog-computing"
+    ],
+    "homepage": "https://citelab.github.io/JAMScript/",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/citelab/JAMScript.git"
+    },
+    "bugs": "https://github.com/citelab/JAMScript/issues",
+    "scripts": {
+        "install": "cmake-js compile"
+    }
+}
