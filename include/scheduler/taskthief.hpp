@@ -18,20 +18,28 @@ namespace JAMScript
 
         friend class RIBScheduler;
 
+        virtual const uint32_t Size() const;
         virtual void Steal(TaskInterface *toSteal);
         virtual size_t StealFrom(StealScheduler *toSteal);
-        virtual const uint32_t Size() const;
+
         void ShutDown() override;
         void RunSchedulerMainLoop() override;
+        virtual void StopSchedulerMainLoop();
+        
         void Enable(TaskInterface *toEnable) override;
         void Disable(TaskInterface *toDisable) override;
+
+        TimePoint GetSchedulerStartTime() const override;
+        TimePoint GetCycleStartTime() const override;
         void SleepFor(TaskInterface* task, const Duration &dt) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp) override;
+        void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) override;
+        void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) override;
         void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) override;
 
         StealScheduler(RIBScheduler *victim, uint32_t ssz);
-        virtual ~StealScheduler();
+        virtual ~StealScheduler() override;
 
     private:
 

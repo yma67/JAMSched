@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(JAMScript DESCRIPTION "JAMScript Scheduler & Runtime" LANGUAGES C CXX ASM)
 
-set(CMAKE_BUILD_TYPE RelWithDebInfo) # Debug with RelWithDebInfo
+set(CMAKE_BUILD_TYPE Debug) # Debug with RelWithDebInfo
 
 option(JAMSCRIPT_ON_TRAVIS_OPT "Run on Travis CI" OFF)
 option(JAMSCRIPT_ENABLE_VALGRIND_OPT "Enable valgrind" OFF)

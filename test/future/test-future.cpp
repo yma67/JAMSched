@@ -20,28 +20,28 @@ TEST_CASE("Performance Future", "[future]")
     for (int i = 0; i < nIter; i++)
     {
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
-        auto p = std::make_shared<JAMScript::Promise<std::chrono::steady_clock::time_point>>();
+        auto *p = new JAMScript::Promise<std::chrono::steady_clock::time_point>();
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
 
         ribScheduler.CreateBatchTask({false, 1024 * 32, false}, std::chrono::milliseconds(90), [barrier, p, &dt, &ribScheduler]() {
-                        auto fut = p->GetFuture();
-                        pthread_barrier_wait(barrier);
-                        // std::this_thread::sleep_for(std::chrono::microseconds(100));
-                        //std::cout << "Before Get" << std::endl;
-                        auto ts = fut.Get();
-                        //std::cout << "After Get" << std::endl;
-                        dt += std::chrono::steady_clock::now() - ts;
-                        ribScheduler.ShutDown();
-                    })
-            .Detach();
-        std::thread t([barrier, p]() {
+            auto fut = p->GetFuture();
+            pthread_barrier_wait(barrier);
+            // std::this_thread::sleep_for(std::chrono::microseconds(100));
+            //std::cout << "Before Get" << std::endl;
+            auto ts = fut.Get();
+            //std::cout << "After Get" << std::endl;
+            dt += std::chrono::steady_clock::now() - ts;
+            ribScheduler.ShutDown();
+            delete p;
+        }).Detach();
+        ribScheduler.CreateBatchTask({false, 1024 * 32, true}, std::chrono::milliseconds(90), [barrier, p, &ribScheduler]() {
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
             p->SetValue(std::chrono::steady_clock::now());
-        });
+            JAMScript::ThisTask::Yield();
+        }).Detach();
         ribScheduler.RunSchedulerMainLoop();
-        t.join();
     }
     pthread_barrier_destroy(barrier);
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
