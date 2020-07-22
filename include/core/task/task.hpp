@@ -127,7 +127,7 @@ namespace JAMScript
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
-        bool toContinue;
+        std::atomic<bool> toContinue;
         SpinMutex qMutex;
         std::condition_variable_any cvQMutex;
         std::atomic<TaskInterface *> taskRunning;
@@ -209,9 +209,9 @@ namespace JAMScript
     }
 
     template <typename _Clock, typename _Duration>
-    std::chrono::high_resolution_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
+    std::chrono::steady_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
     {
-        return std::chrono::high_resolution_clock::now() + (timeout_time - _Clock::now());
+        return std::chrono::steady_clock::now() + (timeout_time - _Clock::now());
     }
 
     class TaskInterface

@@ -19,10 +19,6 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs
     {
         thiefs.push_back(new StealScheduler{this, sharedStackSize});
     }
-    for (auto thief: thiefs)
-    {
-        thief->RunSchedulerMainLoop();
-    }
 }
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize)
@@ -272,6 +268,10 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread(std::ref(timer)).detach();
+    for (auto thief: thiefs)
+    {
+        thief->RunSchedulerMainLoop();
+    }
     while (toContinue)
     {
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
@@ -348,7 +348,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         if (!TryExecuteAnInteractiveBatchTask(lockIBTask)) 
                         {
                             cvQMutex.wait_until(lockIBTask, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
-                                return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty()); 
+                                return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty() && toContinue); 
                             });
                         }
                         lockIBTask.unlock();
