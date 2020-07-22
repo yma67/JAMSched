@@ -284,6 +284,10 @@ namespace JAMScript
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName);
+        RIBScheduler(uint32_t sharedStackSize, std::vector<StealScheduler *> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName, 
+                     std::vector<StealScheduler *> thiefs);
         ~RIBScheduler() override;
 
     private:
@@ -295,14 +299,15 @@ namespace JAMScript
         };
 
         Timer timer;
-        std::unique_ptr<Remote> remote;
         Decider decider;
         uint32_t cThief;
-        std::vector<StealScheduler*> thiefs;
+        std::thread tTimer;
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
         std::mutex sReadyRTSchedule;
+        std::unique_ptr<Remote> remote;
+        std::vector<StealScheduler*> thiefs;
         std::condition_variable cvReadyRTSchedule;
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
