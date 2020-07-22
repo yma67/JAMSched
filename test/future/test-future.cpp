@@ -85,7 +85,7 @@ TEST_CASE("LExec", "[future]")
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
-    ribScheduler.RegisterNamedExecution("testExec", [](int a, int b) -> int {
+    ribScheduler.RegisterLocalExecution("testExec", [](int a, int b) -> int {
         return a + b;
     });
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [&ribScheduler]() {

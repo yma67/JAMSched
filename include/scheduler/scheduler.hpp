@@ -69,14 +69,10 @@ namespace JAMScript
         bool Empty();
         void RunSchedulerMainLoop() override;
 
-        void RegisterARPCall(const std::string &fName, const RExecDetails::RoutineInterface &rpcFunc) 
+        template <typename Fn>
+        void RegisterRPCall(const std::string &fName, Fn &&fn) 
         {
-            localFuncMap[fName] = &rpcFunc;
-        }
-
-        void RegisterRPCalls(std::unordered_map<std::string, const RExecDetails::RoutineInterface *> fvm) 
-        {
-            localFuncMap.insert(fvm.begin(), fvm.end());
+            localFuncMap[fName] = new RExecDetails::RoutineRemote<decltype(std::function(fn))>(std::function(fn));
         }
 
         // Not using const ref for memory safety
@@ -163,7 +159,6 @@ namespace JAMScript
             {
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
-            printf("Task is %p\n", fn);
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
@@ -268,7 +263,7 @@ namespace JAMScript
         }
 
         template<typename Fn>
-        void RegisterNamedExecution(const std::string &eName, Fn&& fn) 
+        void RegisterLocalExecution(const std::string &eName, Fn&& fn) 
         {
             lexecFuncMap[eName] = std::function(fn);
         }

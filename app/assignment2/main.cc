@@ -26,18 +26,6 @@ std::string PrintResultWithGrade(int rex, char *grade, std::string comment, nvoi
     return std::string(tokenVerifier.data());
 }
 
-auto PrintResultWithGradeFunctor = std::function(PrintResultWithGrade);
-auto PrintResultWithGradeInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(PrintResultWithGradeFunctor)>(PrintResultWithGradeFunctor);
-auto CompareCStringFunctor = std::function(strcmp);
-auto CompareCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(CompareCStringFunctor)>(CompareCStringFunctor);
-auto CStringLengthFunctor = std::function(strlen);
-auto CStringLengthInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(CStringLengthFunctor)>(CStringLengthFunctor);
-
-std::unordered_map<std::string, const JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
-    {std::string("PrintResultWithGrade"), &PrintResultWithGradeInvoker},
-    {std::string("CompareCString"), &CompareCStringInvoker},
-    {std::string("CStringLength"), &CStringLengthInvoker}};
-
 struct ReaderWriterReadPriortized
 {
 private:
@@ -137,7 +125,9 @@ using ReadWriteLock = ReaderWriterFair;
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
-    ribScheduler.RegisterRPCalls(invokerMap);
+    ribScheduler.RegisterRPCall("PrintResultWithGrade", PrintResultWithGrade);
+    ribScheduler.RegisterRPCall("CompareCString", strcmp);
+    ribScheduler.RegisterRPCall("CStringLength", strlen);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}});
     std::atomic_int32_t syncVar = 0, rTotal = 0;
@@ -199,7 +189,7 @@ int main()
              {"Muthucumaru", "Maheswaran"}}};
         std::cout << "Reference: " << (strcmp("Muthucumaru", "Maheswaran") > 0) << std::endl;
         std::cout << "Note: result is fine if they have same sign" << std::endl;
-        std::cout << ribScheduler.CreateJSONBatchCall(jx1) << std::endl;
+        std::cout << ribScheduler.CreateJSONBatchCall(jx1)<< std::endl;
         nlohmann::json jx2 = {
             {"actname",
              "CStringLength"},
