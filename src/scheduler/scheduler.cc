@@ -31,6 +31,19 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
 }
 
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, std::vector<StealScheduler *> thiefs)
+    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::forward<decltype(thiefs)>(thiefs)),
+      numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
+{}
+
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                                      const std::string &appName, const std::string &devName, std::vector<StealScheduler *> thiefs)
+    : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
+{
+    remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
+}
+
 JAMScript::RIBScheduler::~RIBScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
@@ -40,6 +53,7 @@ JAMScript::RIBScheduler::~RIBScheduler()
     bQueue.clear_and_dispose(dTaskInf);
     std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { delete ss; });
     for (auto& [key, val]: localFuncMap) delete val;
+    tTimer.join();
 }
 
 void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy)
@@ -268,7 +282,7 @@ bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
-    std::thread(std::ref(timer)).detach();
+    tTimer = std::thread(std::ref(timer));
     for (auto thief: thiefs)
     {
         thief->RunSchedulerMainLoop();
@@ -348,9 +362,11 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         std::unique_lock lockIBTask(qMutex);
                         if (!TryExecuteAnInteractiveBatchTask(lockIBTask)) 
                         {
+#ifdef JAMSCRIPT_BLOCK_WAIT
                             cvQMutex.wait_until(lockIBTask, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
                                 return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty() && toContinue); 
                             });
+#endif
                         }
                         lockIBTask.unlock();
                         if (!toContinue)

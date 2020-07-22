@@ -83,13 +83,29 @@ const uint32_t JAMScript::StealScheduler::Size() const
     return rCount;
 }
 
-void JAMScript::StealScheduler::ShutDown_()
-{
-}
-
 void JAMScript::StealScheduler::ShutDown()
 {
     victim->ShutDown();
+}
+
+void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
+{
+    return victim->SleepFor(task, dt);
+}
+
+void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp) 
+{
+    return victim->SleepUntil(task, tp);
+}
+
+void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) 
+{
+    return victim->SleepFor(task, dt, lk);
+}
+
+void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
+{
+    return victim->SleepUntil(task, tp, lk);
 }
 
 void JAMScript::StealScheduler::RunSchedulerMainLoop()
