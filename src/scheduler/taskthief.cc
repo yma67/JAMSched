@@ -7,6 +7,12 @@ JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz)
 
 JAMScript::StealScheduler::~StealScheduler()
 {
+    auto dTaskInf = [](TaskInterface *t) { delete t; };
+    isReady.clear_and_dispose(dTaskInf);
+}
+
+void JAMScript::StealScheduler::StopSchedulerMainLoop()
+{
     std::unique_lock lk(qMutex);
     if (toContinue)
     {
@@ -15,8 +21,6 @@ JAMScript::StealScheduler::~StealScheduler()
     cvQMutex.notify_all();
     lk.unlock();
     t.join();
-    auto dTaskInf = [](TaskInterface *t) { delete t; };
-    isReady.clear_and_dispose(dTaskInf);
 }
 
 void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
@@ -88,6 +92,16 @@ void JAMScript::StealScheduler::ShutDown()
     victim->ShutDown();
 }
 
+JAMScript::TimePoint JAMScript::StealScheduler::GetSchedulerStartTime() const
+{
+    return victim->GetSchedulerStartTime();
+}
+
+JAMScript::TimePoint JAMScript::StealScheduler::GetCycleStartTime() const
+{
+    return victim->GetCycleStartTime();
+}
+
 void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
 {
     return victim->SleepFor(task, dt);
@@ -108,9 +122,19 @@ void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint 
     return victim->SleepUntil(task, tp, lk);
 }
 
+void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) 
+{
+    return victim->SleepFor(task, dt, lk);
+}
+
+void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
+{
+    return victim->SleepUntil(task, tp, lk);
+}
+
 void JAMScript::StealScheduler::RunSchedulerMainLoop()
 {
-    t = std::thread([this]() {
+    t = std::thread([this] {
         while (toContinue)
         {
             std::unique_lock lock(qMutex);
@@ -121,9 +145,8 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
                 size_t rStart = rand() % victim->thiefs.size();
                 for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
                 {
-                    if ((victim->thiefs[(rStart + T_T) % victim->thiefs.size()] != this && 
-                        StealFrom(victim->thiefs[(rStart + T_T) % victim->thiefs.size()])) || 
-                        !isReady.empty())
+                    auto* pVictim = victim->thiefs[(rStart + T_T) % victim->thiefs.size()].get();
+                    if ((pVictim != this && StealFrom(pVictim)) || !isReady.empty())
                     {
                         break;
                     }
@@ -155,5 +178,5 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
                 delete pNext;
             }
         }
-    });
+    });     
 }

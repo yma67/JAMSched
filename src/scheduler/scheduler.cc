@@ -17,7 +17,7 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs
 {
     for (uint32_t i = 0; i < nThiefs; i++)
     {
-        thiefs.push_back(new StealScheduler{this, sharedStackSize});
+        thiefs.push_back(std::make_unique<StealScheduler>(this, sharedStackSize));
     }
 }
 
@@ -31,14 +31,14 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
 }
 
-JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, std::vector<StealScheduler *> thiefs)
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs)
     : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
-      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::forward<decltype(thiefs)>(thiefs)),
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::move(thiefs)),
       numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {}
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
-                                      const std::string &appName, const std::string &devName, std::vector<StealScheduler *> thiefs)
+                                      const std::string &appName, const std::string &devName, std::vector<std::unique_ptr<StealScheduler>> thiefs)
     : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
 {
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
@@ -47,13 +47,15 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
 JAMScript::RIBScheduler::~RIBScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
+    timer.StopTimerLoop();
+    for (auto& thief: thiefs) 
+    {
+        thief->StopSchedulerMainLoop();
+    }
     rtRegisterTable.clear_and_dispose(dTaskInf);
     iEDFPriorityQueue.clear_and_dispose(dTaskInf);
     iCancelStack.clear_and_dispose(dTaskInf);
     bQueue.clear_and_dispose(dTaskInf);
-    std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { delete ss; });
-    for (auto& [key, val]: localFuncMap) delete val;
-    tTimer.join();
 }
 
 void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy)
@@ -91,6 +93,16 @@ void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt, 
 }
 
 void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
+{
+    timer.SetTimeoutUntil(task, tp, lk);
+}
+
+void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) 
+{
+    timer.SetTimeoutFor(task, dt, lk);
+}
+
+void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
 {
     timer.SetTimeoutUntil(task, tp, lk);
 }
@@ -150,8 +162,8 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
 uint32_t JAMScript::RIBScheduler::GetThiefSizes()
 {
     uint32_t sz = 0;
-    for (StealScheduler *ss : thiefs)
-        sz += ss->Size();
+    for (auto &thief : thiefs)
+        sz += thief->Size();
     return sz;
 }
 
@@ -159,11 +171,11 @@ JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
 {
     StealScheduler *minThief = nullptr;
     unsigned int minSize = std::numeric_limits<unsigned int>::max();
-    for (auto thief : thiefs)
+    for (auto& thief : thiefs)
     {
         if (minSize > thief->Size())
         {
-            minThief = thief;
+            minThief = thief.get();
             minSize = thief->Size();
         }
     }
@@ -282,8 +294,8 @@ bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
-    tTimer = std::thread(std::ref(timer));
-    for (auto thief: thiefs)
+    timer.RunTimerLoop();
+    for (auto& thief: thiefs) 
     {
         thief->RunSchedulerMainLoop();
     }

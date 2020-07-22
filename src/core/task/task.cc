@@ -4,17 +4,13 @@
 #include "concurrency/notifier.hpp"
 
 JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
-    : status(TASK_READY), isStealable(true), scheduler(scheduler), references(0),
-      notifier(std::make_shared<Notifier>(TaskInterface::Active())), timeOut(new struct timeout),
+    : status(TASK_READY), isStealable(true), scheduler(scheduler),
+      notifier(std::make_shared<Notifier>(TaskInterface::Active())), timeOut(std::make_unique<struct timeout>()),
       id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
 
 JAMScript::TaskInterface::~TaskInterface() 
-{
-    auto* tempTimeOut = timeOut;
-    timeOut = nullptr;
-    delete tempTimeOut;
-}
+{}
 
 void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {
@@ -39,6 +35,23 @@ std::unordered_map<JAMScript::JTLSLocation, std::any> *
 JAMScript::TaskInterface::GetTaskLocalStoragePool()
 {
     return &taskLocalStoragePool;
+}
+
+JAMScript::TaskHandle::TaskHandle(JAMScript::TaskHandle &&other) : n(nullptr)
+{
+    n = other.n;
+    other.n = nullptr;
+}
+
+JAMScript::TaskHandle &JAMScript::TaskHandle::operator=(JAMScript::TaskHandle &&other) 
+{
+    if (this != &other) 
+    {
+        Detach();
+        n = other.n;
+        other.n = nullptr;
+    }
+    return *this;
 }
 
 JAMScript::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
@@ -95,6 +108,24 @@ void JAMScript::ThisTask::Yield()
         TaskInterface::Active()->scheduler->Enable(TaskInterface::Active());
         TaskInterface::Active()->SwapOut();
     }
+}
+
+void JAMScript::ThisTask::Exit()
+{
+    auto* thisTask = TaskInterface::Active();
+    thisTask->status = TASK_FINISHED;
+    thisTask->notifier->Notify();
+    thisTask->SwapOut();
+}
+
+JAMScript::Duration JAMScript::ThisTask::GetTimeElapsedCycle()
+{
+    return Clock::now() - TaskInterface::Active()->scheduler->GetCycleStartTime();
+}
+        
+JAMScript::Duration JAMScript::ThisTask::GetTimeElapsedScheduler()
+{
+    return Clock::now() - TaskInterface::Active()->scheduler->GetSchedulerStartTime();
 }
 
 bool JAMScript::operator<(const TaskInterface &a, const TaskInterface &b) noexcept
