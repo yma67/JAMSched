@@ -37,37 +37,15 @@ int RPCFunctionJAsync(int a, int b)
     return a - b;
 }
 
-
-auto addNumberFunctor = std::function(addNumbers);
-auto scaleNumberFunctor = std::function(scaleNumber);
-auto getTimeFunctor = std::function(getTime);
-
-auto addNumberInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(addNumberFunctor)>(addNumberFunctor);
-auto scaleNumberInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(scaleNumberFunctor)>(scaleNumberFunctor);
-auto getTimeInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(getTimeFunctor)>(getTimeFunctor);
-
-auto RPCFunctionJSyncFunctor = std::function(RPCFunctionJSync);
-auto RPCFunctionJSyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJSyncFunctor)>(RPCFunctionJSyncFunctor);
-auto RPCFunctionJAsyncFunctor = std::function(RPCFunctionJAsync);
-auto RPCFunctionJAsyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
-auto DuplicateCStringFunctor = std::function(strdup);
-auto DuplicateCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
-
-std::unordered_map<std::string, const JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
-
-    {std::string("addNumbers"), &addNumberInvoker},
-    {std::string("scaleNumber"), &scaleNumberInvoker},    
-    {std::string("getTime"), &getTimeInvoker},
-    
-    {std::string("RPCFunctionJSync"), &RPCFunctionJSyncInvoker},
-    {std::string("RPCFunctionJAsync"), &RPCFunctionJAsyncInvoker},
-    {std::string("DuplicateCString"), &DuplicateCStringInvoker}
-};
-
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
-    ribScheduler.RegisterRPCalls(invokerMap);
+    ribScheduler.RegisterRPCall("addNumbers", addNumbers);
+    ribScheduler.RegisterRPCall("scaleNumber", scaleNumber);
+    ribScheduler.RegisterRPCall("getTime", getTime);
+    ribScheduler.RegisterRPCall("RPCFunctionJSync", RPCFunctionJSync);
+    ribScheduler.RegisterRPCall("RPCFunctionJAsync", RPCFunctionJAsync);
+    ribScheduler.RegisterRPCall("DuplicateCString", strdup);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                         

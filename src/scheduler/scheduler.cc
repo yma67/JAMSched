@@ -39,6 +39,7 @@ JAMScript::RIBScheduler::~RIBScheduler()
     iCancelStack.clear_and_dispose(dTaskInf);
     bQueue.clear_and_dispose(dTaskInf);
     std::for_each(thiefs.begin(), thiefs.end(), [](StealScheduler *ss) { delete ss; });
+    for (auto& [key, val]: localFuncMap) delete val;
 }
 
 void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy)

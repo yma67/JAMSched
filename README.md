@@ -13,23 +13,30 @@
 - add files you need
 - make sure your include your folder in src/CMakeLists.txt
 ### Remote Procedure Call (RPC)
-#### Example (using ```strdup```)
+#### Note
+Please return by a pointer to memory allocated on heap by malloc/calloc to avoid memory leak. 
+#### Example
 ```cpp
-auto DuplicateCStringFunctor = std::function(strdup);
-using StrdupFuncType = decltype(DuplicateCStringFunctor);
-auto DuplicateCStringInvoker = 
-JAMScript::RExecDetails::RoutineRemote<StrdupFuncType>(DuplicateCStringFunctor);
-std::unordered_map<std::string, const JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
-    {std::string("DuplicateCString"), &DuplicateCStringInvoker}
-};
 JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
-ribScheduler.RegisterRPCalls(invokerMap);
+ribScheduler.RegisterRPCall("DuplicateCString", strdup);
+ribScheduler.RegisterRPCall("RPCFunctionJSync", [] (int a, int b) -> int {
+    std::cout << "Sync Add of " << a << " + " << b << std::endl;
+    return a + b;
+});
+ribScheduler.RegisterRPCall("RPCFunctionJAsync", [] (int a, int b) -> int {
+    std::cout << "Async Subtract of " << a << " - " << b << std::endl;
+    return a - b;
+});
+ribScheduler.RegisterRPCall("ConcatCString", [] (char *dest, const char *src) -> char* {
+    printf("please return by a pointer to memory allocated on heap");
+    return strdup(strcat(dest, src));
+});
 ```
 ### Named Local Invocation
 #### Example of Registration
 ```cpp
 JAMScript::RIBScheduler ribScheduler(1024 * 256);
-ribScheduler.RegisterNamedExecution("TestExec", [](int a, int b) -> int {
+ribScheduler.RegisterLocalExecution("TestExec", [] (int a, int b) -> int {
     return a + b;
 });
 ```
