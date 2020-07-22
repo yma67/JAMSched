@@ -21,7 +21,7 @@ TEST_CASE("Performance Future", "[future]")
     for (int i = 0; i < nIter; i++)
     {
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
-        auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
+        auto p = std::make_shared<JAMScript::Promise<std::chrono::steady_clock::time_point>>();
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
 
@@ -32,14 +32,14 @@ TEST_CASE("Performance Future", "[future]")
                         //std::cout << "Before Get" << std::endl;
                         auto ts = fut.Get();
                         //std::cout << "After Get" << std::endl;
-                        dt += std::chrono::high_resolution_clock::now() - ts;
+                        dt += std::chrono::steady_clock::now() - ts;
                         ribScheduler.ShutDown();
                     })
             .Detach();
         tx.push_back(std::thread([barrier, p]() {
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
-            p->SetValue(std::chrono::high_resolution_clock::now());
+            p->SetValue(std::chrono::steady_clock::now());
         }));
         ribScheduler.RunSchedulerMainLoop();
     }
@@ -56,7 +56,7 @@ TEST_CASE("InterLock", "[future]")
     std::string sec("muthucumaru maheswaran loves java");
 #endif
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
-    auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
+    auto p = std::make_shared<JAMScript::Promise<std::chrono::steady_clock::time_point>>();
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [sec, p, &ribScheduler]() {

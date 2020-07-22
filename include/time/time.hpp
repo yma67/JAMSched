@@ -10,9 +10,9 @@
 namespace JAMScript
 {
 
-    using Clock = std::chrono::high_resolution_clock;
+    using Clock = std::chrono::steady_clock;
     using TimePoint = std::chrono::time_point<Clock>;
-    using Duration = std::chrono::high_resolution_clock::duration;
+    using Duration = std::chrono::steady_clock::duration;
 
     class RIBScheduler;
     class TaskInterface;
@@ -39,7 +39,7 @@ namespace JAMScript
     private:
 
         Timer() = delete;
-        void UpdateTimeout_();
+        void UpdateTimeoutWithoutLock();
         static void TimeoutCallback(void *args);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<JAMScript::SpinMutex> &iLock);

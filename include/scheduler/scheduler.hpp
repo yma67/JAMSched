@@ -25,10 +25,10 @@ namespace JAMScript
 
     struct RealTimeSchedule
     {
-        std::chrono::high_resolution_clock::duration sTime, eTime;
+        std::chrono::steady_clock::duration sTime, eTime;
         uint32_t taskId;
-        RealTimeSchedule(const std::chrono::high_resolution_clock::duration &s,
-                         const std::chrono::high_resolution_clock::duration &e, uint32_t id)
+        RealTimeSchedule(const std::chrono::steady_clock::duration &s,
+                         const std::chrono::steady_clock::duration &e, uint32_t id)
             : sTime(s), eTime(e), taskId(id) {}
     };
 
@@ -163,6 +163,7 @@ namespace JAMScript
             {
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
+            printf("Task is %p\n", fn);
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
@@ -294,7 +295,7 @@ namespace JAMScript
 
         struct ExecutionStats
         {
-            std::vector<std::chrono::high_resolution_clock::duration> jitters;
+            std::vector<std::chrono::steady_clock::duration> jitters;
             std::vector<ITaskEntry> iRecords;
         };
 
