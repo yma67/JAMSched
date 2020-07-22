@@ -72,9 +72,9 @@ namespace JAMScript
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
 
         template <typename Fn>
-        void RegisterRPCall(const std::string &fName, Fn &&fn) 
+        void RegisterRPCall(const std::string &fName, Fn && fn) 
         {
-            localFuncMap[fName] = new RExecDetails::RoutineRemote<decltype(std::function(fn))>(std::function(fn));
+            localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
         }
 
         // Not using const ref for memory safety
@@ -83,13 +83,12 @@ namespace JAMScript
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
             {
-                auto* fu = new Promise<nlohmann::json>();
+                auto fu = std::make_unique<Promise<nlohmann::json>>();
                 auto fut = fu->GetFuture();
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu, rpcAttr(std::move(rpcAttr))]() 
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu { std::move(fu) }, rpcAttr(std::move(rpcAttr))]() 
                 {
                     nlohmann::json jxe(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(std::move(rpcAttr["args"])));
                     fu->SetValue(std::move(jxe));
-                    delete fu;
                 }).Detach();
                 return fut.Get();
             }
@@ -164,7 +163,6 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
-            std::lock_guard lock(qMutex);
             if (fn->isStealable)
             {
                 StealScheduler *pNextThief = nullptr;
@@ -172,7 +170,7 @@ namespace JAMScript
                     stackTraits.pinCore < thiefs.size() && 
                     thiefs[stackTraits.pinCore] != nullptr) 
                 {
-                    pNextThief = thiefs[stackTraits.pinCore];
+                    pNextThief = thiefs[stackTraits.pinCore].get();
                 } 
                 else 
                 {
@@ -182,9 +180,16 @@ namespace JAMScript
                 {
                     pNextThief->Steal(fn);
                 }
+                else
+                {
+                    std::lock_guard lock(qMutex);
+                    bQueue.push_back(*fn);
+                    cvQMutex.notify_one();
+                }
             } 
             else 
             {
+                std::lock_guard lock(qMutex);
                 bQueue.push_back(*fn);
                 cvQMutex.notify_one();
             }
@@ -216,26 +221,24 @@ namespace JAMScript
         Future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
                                                        const std::string &eName, Args &&... eArgs) 
         {
-            auto* pf = new Promise<T>();
+            auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
+                std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
+            auto pf = std::make_shared<Promise<T>>();
             auto fu = pf->GetFuture();
-            auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
             CreateInteractiveTask(stackTraits, std::forward<Duration>(deadline), std::forward<Duration>(burst), [pf]() 
             {
                 pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
             }
-            , [pf, tAttr]() 
+            , [pf, tAttr { std::move(tAttr) }]() 
             {
                 try 
                 {
                     pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
-                    delete tAttr;
                 } 
                 catch (const std::exception& e) 
                 {
                     pf->SetException(std::make_exception_ptr(e));
-                    delete tAttr;
                 }
-                delete pf;
             }).Detach();
             return fu;
         }
@@ -243,31 +246,29 @@ namespace JAMScript
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
         {
-            auto* pf = new Promise<T>();
+            auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
+                std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
+            auto pf = std::make_unique<Promise<T>>();
             auto fu = pf->GetFuture();
-            auto* tAttr = new TaskAttr(std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
             CreateBatchTask(stackTraits, std::forward<Duration>(burst),
-            [pf, tAttr]() 
+            [pf { std::move(pf) }, tAttr { std::move(tAttr) }]() 
             {
                 try 
                 {
                     pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
-                    delete tAttr;
                 } 
                 catch (const std::exception& e) 
                 {
                     pf->SetException(std::make_exception_ptr(e));
-                    delete tAttr;
                 }
-                delete pf;
             }).Detach();
             return fu;
         }
 
         template<typename Fn>
-        void RegisterLocalExecution(const std::string &eName, Fn&& fn) 
+        void RegisterLocalExecution(const std::string &eName, Fn && fn) 
         {
-            lexecFuncMap[eName] = std::function(fn);
+            lexecFuncMap[eName] = std::function(std::forward<Fn>(fn));
         }
 
         template <typename... Args>
@@ -286,10 +287,10 @@ namespace JAMScript
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName);
-        RIBScheduler(uint32_t sharedStackSize, std::vector<StealScheduler *> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName, 
-                     std::vector<StealScheduler *> thiefs);
+                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
         ~RIBScheduler() override;
 
     private:
@@ -309,12 +310,14 @@ namespace JAMScript
         Duration vClockI, vClockB;
         std::mutex sReadyRTSchedule;
         std::unique_ptr<Remote> remote;
-        std::vector<StealScheduler*> thiefs;
         std::condition_variable cvReadyRTSchedule;
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
+
+        std::vector<std::unique_ptr<StealScheduler>> thiefs;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
+        
         std::unordered_map<std::string, std::any> lexecFuncMap;
-        std::unordered_map<std::string, const RExecDetails::RoutineInterface *> localFuncMap;
+        std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
 
         JAMStorageTypes::BatchQueueType bQueue;
         JAMStorageTypes::InteractiveReadyStackType iCancelStack;

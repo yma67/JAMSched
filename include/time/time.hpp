@@ -1,6 +1,7 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_TIME_HH
 #define JAMSCRIPT_JAMSCRIPT_TIME_HH
 #include <mutex>
+#include <thread>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -26,9 +27,10 @@ namespace JAMScript
 
         friend class RIBScheduler;
 
-        void operator()();
-        void NotifyAllTimeouts();
+        void RunTimerLoop();
+        void StopTimerLoop();
         void UpdateTimeout();
+        void NotifyAllTimeouts();
         void SetTimeoutFor(TaskInterface *task, const Duration &dt);
         void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp);
         void SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<SpinMutex> &iLock);
@@ -47,9 +49,10 @@ namespace JAMScript
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<SpinMutex> &iLock);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<Mutex> &iLock);
-
+        
         struct timeouts *timingWheelPtr;
         RIBScheduler *scheduler;
+        std::thread t;
         std::mutex sl;
 
         Timer(Timer const &) = delete;

@@ -13,7 +13,7 @@ JAMScript::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
     timingWheelPtr = timeouts_open(0, &err);
 }
 
-JAMScript::Timer::~Timer()
+JAMScript::Timer::~Timer() 
 {
     timeouts_update(timingWheelPtr, std::numeric_limits<uint64_t>::max());
     struct timeout *timeOut;
@@ -24,13 +24,20 @@ JAMScript::Timer::~Timer()
     timeouts_close(timingWheelPtr);
 }
 
-void JAMScript::Timer::operator()() 
+void JAMScript::Timer::RunTimerLoop() 
 {
-    while (scheduler->toContinue) 
-    {
-        NotifyAllTimeouts();
-        std::this_thread::sleep_for(std::chrono::nanoseconds(500));
-    }
+    t = std::thread([this] {
+        while (scheduler->toContinue) 
+        {
+            NotifyAllTimeouts();
+            std::this_thread::sleep_for(std::chrono::nanoseconds(500));
+        }
+    });
+}
+
+void JAMScript::Timer::StopTimerLoop()
+{
+    t.join();
 }
 
 void JAMScript::Timer::NotifyAllTimeouts()
@@ -40,9 +47,7 @@ void JAMScript::Timer::NotifyAllTimeouts()
     struct timeout *timeOut;
     while ((timeOut = timeouts_get(timingWheelPtr)))
     {
-        lk.unlock();
         timeOut->callback.fn(timeOut->callback.arg);
-        lk.lock();
     }
 }
 
@@ -73,9 +78,9 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
-    task->timeOut = timeout_init(task->timeOut, mask);
-    timeout_setcb(task->timeOut, TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, task->timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    timeout_init(task->timeOut.get(), mask);
+    timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     BOOST_ASSERT_MSG(!task->trHook.is_linked(), "ready hook linked?");
     task->SwapOut();
@@ -111,28 +116,28 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
-    task->timeOut = timeout_init(task->timeOut, mask);
-    timeout_setcb(task->timeOut, TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, task->timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    timeout_init(task->timeOut.get(), mask);
+    timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     iLock.unlock();
     BOOST_ASSERT_MSG(!task->trHook.is_linked(), "ready hook linked?");
     task->SwapOut();
     iLock.lock();
-    if (!timeout_expired(task->timeOut)) timeout_del(task->timeOut);
+    if (!timeout_expired(task->timeOut.get())) timeout_del(task->timeOut.get());
 }
 
 void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<Mutex> &iLock)
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
-    task->timeOut = timeout_init(task->timeOut, mask);
-    timeout_setcb(task->timeOut, TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, task->timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    timeout_init(task->timeOut.get(), mask);
+    timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     iLock.unlock();
     BOOST_ASSERT_MSG(!task->trHook.is_linked(), "ready hook linked?");
     task->SwapOut();
     iLock.lock();
-    if (!timeout_expired(task->timeOut)) timeout_del(task->timeOut);
+    if (!timeout_expired(task->timeOut.get())) timeout_del(task->timeOut.get());
 }
