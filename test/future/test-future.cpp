@@ -36,12 +36,18 @@ TEST_CASE("Performance Future", "[future]")
                         ribScheduler.ShutDown();
                     })
             .Detach();
-        tx.push_back(std::thread([barrier, p]() {
+        /*tx.push_back(std::thread([barrier, p]() {
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
             p->SetValue(std::chrono::steady_clock::now());
-        }));
+        }));*/
+        std::thread t([barrier, p]() {
+            pthread_barrier_wait(barrier);
+            // std::this_thread::sleep_for(std::chrono::microseconds(100));
+            p->SetValue(std::chrono::steady_clock::now());
+        });
         ribScheduler.RunSchedulerMainLoop();
+        t.join();
     }
     for (auto& t: tx) t.join();
     pthread_barrier_destroy(barrier);
