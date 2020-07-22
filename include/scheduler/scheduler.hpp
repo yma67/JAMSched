@@ -25,10 +25,10 @@ namespace JAMScript
 
     struct RealTimeSchedule
     {
-        std::chrono::high_resolution_clock::duration sTime, eTime;
+        std::chrono::steady_clock::duration sTime, eTime;
         uint32_t taskId;
-        RealTimeSchedule(const std::chrono::high_resolution_clock::duration &s,
-                         const std::chrono::high_resolution_clock::duration &e, uint32_t id)
+        RealTimeSchedule(const std::chrono::steady_clock::duration &s,
+                         const std::chrono::steady_clock::duration &e, uint32_t id)
             : sTime(s), eTime(e), taskId(id) {}
     };
 
@@ -69,14 +69,10 @@ namespace JAMScript
         bool Empty();
         void RunSchedulerMainLoop() override;
 
-        void RegisterARPCall(const std::string &fName, const RExecDetails::RoutineInterface &rpcFunc) 
+        template <typename Fn>
+        void RegisterRPCall(const std::string &fName, Fn &&fn) 
         {
-            localFuncMap[fName] = &rpcFunc;
-        }
-
-        void RegisterRPCalls(std::unordered_map<std::string, const RExecDetails::RoutineInterface *> fvm) 
-        {
-            localFuncMap.insert(fvm.begin(), fvm.end());
+            localFuncMap[fName] = new RExecDetails::RoutineRemote<decltype(std::function(fn))>(std::function(fn));
         }
 
         // Not using const ref for memory safety
@@ -267,7 +263,7 @@ namespace JAMScript
         }
 
         template<typename Fn>
-        void RegisterNamedExecution(const std::string &eName, Fn&& fn) 
+        void RegisterLocalExecution(const std::string &eName, Fn&& fn) 
         {
             lexecFuncMap[eName] = std::function(fn);
         }
@@ -288,25 +284,30 @@ namespace JAMScript
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName);
+        RIBScheduler(uint32_t sharedStackSize, std::vector<StealScheduler *> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName, 
+                     std::vector<StealScheduler *> thiefs);
         ~RIBScheduler() override;
 
     private:
 
         struct ExecutionStats
         {
-            std::vector<std::chrono::high_resolution_clock::duration> jitters;
+            std::vector<std::chrono::steady_clock::duration> jitters;
             std::vector<ITaskEntry> iRecords;
         };
 
         Timer timer;
-        std::unique_ptr<Remote> remote;
         Decider decider;
         uint32_t cThief;
-        std::vector<StealScheduler*> thiefs;
+        std::thread tTimer;
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
         std::mutex sReadyRTSchedule;
+        std::unique_ptr<Remote> remote;
+        std::vector<StealScheduler*> thiefs;
         std::condition_variable cvReadyRTSchedule;
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;

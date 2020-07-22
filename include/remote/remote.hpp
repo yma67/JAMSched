@@ -161,6 +161,7 @@ namespace JAMScript
         struct RoutineInterface
         {
             virtual nlohmann::json Invoke(const nlohmann::json &vaList) const = 0;
+            virtual ~RoutineInterface() {}
         };
 
         template <typename T>
@@ -170,6 +171,7 @@ namespace JAMScript
         struct RoutineRemote<std::function<R(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<R(Args...)> f) : fn(std::move(f)) {}
+            ~RoutineRemote() override {}
             nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
@@ -191,6 +193,7 @@ namespace JAMScript
         struct RoutineRemote<std::function<void(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<void(Args...)> f) : fn(std::move(f)) {}
+            ~RoutineRemote() override {}
             nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
@@ -212,6 +215,7 @@ namespace JAMScript
         struct RoutineRemote<std::function<char *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<char *(Args...)> f) : fn(std::move(f)) {}
+            ~RoutineRemote() override {}
             nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
@@ -235,6 +239,7 @@ namespace JAMScript
         struct RoutineRemote<std::function<const char *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<const char *(Args...)> f) : fn(std::move(f)) {}
+            ~RoutineRemote() override {}
             nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
@@ -258,6 +263,7 @@ namespace JAMScript
         struct RoutineRemote<std::function<nvoid_t *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<nvoid_t *(Args...)> f) : fn(std::move(f)) {}
+            ~RoutineRemote() override {}
             nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try
@@ -282,6 +288,7 @@ namespace JAMScript
         struct RoutineRemote<std::function<const nvoid_t *(Args...)>> : public RoutineInterface
         {
             RoutineRemote(std::function<const nvoid_t *(Args...)> f) : fn(std::move(f)) {}
+            ~RoutineRemote() override {}
             nlohmann::json Invoke(const nlohmann::json &vaList) const override
             {
                 try

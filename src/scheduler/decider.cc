@@ -102,7 +102,7 @@ void JAMScript::Decider::RecordInteractiveJobArrival(const ITaskEntry &aInteract
 {
     interactiveTaskRecord.push_back({aInteractiveTaskRecord.deadline - scheduler->numberOfPeriods * period, aInteractiveTaskRecord.burst,
                                      std::chrono::duration_cast<std::chrono::microseconds>(
-                                         std::chrono::high_resolution_clock::now() -
+                                         std::chrono::steady_clock::now() -
                                          scheduler->GetCycleStartTime())
                                          .count()});
 }

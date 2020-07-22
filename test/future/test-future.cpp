@@ -17,11 +17,10 @@ TEST_CASE("Performance Future", "[future]")
 #endif
     pthread_barrier_t *barrier = reinterpret_cast<pthread_barrier_t *>(calloc(sizeof(pthread_barrier_t), 1));
     pthread_barrier_init(barrier, NULL, 2);
-    std::vector<std::thread> tx;
     for (int i = 0; i < nIter; i++)
     {
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
-        auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
+        auto p = std::make_shared<JAMScript::Promise<std::chrono::steady_clock::time_point>>();
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
 
@@ -32,18 +31,18 @@ TEST_CASE("Performance Future", "[future]")
                         //std::cout << "Before Get" << std::endl;
                         auto ts = fut.Get();
                         //std::cout << "After Get" << std::endl;
-                        dt += std::chrono::high_resolution_clock::now() - ts;
+                        dt += std::chrono::steady_clock::now() - ts;
                         ribScheduler.ShutDown();
                     })
             .Detach();
-        tx.push_back(std::thread([barrier, p]() {
+        std::thread t([barrier, p]() {
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
-            p->SetValue(std::chrono::high_resolution_clock::now());
-        }));
+            p->SetValue(std::chrono::steady_clock::now());
+        });
         ribScheduler.RunSchedulerMainLoop();
+        t.join();
     }
-    for (auto& t: tx) t.join();
     pthread_barrier_destroy(barrier);
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
@@ -56,7 +55,7 @@ TEST_CASE("InterLock", "[future]")
     std::string sec("muthucumaru maheswaran loves java");
 #endif
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
-    auto p = std::make_shared<JAMScript::Promise<std::chrono::high_resolution_clock::time_point>>();
+    auto p = std::make_shared<JAMScript::Promise<std::chrono::steady_clock::time_point>>();
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [sec, p, &ribScheduler]() {
@@ -86,7 +85,7 @@ TEST_CASE("LExec", "[future]")
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
-    ribScheduler.RegisterNamedExecution("testExec", [](int a, int b) -> int {
+    ribScheduler.RegisterLocalExecution("testExec", [](int a, int b) -> int {
         return a + b;
     });
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [&ribScheduler]() {

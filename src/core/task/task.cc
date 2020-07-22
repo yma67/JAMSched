@@ -4,18 +4,17 @@
 #include "concurrency/notifier.hpp"
 
 JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
-    : status(TASK_READY),
-      isStealable(true),
-      scheduler(scheduler),
-      baseScheduler(scheduler),
-      references(0),
-      notifier(std::make_shared<Notifier>(TaskInterface::Active())),
-      id(0),
-      taskLocalStoragePool(*GetGlobalJTLSMap()),
-      deadline(std::chrono::microseconds(0)),
+    : status(TASK_READY), isStealable(true), scheduler(scheduler), references(0),
+      notifier(std::make_shared<Notifier>(TaskInterface::Active())), timeOut(new struct timeout),
+      id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
 
-JAMScript::TaskInterface::~TaskInterface() {}
+JAMScript::TaskInterface::~TaskInterface() 
+{
+    auto* tempTimeOut = timeOut;
+    timeOut = nullptr;
+    delete tempTimeOut;
+}
 
 void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {

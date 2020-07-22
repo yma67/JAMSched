@@ -1,5 +1,6 @@
 #include <mutex>
 #include "time/time.hpp"
+#include "boost/assert.hpp"
 #include "core/task/task.hpp"
 #include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
@@ -34,7 +35,7 @@ void JAMScript::Timer::operator()()
 void JAMScript::Timer::NotifyAllTimeouts()
 {
     std::unique_lock lk(sl);
-    UpdateTimeout_();
+    UpdateTimeoutWithoutLock();
     struct timeout *timeOut;
     while ((timeOut = timeouts_get(timingWheelPtr)))
     {
@@ -47,10 +48,10 @@ void JAMScript::Timer::NotifyAllTimeouts()
 void JAMScript::Timer::UpdateTimeout()
 {
     std::lock_guard lk(sl);
-    UpdateTimeout_();
+    UpdateTimeoutWithoutLock();
 }
 
-void JAMScript::Timer::UpdateTimeout_()
+void JAMScript::Timer::UpdateTimeoutWithoutLock()
 {
     timeouts_update(timingWheelPtr, 
                     std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - scheduler->GetSchedulerStartTime())
@@ -70,14 +71,13 @@ void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp)
 void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask)
 {
     std::unique_lock lk(sl);
-    UpdateTimeout_();
-    struct timeout *timeOut = new struct timeout;
-    timeOut = timeout_init(timeOut, mask);
-    timeout_setcb(timeOut, TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    UpdateTimeoutWithoutLock();
+    task->timeOut = timeout_init(task->timeOut, mask);
+    timeout_setcb(task->timeOut, TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, task->timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
+    BOOST_ASSERT_MSG(!task->trHook.is_linked(), "ready hook linked?");
     task->SwapOut();
-    delete timeOut;
 }
 
 void JAMScript::Timer::TimeoutCallback(void *args)
@@ -99,15 +99,14 @@ void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp,
 void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask,  std::unique_lock<JAMScript::SpinMutex> &iLock)
 {
     std::unique_lock lk(sl);
-    UpdateTimeout_();
-    struct timeout *timeOut = new struct timeout;
-    timeOut = timeout_init(timeOut, mask);
-    timeout_setcb(timeOut, TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    UpdateTimeoutWithoutLock();
+    task->timeOut = timeout_init(task->timeOut, mask);
+    timeout_setcb(task->timeOut, TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, task->timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     iLock.unlock();
+    BOOST_ASSERT_MSG(!task->trHook.is_linked(), "ready hook linked?");
     task->SwapOut();
     iLock.lock();
-    if (!timeout_expired(timeOut)) timeout_del(timeOut);
-    delete timeOut;
+    if (!timeout_expired(task->timeOut)) timeout_del(task->timeOut);
 }

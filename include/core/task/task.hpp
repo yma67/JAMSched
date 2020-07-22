@@ -127,9 +127,9 @@ namespace JAMScript
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
-        bool toContinue;
-        SpinMutex qMutex;
-        std::condition_variable_any cvQMutex;
+        std::atomic<bool> toContinue;
+        std::mutex qMutex;
+        std::condition_variable cvQMutex;
         std::atomic<TaskInterface *> taskRunning;
         uint8_t *sharedStackBegin, *sharedStackAlignedEnd, *sharedStackAlignedEndAct;
         uint32_t sharedStackSizeActual;
@@ -209,9 +209,9 @@ namespace JAMScript
     }
 
     template <typename _Clock, typename _Duration>
-    std::chrono::high_resolution_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
+    std::chrono::steady_clock::time_point convert(std::chrono::time_point<_Clock, _Duration> const &timeout_time)
     {
-        return std::chrono::high_resolution_clock::now() + (timeout_time - _Clock::now());
+        return std::chrono::steady_clock::now() + (timeout_time - _Clock::now());
     }
 
     class TaskInterface
@@ -248,25 +248,25 @@ namespace JAMScript
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt) 
         {
-            baseScheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt));
+            scheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt));
         }
 
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp) 
         {
-            baseScheduler->SleepUntil(this, convert(tp));
+            scheduler->SleepUntil(this, convert(tp));
         }
 
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk) 
         {
-            baseScheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt), lk);
+            scheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt), lk);
         }
 
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk)
         {
-            baseScheduler->SleepUntil(this, convert(tp), lk);
+            scheduler->SleepUntil(this, convert(tp), lk);
         }
 
         friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
@@ -315,7 +315,8 @@ namespace JAMScript
 
         std::atomic<TaskType> taskType;
         std::atomic_bool isStealable;
-        SchedulerBase *scheduler, *baseScheduler;
+        SchedulerBase *scheduler;
+        struct timeout *timeOut;
         JAMScriptUserContext uContext;
         long references;
         Duration deadline, burst;
