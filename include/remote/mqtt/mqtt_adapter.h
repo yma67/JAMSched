@@ -39,7 +39,6 @@ typedef enum
 } mqtt_state_t;
 
 #define MQTT_SENDBUF_SIZE                       8
-#define APP_ID_LEN                              64
 #define MQTT_HOST_LEN                           128
 #define MAX_SUBSCRIPTIONS                       1024
 #define MQTT_TIMEOUT                            200
@@ -55,11 +54,10 @@ typedef struct mqtt_adapter_t
     MQTTAsync mqttserv;                                                 /// MQTTAsync handle for the MQTT broker
     char mqtthost[MQTT_HOST_LEN];                                       /// the URL for the MQTT host 
     char *subscriptions[MAX_SUBSCRIPTIONS];                             /// subscriptions that are already pushed for the MQTT Adapter
-    char app_id[APP_ID_LEN];
     void (*onconnect)(void *); 
 } mqtt_adapter_t;
 
-mqtt_adapter_t *mqtt_createserver(char *url, int indx, char *appid, char *devid, void (*onc)(void *));
+mqtt_adapter_t *mqtt_createserver(char *url, int indx, char *devid, void (*onc)(void *));
 void mqtt_deleteserver(mqtt_adapter_t *mq);
 void mqtt_connect(mqtt_adapter_t *mq);
 bool mqtt_disconnect(mqtt_adapter_t *mq, int state);

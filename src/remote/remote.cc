@@ -19,15 +19,14 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
       replyDown(std::string("/") + appName + "/replies/down"),
       announceDown(std::string("/") + appName + "/announce/down"),
       mq(mqtt_createserver(const_cast<char *>(hostAddr.c_str()), 1,
-                           const_cast<char *>(appName.c_str()),
                            const_cast<char *>(devName.c_str()), connected))
 {
     MQTTAsync_setMessageArrivedCallback(mq->mqttserv, scheduler, RemoteArrivedCallback);
-    mqtt_set_subscription(mq, const_cast<char *>("/requests/up"));
-    mqtt_set_subscription(mq, const_cast<char *>("/requests/down"));
-    mqtt_set_subscription(mq, const_cast<char *>("/replies/up"));
-    mqtt_set_subscription(mq, const_cast<char *>("/replies/down"));
-    mqtt_set_subscription(mq, const_cast<char *>("/announce/down"));
+    mqtt_set_subscription(mq, const_cast<char *>(requestUp.c_str()));
+    mqtt_set_subscription(mq, const_cast<char *>(requestDown.c_str()));
+    mqtt_set_subscription(mq, const_cast<char *>(replyUp.c_str()));
+    mqtt_set_subscription(mq, const_cast<char *>(replyDown.c_str()));
+    mqtt_set_subscription(mq, const_cast<char *>(announceDown.c_str()));
     mqtt_connect(mq);
 }
 
@@ -74,7 +73,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                         {"cmd", "REXEC-ACK"}
                     };
                     auto vReq = nlohmann::json::to_cbor(jack.dump());
-                    mqtt_publish(scheduler->remote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size()));
+                    mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 }
             }
         });

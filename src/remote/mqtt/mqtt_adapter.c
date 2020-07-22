@@ -43,7 +43,7 @@ void mqtt_default_conn_lost(void *ctx, char *cause)
     mqtt_connect(mq);
 }
 
-mqtt_adapter_t *mqtt_createserver(char *url, int indx, char *appid, char *devid, void (*onc)(void *)) 
+mqtt_adapter_t *mqtt_createserver(char *url, int indx, char *devid, void (*onc)(void *)) 
 {
     char clientid[64];
 
@@ -53,7 +53,6 @@ mqtt_adapter_t *mqtt_createserver(char *url, int indx, char *appid, char *devid,
     mqtt_adapter_t *mq = (mqtt_adapter_t *)calloc(1, sizeof(mqtt_adapter_t));
     mq->onconnect = onc;
     strcpy(mq->mqtthost, url);
-    strcpy(mq->app_id, appid);
     sprintf(clientid, "%s-%d-%d", devid, indx, getpid());
     if (MQTTAsync_create(&(mq->mqttserv), url, clientid, MQTTCLIENT_PERSISTENCE_NONE, NULL) != MQTTASYNC_SUCCESS)
     {
@@ -154,17 +153,13 @@ void mqtt_set_subscription(mqtt_adapter_t *mq, char *topic)
 
 void mqtt_subscribe(mqtt_adapter_t *mq, char *topic)
 {
-    char fulltopic[128];
-
     if (mq->state != MQTT_CONNECTED)
     {
         mqtt_set_subscription(mq, topic);
         return;
     }
-
-    sprintf(fulltopic, "/%s%s", mq->app_id, topic);
     if (topic != NULL)
-        MQTTAsync_subscribe(mq->mqttserv, fulltopic, 1, NULL);
+        MQTTAsync_subscribe(mq->mqttserv, topic, 1, NULL);
 }
 
 void mqtt_onpublish(void* context, MQTTAsync_successData* response)
@@ -175,9 +170,6 @@ void mqtt_onpublish(void* context, MQTTAsync_successData* response)
 
 bool mqtt_publish(mqtt_adapter_t *mq, char *topic, nvoid_t *nv)
 {
-    char fulltopic[128];
-    sprintf(fulltopic, "/%s%s", mq->app_id, topic);
-
     MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
     opts.onSuccess = mqtt_onpublish;
     opts.context = nv;
@@ -186,7 +178,7 @@ bool mqtt_publish(mqtt_adapter_t *mq, char *topic, nvoid_t *nv)
         usleep(100);
 
     if (mq->state == MQTT_CONNECTED) {
-        int rc = MQTTAsync_send(mq->mqttserv, fulltopic, nv->len, nv->data, 1, 0, &opts);
+        int rc = MQTTAsync_send(mq->mqttserv, topic, nv->len, nv->data, 1, 0, &opts);
         if (rc != MQTTASYNC_SUCCESS) {
             mq->state = MQTT_ERROR;
             mqtt_disconnect(mq, MQTT_ERROR);
