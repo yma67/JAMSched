@@ -323,6 +323,7 @@ namespace JAMScript
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
+                {"opt", devId},
                 {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
                 {"condstr", condstr},
@@ -331,7 +332,7 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto* pr = rLookup[eIdFactory++] = new Promise<nlohmann::json>();
             lk.unlock();
-            auto vReq = nlohmann::json::to_cbor(rexRequest);
+            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
             return pr->GetFuture();
         }
