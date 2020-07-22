@@ -88,6 +88,16 @@ void JAMScript::StealScheduler::ShutDown()
     victim->ShutDown();
 }
 
+JAMScript::TimePoint JAMScript::StealScheduler::GetSchedulerStartTime() const
+{
+    return victim->GetSchedulerStartTime();
+}
+
+JAMScript::TimePoint JAMScript::StealScheduler::GetCycleStartTime() const
+{
+    return victim->GetCycleStartTime();
+}
+
 void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
 {
     return victim->SleepFor(task, dt);
@@ -104,6 +114,16 @@ void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt
 }
 
 void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
+{
+    return victim->SleepUntil(task, tp, lk);
+}
+
+void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) 
+{
+    return victim->SleepFor(task, dt, lk);
+}
+
+void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
 {
     return victim->SleepUntil(task, tp, lk);
 }

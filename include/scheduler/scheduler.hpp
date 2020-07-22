@@ -54,6 +54,9 @@ namespace JAMScript
 
         friend void ThisTask::Yield();
 
+        void ShutDown() override;
+        void RunSchedulerMainLoop() override;
+
         void Enable(TaskInterface *toEnable) override;
         void Disable(TaskInterface *toEnable) override;
 
@@ -61,13 +64,12 @@ namespace JAMScript
         TimePoint GetCycleStartTime() const override;
         void SleepFor(TaskInterface* task, const Duration &dt) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp) override;
+        void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) override;
+        void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) override;
         void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) override;
 
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
-        void ShutDown() override;
-        bool Empty();
-        void RunSchedulerMainLoop() override;
 
         template <typename Fn>
         void RegisterRPCall(const std::string &fName, Fn &&fn) 

@@ -38,6 +38,7 @@ namespace JAMScript
     struct EdfPriority;
     struct RealTimeIdKeyType;
     struct BIIdKeyType;
+    class Mutex;
 
     namespace JAMHookTypes
     {
@@ -100,21 +101,21 @@ namespace JAMScript
         friend class RIBScheduler;
         friend class StealScheduler;
 
+        virtual void ShutDown() { if (toContinue) toContinue = false; }
+
         virtual TimePoint GetSchedulerStartTime() const;
         virtual TimePoint GetCycleStartTime() const;
         virtual void SleepFor(TaskInterface* task, const Duration &dt) {}
         virtual void SleepUntil(TaskInterface* task, const TimePoint &tp) {}
+        virtual void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) {}
+        virtual void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) {}
         virtual void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) {}
         virtual void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) {}
+
 
         virtual void RunSchedulerMainLoop() = 0;
         virtual void Enable(TaskInterface *toEnable) = 0;
         virtual void Disable(TaskInterface *toEnable) = 0;
-        virtual void ShutDown()
-        {
-            if (toContinue)
-                toContinue = false;
-        }
 
         TaskInterface *GetTaskRunning() { return taskRunning; }
         SchedulerBase(uint32_t sharedStackSize);
@@ -175,28 +176,26 @@ namespace JAMScript
     class TaskHandle
     {
     public:
+
         void Join();
         void Detach();
+        
         TaskHandle(std::shared_ptr<Notifier> h) : n(std::move(h)) {}
-        TaskHandle(TaskHandle &&other) : n(nullptr) {
-            n = other.n;
-            other.n = nullptr;
-        }
-        TaskHandle &operator=(TaskHandle &&other) {
-            if (this != &other) {
-                Detach();
-                n = other.n;
-                other.n = nullptr;
-            }
-            return *this;
-        }
+
+        TaskHandle(TaskHandle &&other);
+        TaskHandle &operator=(TaskHandle &&other);
         TaskHandle &operator=(TaskHandle const &) = delete;
         TaskHandle(TaskHandle const &) = delete;
+
     private:
+
         std::shared_ptr<Notifier> n;
+
     };
 
     namespace ThisTask {
+
+        void Exit();
 
         void Yield();
 
@@ -205,6 +204,10 @@ namespace JAMScript
 
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
+
+        Duration GetTimeElapsedCycle();
+
+        Duration GetTimeElapsedScheduler();
 
     }
 
@@ -237,6 +240,8 @@ namespace JAMScript
         template <typename T, typename... Args>
         friend T &GetByJTLSLocation(JTLSLocation location, Args &&... args);
 
+        friend void ThisTask::Exit();
+
         friend void ThisTask::Yield();
 
         template <typename _Clock, typename _Dur>
@@ -244,6 +249,18 @@ namespace JAMScript
 
         template <typename _Clock, typename _Dur>
         friend void ThisTask::SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
+
+        friend Duration ThisTask::GetTimeElapsedCycle();
+        
+        friend Duration ThisTask::GetTimeElapsedScheduler();
+
+        friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
+        friend bool operator>(const TaskInterface &a, const TaskInterface &b) noexcept;
+        friend bool operator==(const TaskInterface &a, const TaskInterface &b) noexcept;
+        
+        friend std::size_t hash_value(const TaskInterface &value) noexcept;
+        friend bool priority_order(const TaskInterface &a, const TaskInterface &b) noexcept;
+        friend bool priority_inverse_order(const TaskInterface &a, const TaskInterface &b) noexcept;
 
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt) 
@@ -269,13 +286,6 @@ namespace JAMScript
             scheduler->SleepUntil(this, convert(tp), lk);
         }
 
-        friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
-        friend bool operator>(const TaskInterface &a, const TaskInterface &b) noexcept;
-        friend bool operator==(const TaskInterface &a, const TaskInterface &b) noexcept;
-        friend std::size_t hash_value(const TaskInterface &value) noexcept;
-        friend bool priority_order(const TaskInterface &a, const TaskInterface &b) noexcept;
-        friend bool priority_inverse_order(const TaskInterface &a, const TaskInterface &b) noexcept;
-
         JAMScript::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
         JAMScript::JAMHookTypes::ReadyInteractiveStackHook riStackHook;
         JAMScript::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
@@ -288,6 +298,7 @@ namespace JAMScript
         virtual void SwapIn() = 0;
         virtual void Execute() = 0;
         virtual bool Steal(SchedulerBase *scheduler) = 0;
+        
         bool CanSteal() { return isStealable; }
         void Disable() { scheduler->Disable(this); }
         void Enable() { scheduler->Enable(this); }

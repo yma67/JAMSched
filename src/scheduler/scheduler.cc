@@ -95,6 +95,16 @@ void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &t
     timer.SetTimeoutUntil(task, tp, lk);
 }
 
+void JAMScript::RIBScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) 
+{
+    timer.SetTimeoutFor(task, dt, lk);
+}
+
+void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
+{
+    timer.SetTimeoutUntil(task, tp, lk);
+}
+
 void JAMScript::RIBScheduler::ShutDown()
 {
     if (toContinue)

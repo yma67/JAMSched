@@ -41,6 +41,23 @@ JAMScript::TaskInterface::GetTaskLocalStoragePool()
     return &taskLocalStoragePool;
 }
 
+JAMScript::TaskHandle::TaskHandle(JAMScript::TaskHandle &&other) : n(nullptr)
+{
+    n = other.n;
+    other.n = nullptr;
+}
+
+JAMScript::TaskHandle &JAMScript::TaskHandle::operator=(JAMScript::TaskHandle &&other) 
+{
+    if (this != &other) 
+    {
+        Detach();
+        n = other.n;
+        other.n = nullptr;
+    }
+    return *this;
+}
+
 JAMScript::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
     : sharedStackSizeActual(sharedStackSize), toContinue(true), sharedStackBegin(new uint8_t[sharedStackSize])
 {
@@ -95,6 +112,24 @@ void JAMScript::ThisTask::Yield()
         TaskInterface::Active()->scheduler->Enable(TaskInterface::Active());
         TaskInterface::Active()->SwapOut();
     }
+}
+
+void JAMScript::ThisTask::Exit()
+{
+    auto* thisTask = TaskInterface::Active();
+    thisTask->status = TASK_FINISHED;
+    thisTask->notifier->Notify();
+    thisTask->SwapOut();
+}
+
+JAMScript::Duration JAMScript::ThisTask::GetTimeElapsedCycle()
+{
+    return Clock::now() - TaskInterface::Active()->scheduler->GetCycleStartTime();
+}
+        
+JAMScript::Duration JAMScript::ThisTask::GetTimeElapsedScheduler()
+{
+    return Clock::now() - TaskInterface::Active()->scheduler->GetSchedulerStartTime();
 }
 
 bool JAMScript::operator<(const TaskInterface &a, const TaskInterface &b) noexcept

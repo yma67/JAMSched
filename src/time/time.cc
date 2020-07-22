@@ -2,9 +2,10 @@
 #include "time/time.hpp"
 #include "boost/assert.hpp"
 #include "core/task/task.hpp"
+#include "concurrency/mutex.hpp"
+#include "scheduler/scheduler.hpp"
 #include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
-#include "scheduler/scheduler.hpp"
 
 JAMScript::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
 {
@@ -96,7 +97,32 @@ void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp,
     SetTimeout(task, tp - scheduler->GetSchedulerStartTime(), TIMEOUT_ABS, iLock);
 }
 
-void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask,  std::unique_lock<JAMScript::SpinMutex> &iLock)
+void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<Mutex> &iLock)
+{
+    SetTimeout(task, dt, 0, iLock);
+}
+
+void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<Mutex> &iLock)
+{
+    SetTimeout(task, tp - scheduler->GetSchedulerStartTime(), TIMEOUT_ABS, iLock);
+}
+
+void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<SpinMutex> &iLock)
+{
+    std::unique_lock lk(sl);
+    UpdateTimeoutWithoutLock();
+    task->timeOut = timeout_init(task->timeOut, mask);
+    timeout_setcb(task->timeOut, TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, task->timeOut, std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    lk.unlock();
+    iLock.unlock();
+    BOOST_ASSERT_MSG(!task->trHook.is_linked(), "ready hook linked?");
+    task->SwapOut();
+    iLock.lock();
+    if (!timeout_expired(task->timeOut)) timeout_del(task->timeOut);
+}
+
+void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<Mutex> &iLock)
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
