@@ -13,7 +13,7 @@
 - add files you need
 - make sure your include your folder in src/CMakeLists.txt
 ### Remote Procedure Call (RPC)
-## Note
+#### Note
 Please return by a pointer to memory allocated on heap by malloc/calloc to avoid memory leak. 
 #### Example
 ```cpp
