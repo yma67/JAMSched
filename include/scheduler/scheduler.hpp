@@ -307,7 +307,7 @@ namespace JAMScript
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
         std::mutex sReadyRTSchedule;
-        std::condition_variable cvReadyRTSchedule, cvQMutex;
+        std::condition_variable cvReadyRTSchedule;
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
         std::unordered_map<std::string, std::any> lexecFuncMap;

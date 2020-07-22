@@ -33,7 +33,6 @@ namespace JAMScript
         void ShutDown_();
         std::atomic<unsigned int> rCount = 0, iCount = 0;
         bool isRunning;
-        std::condition_variable_any cv;
         std::thread t;
         RIBScheduler *victim;
         JAMStorageTypes::ThiefQueueType isReady;

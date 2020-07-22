@@ -325,7 +325,7 @@ namespace JAMScript
             auto* pr = rLookup[eIdFactory++] = new Promise<nlohmann::json>();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest);
-            mqtt_publish(mq, const_cast<char *>("/rexec-request"), nvoid_new(vReq.data(), vReq.size()));
+            mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
             return pr->GetFuture();
         }
 
