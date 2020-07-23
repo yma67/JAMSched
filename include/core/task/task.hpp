@@ -343,13 +343,17 @@ namespace JAMScript
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt)
         {
+            auto sleepStartTime = Clock::now();
             TaskInterface::Active()->SleepFor(dt);
+            BOOST_ASSERT_MSG(sleepStartTime + dt < Clock::now(), "Early Wakeup?");
         }
 
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp)
         {
+            auto sleepStartTime = Clock::now();
             TaskInterface::Active()->SleepUntil(tp);
+            BOOST_ASSERT_MSG(tp < Clock::now(), "Early Wakeup?");
         }
 
     } // namespace ThisTask

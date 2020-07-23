@@ -9,8 +9,7 @@ JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
       id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
 
-JAMScript::TaskInterface::~TaskInterface() 
-{}
+JAMScript::TaskInterface::~TaskInterface() {}
 
 void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {

@@ -200,7 +200,7 @@ namespace JAMScript
         Promise(Promise &&other) noexcept = default;
         Promise(Promise const &other) = delete;
 
-        ~Promise() = default;
+        ~Promise() { SetException(std::make_exception_ptr(InvalidArgumentException(std::string("Scheduler Shutdown")))); }
 
         Promise &operator=(Promise &&other) noexcept = default;
         Promise &operator=(Promise const &rhs) = delete;
@@ -369,7 +369,7 @@ namespace JAMScript
         Promise(Promise &&other) noexcept = default;
         Promise(Promise const &other) = delete;
 
-        ~Promise() = default;
+        ~Promise() { SetException(std::make_exception_ptr(InvalidArgumentException(std::string("Scheduler Shutdown")))); }
 
         Promise &operator=(Promise &&other) noexcept = default;
         Promise &operator=(Promise const &rhs) = delete;
@@ -537,7 +537,7 @@ namespace JAMScript
         Promise(Promise &&other) noexcept = default;
         Promise(Promise const &other) = delete;
 
-        ~Promise() = default;
+        ~Promise() { SetException(std::make_exception_ptr(InvalidArgumentException(std::string("Scheduler Shutdown")))); }
 
         Promise &operator=(Promise &&other) noexcept = default;
         Promise &operator=(Promise const &rhs) = delete;
