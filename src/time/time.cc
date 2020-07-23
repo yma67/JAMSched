@@ -66,7 +66,7 @@ void JAMScript::Timer::UpdateTimeoutWithoutLock()
 
 void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt) 
 { 
-    SetTimeout(task, dt, 0); 
+    SetTimeout(task, Clock::now() - scheduler->GetSchedulerStartTime() + dt, TIMEOUT_ABS); 
 }
 
 void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp)
@@ -93,7 +93,7 @@ void JAMScript::Timer::TimeoutCallback(void *args)
 
 void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<JAMScript::SpinMutex> &iLock)
 {
-    SetTimeout(task, dt, 0, iLock);
+    SetTimeout(task, Clock::now() - scheduler->GetSchedulerStartTime() + dt, TIMEOUT_ABS, iLock);
 }
 
 void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<JAMScript::SpinMutex> &iLock)
@@ -103,7 +103,7 @@ void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp,
 
 void JAMScript::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<Mutex> &iLock)
 {
-    SetTimeout(task, dt, 0, iLock);
+    SetTimeout(task, Clock::now() - scheduler->GetSchedulerStartTime() + dt, TIMEOUT_ABS, iLock);
 }
 
 void JAMScript::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<Mutex> &iLock)
