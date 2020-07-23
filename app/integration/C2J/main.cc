@@ -11,18 +11,21 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
                 printf("==============================================\n");
             JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, std::string("abc?"));
             //auto p = ribScheduler.ExtractRemote<int>(jf);
             // jf.Get();
+
+            jf.GetFor(std::chrono::milliseconds(100));
+
         }
     });
                     
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
             printf(">>...........\n");
             JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, std::string("xyz"));
             //            int q = ribScheduler.ExtractRemote(&jf);

@@ -5,6 +5,7 @@
 #include <core/task/task.hpp>
 #include <cstring>
 #include <nlohmann/json.hpp>
+#include <boost/compute/detail/lru_cache.hpp>
 
 int RPCFunctionJSync(int a, int b)
 {
@@ -21,6 +22,8 @@ int addNumbers(int a, int b)
 
 int main()
 {
+    auto lc = new boost::compute::detail::lru_cache<std::string, std::string>(100);
+
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCall("addNumbers", addNumbers);
     ribScheduler.RegisterRPCall("RPCFunctionJAsync", [] (int a, int b) -> int {

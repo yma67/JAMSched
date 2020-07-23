@@ -56,11 +56,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
 
         });
-
-        RegisterTopic(scheduler->remote->replyDown, "REXEC-ACK", {
-            std::cout << "ACK recevied " << rMsg["actid"] << std::endl;
-        });
-
         RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
 
         });
@@ -84,6 +79,18 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         });
         RegisterTopic(scheduler->remote->requestDown, "REXEC-SYN", {
 
+        });
+        RegisterTopic(scheduler->remote->requestDown, "REXEC-ACK", {
+            std::cout << "ACK recevied " << rMsg["actid"] << std::endl;
+            if (rMsg.contains("actid"))
+            {
+                auto actId = rMsg["actid"].get<uint32_t>();
+                if (scheduler->remote->rLookup.find(actId) != scheduler->remote->rLookup.end()) 
+                {
+                    scheduler->remote->rLookup[actId]->SetValue(std::string("ACK"));
+                    scheduler->remote->rLookup.erase(actId);
+                }
+            }
         });
         RegisterTopic(scheduler->remote->replyDown, "REXEC-RES", {
             if (rMsg.contains("actid") && rMsg.contains("args")) 

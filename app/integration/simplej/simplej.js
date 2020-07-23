@@ -6,14 +6,17 @@ const mqttconsts = require('./constants').mqtt;
 const cmdparser = require('./cmdparser');
 const cbor = require('cbor');
 
-
-
 var copts = {
     clientId: 'testClient-simpleJ',
     keepalive: mqttconsts.keepAlive,
     clean: false,
     connectTimeout: mqttconsts.connectionTimeout,
 };
+
+var registry = new Map();
+registry['hellofunc'] = function (x) {
+    console.log("Say hello ", x);
+}
 
 var mserv = mqtt.connect("tcp://localhost:" + cmdparser.port, copts);
 
@@ -23,6 +26,7 @@ mserv.subscribe('/' + cmdparser.app + '/requests/up');
 
 function runAsyncCallback(cmsg, callback) {
     console.log("ASYNC Executing... ", cmsg.actname);
+    registry[cmsg.actname](cmsg.args[0]);
     cmsg.cmd = "REXEC-ACK";
     callback(cmsg);
 }
