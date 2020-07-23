@@ -331,7 +331,7 @@ namespace JAMScript
                 {"condvec", condvec}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
-            auto& pr = rLookup[eIdFactory++] = std::make_unique<Promise<nlohmann::json>>();
+            auto& pr = ackLookup[eIdFactory++] = std::make_unique<Promise<nlohmann::json>>();
             auto fuExec = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
@@ -352,7 +352,7 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
             auto futureAck = prAck->GetFuture();
             auto& pr = rLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
             auto fuExec = pr->GetFuture();
@@ -372,7 +372,7 @@ namespace JAMScript
                     if (retryNum < 3)
                     {
                         lk.lock();
-                        auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+                        auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
                         futureAck = tprAck->GetFuture();
                         lk.unlock();
                         retryNum++;
@@ -399,7 +399,7 @@ namespace JAMScript
         const std::string devId, appId;
         std::string replyUp, replyDown, requestUp, requestDown, announceDown;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> ackLookup;
     };
 
 } // namespace JAMScript

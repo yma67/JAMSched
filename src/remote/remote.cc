@@ -101,18 +101,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         RegisterTopic(scheduler->remote->requestDown, "REXEC-SYN", {
 
         });
-        RegisterTopic(scheduler->remote->requestDown, "REXEC-ACK", {
-            std::cout << "ACK recevied " << rMsg["actid"] << std::endl;
-            if (rMsg.contains("actid"))
-            {
-                auto actId = rMsg["actid"].get<uint32_t>();
-                if (scheduler->remote->rLookup.find(actId) != scheduler->remote->rLookup.end()) 
-                {
-                    scheduler->remote->rLookup[actId]->SetValue(std::string("ACK"));
-                    scheduler->remote->rLookup.erase(actId);
-                }
-            }
-        });
         RegisterTopic(scheduler->remote->replyDown, "REXEC-RES", {
             if (rMsg.contains("actid") && rMsg.contains("args")) 
             {
@@ -128,9 +116,11 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             if (rMsg.contains("actid") && rMsg.contains("args")) 
             {
                 auto actId = rMsg["actid"].get<uint32_t>();
+                std::cout << "ACK received ..." << actId << std::endl;
                 if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
                 {
-                    scheduler->remote->ackLookup[actId]->SetValue();
+                    std::cout << "Found ..." << actId << std::endl;
+                    scheduler->remote->ackLookup[actId]->SetValue("ACK");
                     scheduler->remote->ackLookup.erase(actId);
                 }
             }
