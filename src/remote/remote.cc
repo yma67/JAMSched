@@ -13,7 +13,7 @@ static void connected(void *a)
 JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                           const std::string &appName, const std::string &devName)
     : scheduler(scheduler), devId(devName), appId(appName), eIdFactory(0U),
-      requestUp(std::string("/") + appName + "/requests/up"),
+      requestUp(std::string("/") + appName + "/requests/up"), aIdFactory(0U),
       requestDown(std::string("/") + appName + "/requests/down"), 
       replyUp(std::string("/") + appName + "/replies/up"), 
       replyDown(std::string("/") + appName + "/replies/down"),
@@ -101,6 +101,17 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 {
                     scheduler->remote->rLookup[actId]->SetValue(rMsg["args"]);
                     scheduler->remote->rLookup.erase(actId);
+                }
+            }
+        });
+        RegisterTopic(scheduler->remote->replyDown, "REXEC-ACK", {
+            if (rMsg.contains("actid") && rMsg.contains("args")) 
+            {
+                auto actId = rMsg["actid"].get<uint32_t>();
+                if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
+                {
+                    scheduler->remote->ackLookup[actId]->SetValue();
+                    scheduler->remote->ackLookup.erase(actId);
                 }
             }
         });

@@ -79,7 +79,7 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
 
 TEST_CASE("Task Local", "[tasklocal]")
 {
-JAMScript::RIBScheduler ribScheduler(1024 * 256);
+    JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
 #ifdef JAMSCRIPT_ON_TRAVIS
@@ -102,6 +102,6 @@ JAMScript::RIBScheduler ribScheduler(1024 * 256);
                 std::string("citelab loves java batch"))
             .Join();
         ribScheduler.ShutDown();
-    });
+    }).Detach();
     ribScheduler.RunSchedulerMainLoop();    
 }
