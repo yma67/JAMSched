@@ -348,20 +348,43 @@ namespace JAMScript
                 {"condstr", condstr},
                 {"condvec", condvec}};
             std::unique_lock lk(mRexec);
-            rexRequest.push_back({"actid", aIdFactory});
-            auto& prAck = ackLookup[aIdFactory++] = std::make_unique<Promise<void>>();
+            rexRequest.push_back({"actid", eIdFactory});
+            auto tempEID = eIdFactory;
+            eIdFactory++;
+            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
             auto futureAck = prAck->GetFuture();
-            lk.unlock();
-            auto vReq = nlohmann::json::to_cbor(rexRequest);
-            mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-            futureAck.GetFor(std::chrono::milliseconds(500));
-            lk.lock();
-            auto& pr = rLookup[eIdFactory++] = std::make_unique<Promise<nlohmann::json>>();
+            auto& pr = rLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
             auto fuExec = pr->GetFuture();
             lk.unlock();
+            int retryNum = 0;
+            while (retryNum < 3)
+            {
+                auto vReq = nlohmann::json::to_cbor(rexRequest);
+                mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                try 
+                {
+                    futureAck.GetFor(std::chrono::milliseconds(500));
+                    break;
+                } 
+                catch (const std::exception &e)
+                {
+                    if (retryNum < 3)
+                    {
+                        lk.lock();
+                        auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+                        futureAck = tprAck->GetFuture();
+                        lk.unlock();
+                        retryNum++;
+                        continue;
+                    }
+                    lk.lock();
+                    rLookup.erase(tempEID);
+                    lk.unlock();
+                    throw e;
+                }
+            }
             return fuExec.Get().get<T>();
         }
-
         Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                const std::string &appName, const std::string &devName);
         ~Remote();
@@ -370,7 +393,7 @@ namespace JAMScript
 
         RIBScheduler *scheduler;
         std::mutex mRexec;
-        uint32_t eIdFactory, aIdFactory;
+        uint32_t eIdFactory;
         mqtt_adapter_t *mq;
         const std::string devId, appId;
         std::string replyUp, replyDown, requestUp, requestDown, announceDown;

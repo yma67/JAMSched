@@ -13,7 +13,7 @@ static void connected(void *a)
 JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                           const std::string &appName, const std::string &devName)
     : scheduler(scheduler), devId(devName), appId(appName), eIdFactory(0U),
-      requestUp(std::string("/") + appName + "/requests/up"), aIdFactory(0U),
+      requestUp(std::string("/") + appName + "/requests/up"),
       requestDown(std::string("/") + appName + "/requests/down"), 
       replyUp(std::string("/") + appName + "/replies/up"), 
       replyDown(std::string("/") + appName + "/replies/down"),
@@ -66,14 +66,23 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         RegisterTopic(scheduler->remote->requestDown, "PING", {
 
         });
+        RegisterTopic(scheduler->remote->announceDown, "KILL", {
+            scheduler->ShutDown();
+        });
+        // TODO: Deduplicate
+        // if (!rMsg.contains("actid") || !rMsg["actid"].is_number() || IsDuplicated(rMsg["actid"].get<uint32_t>()))
+        // {
+        //     return -1;
+        // } 
+        // else 
+        // {
+        //     RegisterDeduplicate(rMsg["actid"].get<uint32_t>())
+        // }
         RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
 
         });
         RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
 
-        });
-        RegisterTopic(scheduler->remote->announceDown, "KILL", {
-            scheduler->ShutDown();
         });
         RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
             if (rMsg.contains("actid")) 
