@@ -66,14 +66,23 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         RegisterTopic(scheduler->remote->requestDown, "PING", {
 
         });
+        RegisterTopic(scheduler->remote->announceDown, "KILL", {
+            scheduler->ShutDown();
+        });
+        // TODO: Deduplicate
+        // if (!rMsg.contains("actid") || !rMsg["actid"].is_number() || IsDuplicated(rMsg["actid"].get<uint32_t>()))
+        // {
+        //     return -1;
+        // } 
+        // else 
+        // {
+        //     RegisterDeduplicate(rMsg["actid"].get<uint32_t>())
+        // }
         RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
 
         });
         RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
 
-        });
-        RegisterTopic(scheduler->remote->announceDown, "KILL", {
-            scheduler->ShutDown();
         });
         RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
             if (rMsg.contains("actid")) 
@@ -101,6 +110,17 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 {
                     scheduler->remote->rLookup[actId]->SetValue(rMsg["args"]);
                     scheduler->remote->rLookup.erase(actId);
+                }
+            }
+        });
+        RegisterTopic(scheduler->remote->replyDown, "REXEC-ACK", {
+            if (rMsg.contains("actid") && rMsg.contains("args")) 
+            {
+                auto actId = rMsg["actid"].get<uint32_t>();
+                if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
+                {
+                    scheduler->remote->ackLookup[actId]->SetValue();
+                    scheduler->remote->ackLookup.erase(actId);
                 }
             }
         });
