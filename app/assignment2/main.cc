@@ -132,14 +132,18 @@ int main()
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}});
     std::atomic_int32_t syncVar = 0, rTotal = 0;
     int var = 0;
-#ifndef JAMSCRIPT_ENABLE_VALGRIND
-    ribScheduler.CreateBatchTask({false, 1024 * 256, true}, std::chrono::steady_clock::duration::max(), [&]() {
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+    auto taskCanSteal = false;
+#else
+    auto taskCanSteal = true;
+#endif
+    ribScheduler.CreateBatchTask({false, 1024 * 256, taskCanSteal}, std::chrono::steady_clock::duration::max(), [&]() {
         ReadWriteLock rw;
         std::vector<JAMScript::TaskHandle> rpool, wpool;
         for (int i = 0; i < 500; i++)
         {
             rpool.push_back(ribScheduler.CreateBatchTask(
-                {true, 0, true}, std::chrono::steady_clock::duration::max(), [&](int ntry) {
+                {true, 0, taskCanSteal}, std::chrono::steady_clock::duration::max(), [&](int ntry) {
                     for (int i = 0; i < ntry; i++)
                     {
                         rw.ReadLock();
@@ -155,7 +159,7 @@ int main()
         for (int i = 0; i < 10; i++)
         {
             wpool.push_back(ribScheduler.CreateBatchTask(
-                {true, 0, true}, std::chrono::steady_clock::duration::min(), [&](int ntry) {
+                {true, 0, taskCanSteal}, std::chrono::steady_clock::duration::min(), [&](int ntry) {
                     for (int i = 0; i < ntry; i++)
                     {
                         rw.WriteLock();
@@ -172,9 +176,6 @@ int main()
         }
         for (auto &x : rpool) x.Join();
         for (auto &x : wpool) x.Join();
-#else
-    ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
-#endif
         // supposed we received this Cbor
         nlohmann::json jx = {
             {"actname",
@@ -198,7 +199,7 @@ int main()
         std::cout << "Reference: " << strlen("Muthucumaru Maheswaran") << std::endl;
         std::cout << ribScheduler.CreateJSONBatchCall(jx2) << std::endl;
         ribScheduler.ShutDown();
-    });
+    }).Detach();
     ribScheduler.RunSchedulerMainLoop();
     return 0;
 }
