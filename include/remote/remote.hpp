@@ -316,6 +316,7 @@ namespace JAMScript
     {
     public:
 
+        void CancelAllRExecRequests();
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
         template <typename... Args>

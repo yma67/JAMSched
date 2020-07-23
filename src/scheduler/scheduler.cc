@@ -109,6 +109,10 @@ void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &t
 
 void JAMScript::RIBScheduler::ShutDown()
 {
+    if (remote != nullptr)
+    {
+        remote->CancelAllRExecRequests();
+    }
     if (toContinue)
     {
         toContinue = false;

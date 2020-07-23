@@ -5,7 +5,11 @@
 
 int main()
 {
+#ifdef JAMSCRIPT_ENABLE_VALGRIND
+    for (int i = 0; i < 1; i++)
+#else
     for (int i = 0; i < 10000; i++)
+#endif
     {
         printf("Trail No. %d\n", i);
         int countArray[2] = {0, 0};
@@ -27,7 +31,7 @@ int main()
     //            jf.Get();
                 //std::cout << jf << std::endl;
             }
-        });
+        }).Detach();
                     
         ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
             //while (true)
@@ -44,7 +48,7 @@ int main()
     //            int q = ribScheduler.ExtractRemote(&jf);
                 //std::cout << jf << std::endl;
             }
-        });
+        }).Detach();
         ribScheduler.RunSchedulerMainLoop();
         assert(countArray[0] > 0);
         assert(countArray[1] > 0);

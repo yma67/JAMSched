@@ -31,7 +31,19 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
     mqtt_connect(mq);
 }
 
-JAMScript::Remote::~Remote() { mqtt_deleteserver(mq); }
+JAMScript::Remote::~Remote() 
+{ 
+    mqtt_deleteserver(mq); 
+}
+
+void JAMScript::Remote::CancelAllRExecRequests()
+{
+    std::lock_guard lk(mRexec);
+    if (!rLookup.empty())
+    {
+        rLookup.clear();
+    }
+}
 
 #define RegisterTopic(topicName, commandName, ...) {                                                                   \
     if (std::string(topicname) == topicName && rMsg.contains("cmd") && rMsg["cmd"].is_string())                        \
