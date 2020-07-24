@@ -337,7 +337,7 @@ namespace JAMScript
             auto futureAck = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
-            std::thread([vReq=std::move(vReq),futureAck=std::move(futureAck)](){
+            std::thread([this, vReq { std::move(vReq) },futureAck { std::move(futureAck) }, tempEID]() mutable {
                 int retryNum = 0;
                 while (retryNum < 3)
                 {
@@ -351,14 +351,16 @@ namespace JAMScript
                     {
                         if (retryNum < 3)
                         {
-                            lk.lock();
+                            std::unique_lock lk(mRexec);
                             ackLookup.erase(tempEID);
                             auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
                             lk.unlock();
-                            futureAck = tprAck->GetFuture();                        
+                            futureAck = std::move(tprAck->GetFuture());                        
                             retryNum++;   
-                            if (retryNum < 3)                      
+                            if (retryNum < 3)
+                            {
                                 continue;
+                            }                  
                             throw e;
                         }
                     }
