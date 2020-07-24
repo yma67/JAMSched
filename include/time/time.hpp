@@ -28,7 +28,6 @@ namespace JAMScript
         friend class RIBScheduler;
 
         void RunTimerLoop();
-        void StopTimerLoop();
         void UpdateTimeout();
         void NotifyAllTimeouts();
         void SetTimeoutFor(TaskInterface *task, const Duration &dt);
@@ -52,7 +51,6 @@ namespace JAMScript
         
         struct timeouts *timingWheelPtr;
         RIBScheduler *scheduler;
-        std::thread t;
         std::mutex sl;
 
         Timer(Timer const &) = delete;

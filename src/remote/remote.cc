@@ -88,7 +88,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             if (rMsg.contains("actid")) 
             {
                 auto actId = rMsg["actid"].get<std::string>();
-                if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
+                if (scheduler->toContinue && scheduler->CreateRPBatchCall(std::move(rMsg))) {
                     nlohmann::json jack = 
                     {
                         {"actid", actId},

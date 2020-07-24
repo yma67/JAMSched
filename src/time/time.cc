@@ -26,18 +26,11 @@ JAMScript::Timer::~Timer()
 
 void JAMScript::Timer::RunTimerLoop() 
 {
-    t = std::thread([this] {
-        while (scheduler->toContinue) 
-        {
-            NotifyAllTimeouts();
-            std::this_thread::sleep_for(std::chrono::nanoseconds(500));
-        }
-    });
-}
-
-void JAMScript::Timer::StopTimerLoop()
-{
-    t.join();
+    while (scheduler->toContinue) 
+    {
+        NotifyAllTimeouts();
+        std::this_thread::sleep_for(std::chrono::nanoseconds(500));
+    }
 }
 
 void JAMScript::Timer::NotifyAllTimeouts()

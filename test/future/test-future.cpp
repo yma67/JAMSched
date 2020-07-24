@@ -89,7 +89,7 @@ TEST_CASE("LExec", "[future]")
         return a + b;
     });
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [&ribScheduler]() {
-        auto fu = ribScheduler.CreateLocalNamedInteractiveExecution<int>({false, 1024}, std::chrono::milliseconds(1000), std::chrono::microseconds(50), std::string("testExec"), 3, 4);
+        auto fu = ribScheduler.CreateLocalNamedInteractiveExecution<int>({false, 1024 * 256}, std::chrono::milliseconds(1000), std::chrono::microseconds(50), std::string("testExec"), 3, 4);
         JAMScript::ThisTask::SleepFor(std::chrono::microseconds(100));
         REQUIRE(fu.Get() == 7);
         ribScheduler.ShutDown();
