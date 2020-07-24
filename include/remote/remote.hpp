@@ -25,10 +25,7 @@ struct nlohmann::adl_serializer<char *>
     static void from_json(const json &j, char *&value)
     {
         std::string st = j.template get<std::string>();
-        auto *px = new char[st.size() + 1];
-        px[st.size()] = 0;
-        strncpy(px, st.c_str(), st.size());
-        value = px;
+        value = strdup(st.c_str());
     }
 };
 
@@ -42,10 +39,7 @@ struct nlohmann::adl_serializer<const char *>
     static void from_json(const json &j, const char *&value)
     {
         std::string st = j.template get<std::string>();
-        auto *px = new char[st.size() + 1];
-        px[st.size()] = 0;
-        strncpy(px, st.c_str(), st.size());
-        value = px;
+        value = strdup(st.c_str());
     }
 };
 
@@ -113,6 +107,7 @@ namespace JAMScript
         }
 
         template <typename R, typename... TArgs>
+        [[deprecated("Please Explicitly Specialize For Your Data Type")]] 
         bool ArgumentGC(R *gc, TArgs &&... tArgs)
         {
             ArgumentGC(std::forward<TArgs>(tArgs)...);
@@ -123,7 +118,7 @@ namespace JAMScript
         template <typename... TArgs>
         bool ArgumentGC(char *gc, TArgs &&... tArgs) {
             ArgumentGC(std::forward<TArgs>(tArgs)...);
-            delete[] gc;
+            free(gc);
             return true;
         }
 
@@ -136,17 +131,18 @@ namespace JAMScript
         }
 
         template <typename R, typename... TArgs>
+        [[deprecated("Please Explicitly Specialize For Your Data Type")]] 
         bool ArgumentGC(const R *gc, TArgs &&... tArgs)
         {
             ArgumentGC(std::forward<TArgs>(tArgs)...);
-            delete[] gc;
+            delete gc;
             return true;
         }
 
         template <typename... TArgs>
         bool ArgumentGC(const char *gc, TArgs &&... tArgs) {
             ArgumentGC(std::forward<TArgs>(tArgs)...);
-            delete[] gc;
+            free(const_cast<char *>(gc));
             return true;
         }
 
