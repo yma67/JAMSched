@@ -18,6 +18,15 @@ registry['hellofunc'] = function (x) {
     console.log("Say hello ", x);
 }
 
+registry['gethello'] = function (x) {
+    return "good morning, " + x;
+}
+
+registry['addNumbers'] = function (x) {
+    console.log("Numbers ", x, 20);
+    return x + 20;
+}
+
 var mserv = mqtt.connect("tcp://localhost:" + cmdparser.port, copts);
 
 mserv.subscribe('/' + cmdparser.app + '/replies/up');
@@ -58,12 +67,13 @@ mserv.on('message', function(topic, buf) {
                     runSyncCallback(cmsg, function(step, smsg) {
                         switch (step) {
                             case 'first':
-                                mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(smsg)));
+                                mserv.publish('/' + cmdparser.app + '/replies/down', cbor.encode(JSON.stringify(smsg)));
                             break;
                             case 'second':
                                 smsg.cmd = "REXEC-RES";
-                                smsg.args = [100];
-                                mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(smsg)));
+                                smsg.args = registry[smsg.actname](smsg.args[0]);
+                                console.log("Writng.... ", smsg.args);
+                                mserv.publish('/' + cmdparser.app + '/replies/down', cbor.encode(JSON.stringify(smsg)));
                             break;
                         }
                     });

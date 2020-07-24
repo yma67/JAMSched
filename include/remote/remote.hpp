@@ -344,6 +344,7 @@ namespace JAMScript
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
+                {"opt", devId},
                 {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
                 {"condstr", condstr},
@@ -360,7 +361,7 @@ namespace JAMScript
             int retryNum = 0;
             while (retryNum < 3)
             {
-                auto vReq = nlohmann::json::to_cbor(rexRequest);
+                auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
                 mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 try 
                 {

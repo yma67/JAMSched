@@ -277,10 +277,10 @@ namespace JAMScript
             return remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
-        template <typename... Args>
-        Future<nlohmann::json> CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        template <typename T, typename... Args>
+        T CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
-            return remote->CreateRExecSync<Future<nlohmann::json>>(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            return remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
         template <typename T>
