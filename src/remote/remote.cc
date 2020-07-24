@@ -44,6 +44,42 @@ void JAMScript::Remote::CancelAllRExecRequests()
     }
 }
 
+void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID)
+{
+    auto prAck = std::make_unique<Promise<void>>();
+    auto fAck = prAck->GetFuture();
+    scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [this, prAck { std::move(prAck) }, vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, tempEID]() mutable {
+        int retryNum = 0;
+        while (retryNum < 3)
+        {
+            mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+            try 
+            {
+                futureAck.GetFor(std::chrono::milliseconds(100));
+                break;
+            } 
+            catch (const std::exception &e)
+            {
+                if (retryNum < 3)
+                {
+                    std::unique_lock lk(mRexec);
+                    ackLookup.erase(tempEID);
+                    auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+                    lk.unlock();
+                    futureAck = std::move(tprAck->GetFuture());                        
+                    retryNum++;   
+                    if (retryNum < 3)
+                    {
+                        continue;
+                    }                  
+                    prAck->SetException(std::make_exception_ptr(e));
+                }
+            }
+        }
+    }).Detach();
+    fAck.Get();
+}
+
 #define RegisterTopic(topicName, commandName, ...) {                                                                   \
     if (std::string(topicname) == topicName && rMsg.contains("cmd") && rMsg["cmd"].is_string())                        \
     {                                                                                                                  \
@@ -118,7 +154,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 auto actId = rMsg["actid"].get<uint32_t>();
                 if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
                 {
-                    scheduler->remote->ackLookup[actId]->SetValue("ACK");
+                    scheduler->remote->ackLookup[actId]->SetValue();
                     scheduler->remote->ackLookup.erase(actId);
                 }
             }

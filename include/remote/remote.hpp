@@ -333,39 +333,11 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
+            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<void>>();
             auto futureAck = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
-            std::thread([this, vReq { std::move(vReq) },futureAck { std::move(futureAck) }, tempEID]() mutable {
-                int retryNum = 0;
-                while (retryNum < 3)
-                {
-                    mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                    try 
-                    {
-                        futureAck.GetFor(std::chrono::milliseconds(100));
-                        break;
-                    } 
-                    catch (const std::exception &e)
-                    {
-                        if (retryNum < 3)
-                        {
-                            std::unique_lock lk(mRexec);
-                            ackLookup.erase(tempEID);
-                            auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
-                            lk.unlock();
-                            futureAck = std::move(tprAck->GetFuture());                        
-                            retryNum++;   
-                            if (retryNum < 3)
-                            {
-                                continue;
-                            }                  
-                            throw e;
-                        }
-                    }
-                }
-            }).detach();
+            CreateRetryTask(futureAck, vReq, tempEID);
         }
 
         template <typename T, typename... Args>
@@ -383,7 +355,7 @@ namespace JAMScript
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
+            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
             auto futureAck = prAck->GetFuture();
             auto& pr = rLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
             auto fuExec = pr->GetFuture();
@@ -403,7 +375,7 @@ namespace JAMScript
                     {
                         lk.lock();
                         ackLookup.erase(tempEID);
-                        auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
+                        auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
                         lk.unlock();
                         futureAck = tprAck->GetFuture();                        
                         retryNum++;
@@ -424,6 +396,8 @@ namespace JAMScript
 
     public:
 
+        void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID);
+
         RIBScheduler *scheduler;
         std::mutex mRexec;
         uint32_t eIdFactory;
@@ -431,7 +405,7 @@ namespace JAMScript
         const std::string devId, appId;
         std::string replyUp, replyDown, requestUp, requestDown, announceDown;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> ackLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
     };
 
 } // namespace JAMScript
