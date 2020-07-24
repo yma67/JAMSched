@@ -13,14 +13,9 @@ int main()
         {
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
                 printf("==============================================\n");
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecAsync(std::string("hellofunc"), std::string(""), 0, std::string("abc?"));
-            //auto p = ribScheduler.ExtractRemote<int>(jf);
-            // jf.Get();
-
-            try 
-            {
-                auto ack = jf.GetFor(std::chrono::milliseconds(100));
-                std::cout << ack << std::endl;
+            try {
+                ribScheduler.CreateRemoteExecAsync(std::string("hellofunc"), std::string(""), 0, std::string("abc?"));
+                std::cout << "Lauched the remot exec.." << std::endl;
                 continue;
             } 
             catch (const std::exception &e)
@@ -35,7 +30,7 @@ int main()
         {                                        
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
             printf(">>...........\n");
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecAsync(std::string("hellofunc"), std::string(""), 0, std::string("xyz"));
+            //JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecAsync(std::string("hellofunc"), std::string(""), 0, std::string("xyz"));
             //            int q = ribScheduler.ExtractRemote(&jf);
         }
     });

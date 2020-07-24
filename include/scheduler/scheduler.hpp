@@ -272,9 +272,9 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        Future<nlohmann::json> CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
-            return remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
         template <typename T, typename... Args>

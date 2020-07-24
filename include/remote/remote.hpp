@@ -320,7 +320,7 @@ namespace JAMScript
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
         template <typename... Args>
-        Future<nlohmann::json> CreateRExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        void CreateRExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
@@ -331,12 +331,39 @@ namespace JAMScript
                 {"condvec", condvec}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
-            auto& pr = ackLookup[eIdFactory++] = std::make_unique<Promise<nlohmann::json>>();
-            auto fuExec = pr->GetFuture();
+            auto tempEID = eIdFactory;
+            eIdFactory++;
+            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
+            auto futureAck = pr->GetFuture();
             lk.unlock();
-            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
-            mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-            return fuExec;
+            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
+            std::thread([vReq=std::move(vReq),futureAck=std::move(futureAck)](){
+                int retryNum = 0;
+                while (retryNum < 3)
+                {
+                    mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    try 
+                    {
+                        futureAck.GetFor(std::chrono::milliseconds(100));
+                        break;
+                    } 
+                    catch (const std::exception &e)
+                    {
+                        if (retryNum < 3)
+                        {
+                            lk.lock();
+                            ackLookup.erase(tempEID);
+                            auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
+                            lk.unlock();
+                            futureAck = tprAck->GetFuture();                        
+                            retryNum++;   
+                            if (retryNum < 3)                      
+                                continue;
+                            throw e;
+                        }
+                    }
+                }
+            }).detach();
         }
 
         template <typename T, typename... Args>
@@ -377,19 +404,17 @@ namespace JAMScript
                         auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
                         lk.unlock();
                         futureAck = tprAck->GetFuture();                        
-                        retryNum++;                         
-                        continue;
+                        retryNum++;
+                        if (retryNum < 3)                         
+                            continue;
+                        lk.lock();
+                        rLookup.erase(tempEID);
+                        lk.unlock();
+                        throw e;
                     }
-                    lk.lock();
-                    rLookup.erase(tempEID);
-                    lk.unlock();
-                    throw e;
                 }
             }
-            if (retryNum < 3)
-                return fuExec.GetFor(std::chrono::seconds(1)).get<T>();
-            else 
-                return fuExec.GetFor(std::chrono::seconds(0)).get<T>();
+            return fuExec.GetFor(std::chrono::seconds(1)).get<T>();
         }
         Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                const std::string &appName, const std::string &devName);
