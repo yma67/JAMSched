@@ -116,10 +116,8 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             if (rMsg.contains("actid") && rMsg.contains("args")) 
             {
                 auto actId = rMsg["actid"].get<uint32_t>();
-                std::cout << "ACK received ..." << actId << std::endl;
                 if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
                 {
-                    std::cout << "Found ..." << actId << std::endl;
                     scheduler->remote->ackLookup[actId]->SetValue("ACK");
                     scheduler->remote->ackLookup.erase(actId);
                 }

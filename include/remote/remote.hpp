@@ -351,6 +351,7 @@ namespace JAMScript
                 {"condvec", condvec}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
+            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
@@ -361,11 +362,10 @@ namespace JAMScript
             int retryNum = 0;
             while (retryNum < 3)
             {
-                auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
                 mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 try 
                 {
-                    futureAck.GetFor(std::chrono::milliseconds(500));
+                    futureAck.GetFor(std::chrono::milliseconds(100));
                     break;
                 } 
                 catch (const std::exception &e)
@@ -373,10 +373,11 @@ namespace JAMScript
                     if (retryNum < 3)
                     {
                         lk.lock();
+                        ackLookup.erase(tempEID);
                         auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
-                        futureAck = tprAck->GetFuture();
                         lk.unlock();
-                        retryNum++;
+                        futureAck = tprAck->GetFuture();                        
+                        retryNum++;                         
                         continue;
                     }
                     lk.lock();
@@ -385,7 +386,10 @@ namespace JAMScript
                     throw e;
                 }
             }
-            return fuExec.Get().get<T>();
+            if (retryNum < 3)
+                return fuExec.GetFor(std::chrono::seconds(1)).get<T>();
+            else 
+                return fuExec.GetFor(std::chrono::seconds(0)).get<T>();
         }
         Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                const std::string &appName, const std::string &devName);
