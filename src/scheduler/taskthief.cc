@@ -20,7 +20,6 @@ void JAMScript::StealScheduler::StopSchedulerMainLoop()
     }
     cvQMutex.notify_all();
     lk.unlock();
-    t.join();
 }
 
 void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
@@ -134,49 +133,47 @@ void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint 
 
 void JAMScript::StealScheduler::RunSchedulerMainLoop()
 {
-    t = std::thread([this] {
-        while (toContinue)
+    while (toContinue)
+    {
+        std::unique_lock lock(qMutex);
+        if (isReady.empty())
         {
-            std::unique_lock lock(qMutex);
-            if (isReady.empty())
-            {
-                lock.unlock();
-                // During time of Trigeminal Neuralgia...
-                size_t rStart = rand() % victim->thiefs.size();
-                for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
-                {
-                    auto* pVictim = victim->thiefs[(rStart + T_T) % victim->thiefs.size()].get();
-                    if ((pVictim != this && StealFrom(pVictim)) || !isReady.empty())
-                    {
-                        break;
-                    }
-                }
-                lock.lock();
-            }
-            while (isReady.empty() && toContinue)
-            {
-                cvQMutex.wait(lock);
-            }
-            if (!toContinue) 
-            {
-                break;
-            }
-            auto iterNext = isReady.begin();
-            auto *pNext = &(*iterNext);
-            isReady.pop_front();
-            if (pNext->CanSteal()) 
-            {
-                pNext->isStealable = false;
-                iCount--;
-            }
-            rCount--;
             lock.unlock();
-            pNext->SwapIn();
-            lock.lock();
-            if (pNext->status == TASK_FINISHED)
+            // During time of Trigeminal Neuralgia...
+            size_t rStart = rand() % victim->thiefs.size();
+            for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
             {
-                delete pNext;
+                auto* pVictim = victim->thiefs[(rStart + T_T) % victim->thiefs.size()].get();
+                if ((pVictim != this && StealFrom(pVictim)) || !isReady.empty())
+                {
+                    break;
+                }
             }
+            lock.lock();
         }
-    });     
+        while (isReady.empty() && toContinue)
+        {
+            cvQMutex.wait(lock);
+        }
+        if (!toContinue) 
+        {
+            break;
+        }
+        auto iterNext = isReady.begin();
+        auto *pNext = &(*iterNext);
+        isReady.pop_front();
+        if (pNext->CanSteal()) 
+        {
+            pNext->isStealable = false;
+            iCount--;
+        }
+        rCount--;
+        lock.unlock();
+        pNext->SwapIn();
+        lock.lock();
+        if (pNext->status == TASK_FINISHED)
+        {
+            delete pNext;
+        }
+    }
 }

@@ -91,10 +91,6 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
     }                                                                                                                  \
 }
 
-#define Deduplicate() {                                                                                               \
-    printf("Hello\n");                                                                                                 \
-}
-
 nlohmann::json JAMScript::Remote::CreateAckMessage(uint32_t actId) { 
     nlohmann::json jck = 
                     {  
@@ -103,7 +99,6 @@ nlohmann::json JAMScript::Remote::CreateAckMessage(uint32_t actId) {
                     }; 
     return std::move(jck);
 }
-
 
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
@@ -150,7 +145,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             if (rMsg.contains("actid")) 
             {
                 auto actId = rMsg["actid"].get<int>();
-                if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
+                if (scheduler->toContinue && scheduler->CreateRPBatchCall(std::move(rMsg))) {
                     auto jack = scheduler->remote->CreateAckMessage(actId);
                     auto vReq = nlohmann::json::to_cbor(jack.dump());
                     mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));

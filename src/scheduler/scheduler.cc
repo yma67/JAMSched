@@ -47,11 +47,6 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
 JAMScript::RIBScheduler::~RIBScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
-    timer.StopTimerLoop();
-    for (auto& thief: thiefs) 
-    {
-        thief->StopSchedulerMainLoop();
-    }
     rtRegisterTable.clear_and_dispose(dTaskInf);
     iEDFPriorityQueue.clear_and_dispose(dTaskInf);
     iCancelStack.clear_and_dispose(dTaskInf);
@@ -117,6 +112,7 @@ void JAMScript::RIBScheduler::ShutDown()
     {
         toContinue = false;
     }
+    cvQMutex.notify_all();
 }
 
 void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
@@ -298,10 +294,13 @@ bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<
 void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
-    timer.RunTimerLoop();
+    std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
+    std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
-        thief->RunSchedulerMainLoop();
+        tThiefs.push_back(std::thread {
+            [&thief] { thief->RunSchedulerMainLoop(); }
+        });
     }
     while (toContinue)
     {
@@ -322,29 +321,29 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
             }
 #endif
         }
-        decltype(rtScheduleGreedy)* currentSchedule = nullptr;
+        decltype(rtScheduleGreedy) currentSchedule;
         if (rtScheduleNormal.empty())
         {
-            currentSchedule = &rtScheduleGreedy;
+            currentSchedule = rtScheduleGreedy;
         }
         else if (rtScheduleGreedy.empty())
         {
-            currentSchedule = &rtScheduleNormal;
+            currentSchedule = rtScheduleNormal;
         }
         else
         {
             if (decider.DecideNextScheduleToRun())
             {
-                currentSchedule = &rtScheduleNormal;
+                currentSchedule = rtScheduleNormal;
             }
             else
             {
-                currentSchedule = &rtScheduleGreedy;
+                currentSchedule = rtScheduleGreedy;
             }
         }
         lScheduleReady.unlock();
         cycleStartTime = Clock::now();
-        for (auto &rtItem : *currentSchedule)
+        for (auto &rtItem : currentSchedule)
         {
             currentTime = Clock::now();
             if (rtItem.sTime <= currentTime - cycleStartTime && currentTime - cycleStartTime <= rtItem.eTime)
@@ -359,11 +358,15 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule->back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
+                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
                     {
-                        std::this_thread::sleep_until(
+                        cvQMutex.wait_until(
+                            lockRT,
                             GetCycleStartTime() + 
-                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
+                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS)), 
+                            [this] () -> bool {
+                                return !(rtScheduleGreedy.empty() && rtScheduleNormal.empty() && toContinue);
+                            }
                         );
                     }
 #endif
@@ -387,7 +390,7 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         lockIBTask.unlock();
                         if (!toContinue)
                         {
-                            return;
+                            break;
                         }
                     }
                 }
@@ -410,4 +413,10 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         }
 #endif
     }
+    for (int i = 0; i < thiefs.size(); i++) 
+    {
+        thiefs[i]->StopSchedulerMainLoop();
+        tThiefs[i].join();
+    }
+    tTimer.join();
 }
