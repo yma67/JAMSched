@@ -14,7 +14,7 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                           const std::string &appName, const std::string &devName)
     : scheduler(scheduler), devId(devName), appId(appName), eIdFactory(0U),
       requestUp(std::string("/") + appName + "/requests/up"),
-      requestDown(std::string("/") + appName + "/requests/down"), 
+      requestDown(std::string("/") + appName + "/requests/down/c"), 
       replyUp(std::string("/") + appName + "/replies/up"), 
       replyDown(std::string("/") + appName + "/replies/down"),
       announceDown(std::string("/") + appName + "/announce/down"),
@@ -71,13 +71,12 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
                     if (retryNum < 3)
                     {
                         continue;
-                    }                  
+                    }     
                     prAck->SetException(std::make_exception_ptr(e));
                 }
             }
         }
     }).Detach();
-    fAck.Get();
 }
 
 #define RegisterTopic(topicName, commandName, ...) {                                                                   \
@@ -92,17 +91,50 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
     }                                                                                                                  \
 }
 
+#define Deduplicate() {                                                                                               \
+    printf("Hello\n");                                                                                                 \
+}
+
+nlohmann::json JAMScript::Remote::CreateAckMessage(uint32_t actId) { 
+    nlohmann::json jck = 
+                    {  
+                        {"actid", actId}, 
+                        {"cmd", "REXEC-ACK"} 
+                    }; 
+    return std::move(jck);
+}
+
+
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
     auto *scheduler = static_cast<RIBScheduler *>(ctx);
+    auto *cache = new boost::compute::detail::lru_cache<uint32_t, uint32_t>(1024);
     try {
         std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
         nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
-        RegisterTopic(scheduler->remote->requestDown, "PING", {
-
+        RegisterTopic(scheduler->remote->announceDown, "PING", {
+            printf("Ping.. received... \n");
+            cache->insert(1, 2);
         });
         RegisterTopic(scheduler->remote->announceDown, "KILL", {
             scheduler->ShutDown();
+        });
+        RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
+
+        });
+        RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
+
+        });
+        RegisterTopic(scheduler->remote->replyDown, "REXEC-ACK", {
+            if (rMsg.contains("actid")) 
+            {
+                auto actId = rMsg["actid"].get<uint32_t>();
+                if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
+                {
+                    scheduler->remote->ackLookup[actId]->SetValue();
+                    scheduler->remote->ackLookup.erase(actId);
+                }
+            }
         });
         // TODO: Deduplicate
         // if (!rMsg.contains("actid") || !rMsg["actid"].is_number() || IsDuplicated(rMsg["actid"].get<uint32_t>()))
@@ -113,22 +145,13 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         // {
         //     RegisterDeduplicate(rMsg["actid"].get<uint32_t>())
         // }
-        RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
-
-        });
-        RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
-
-        });
         RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
+            printf("REXEC-ASY recevied \n");
             if (rMsg.contains("actid")) 
             {
-                auto actId = rMsg["actid"].get<std::string>();
+                auto actId = rMsg["actid"].get<int>();
                 if (scheduler->CreateRPBatchCall(std::move(rMsg))) {
-                    nlohmann::json jack = 
-                    {
-                        {"actid", actId},
-                        {"cmd", "REXEC-ACK"}
-                    };
+                    auto jack = scheduler->remote->CreateAckMessage(actId);
                     auto vReq = nlohmann::json::to_cbor(jack.dump());
                     mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 }
@@ -148,19 +171,9 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 }
             }
         });
-        RegisterTopic(scheduler->remote->replyDown, "REXEC-ACK", {
-            if (rMsg.contains("actid") && rMsg.contains("args")) 
-            {
-                auto actId = rMsg["actid"].get<uint32_t>();
-                if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
-                {
-                    scheduler->remote->ackLookup[actId]->SetValue();
-                    scheduler->remote->ackLookup.erase(actId);
-                }
-            }
-        });
     } catch (const std::exception& e) {
         e.what();
+        printf("Error... %s\n", e.what());
     }
 END_REMOTE:
     mqtt_free_topic_msg(topicname, &msg);

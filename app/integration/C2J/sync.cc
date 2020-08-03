@@ -1,7 +1,4 @@
-#include "concurrency/future.hpp"
-#include <remote/remote.hpp>
 #include <scheduler/scheduler.hpp>
-#include <core/task/task.hpp>
 
 int main()
 {
@@ -11,7 +8,7 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             printf("==============================================\n");
             try 
             {
@@ -25,12 +22,11 @@ int main()
             }
         }
     });
-                    
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
-            printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            printf("~~~~~~~~~~~~~~~~~~~~~~~==========\n");
             try 
             {
                 auto res = ribScheduler.CreateRemoteExecSync<int>(std::string("addNumbers"), std::string(""), 0, 45, 67);
@@ -43,15 +39,6 @@ int main()
             }
         }
     });
-
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
-        while (true)
-        {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
-            printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
-        }
-    });
-
     ribScheduler.RunSchedulerMainLoop();
     return 0;
 }

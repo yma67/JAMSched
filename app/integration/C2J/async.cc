@@ -1,20 +1,17 @@
-#include "concurrency/future.hpp"
-#include <remote/remote.hpp>
 #include <scheduler/scheduler.hpp>
-#include <core/task/task.hpp>
 
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
-        while (true)
+    ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
+        for (int i = 0; i < 1000; i++)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(5000));
                 printf("==============================================\n");
             try {
-                ribScheduler.CreateRemoteExecAsync(std::string("hellofunc"), std::string(""), 0, std::string("abc?"));
+                ribScheduler.CreateRemoteExecAsync(std::string("helloj"), std::string(""), 0);
                 std::cout << "Lauched the remot exec.." << std::endl;
                 continue;
             } 
@@ -25,13 +22,12 @@ int main()
         }
     });
                     
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
+    ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {                                        
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
             printf(">>...........\n");
-            //JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecAsync(std::string("hellofunc"), std::string(""), 0, std::string("xyz"));
-            //            int q = ribScheduler.ExtractRemote(&jf);
+            ribScheduler.CreateRemoteExecAsync(std::string("xyzfunc"), std::string(""), 0, std::string("mahesh"), 234.56, 78);
         }
     });
 

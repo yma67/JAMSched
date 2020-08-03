@@ -105,7 +105,7 @@ namespace JAMScript
                 CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr(std::move(rpcAttr))]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
-                    jResult["actid"] = rpcAttr["actid"].get<std::string>();
+                    jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
                     for (int i = 0; i < 3; i++)

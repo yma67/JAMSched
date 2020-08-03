@@ -5,6 +5,7 @@
 #include <exception/exception.hpp>
 #include <concurrency/future.hpp>
 #include <nlohmann/json.hpp>
+#include <boost/compute/detail/lru_cache.hpp>
 #include <unordered_map>
 #include <cstdint>
 #include <cstring>
@@ -327,10 +328,12 @@ namespace JAMScript
                 {"opt", devId},
                 {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
-                {"condstr", condstr},
-                {"condvec", condvec}};
+                {"cond", condstr},
+                {"condvec", condvec},
+                {"actarg", "-"}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
+            printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& pr = ackLookup[tempEID] = std::make_unique<Promise<void>>();
@@ -348,10 +351,13 @@ namespace JAMScript
                 {"opt", devId},
                 {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
-                {"condstr", condstr},
-                {"condvec", condvec}};
+                {"cond", condstr},
+                {"condvec", condvec},
+                {"actarg", "-"}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
+            printf("Actid .... %d\n", eIdFactory);
+            
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
@@ -395,9 +401,10 @@ namespace JAMScript
         ~Remote();
 
     public:
-
+        nlohmann::json CreateAckMessage(uint32_t actid);
         void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID);
-
+        //boost::compute::detail::lru_cache<uint32_t, uint32_t> *cache;
+        boost::compute::detail::lru_cache<uint32_t, uint32_t> *cache;
         RIBScheduler *scheduler;
         std::mutex mRexec;
         uint32_t eIdFactory;

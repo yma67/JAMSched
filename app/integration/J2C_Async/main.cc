@@ -1,13 +1,7 @@
-#include <future>
-#include "concurrency/future.hpp"
-#include <remote/remote.hpp>
 #include <scheduler/scheduler.hpp>
-#include <core/task/task.hpp>
-#include <cstring>
-#include <nlohmann/json.hpp>
-#include <boost/compute/detail/lru_cache.hpp>
 
-int RPCFunctionJSync(int a, int b)
+
+int funcABCD(int a, int b)
 {
     std::cout << "Sync Add of " << a << " + " << b << std::endl;
     return a + b;
@@ -20,13 +14,22 @@ int addNumbers(int a, int b)
     return a + b;
 }
 
+void testloop() 
+{
+    printf("Testing loop\n");
+    //std::cout << "Add NSync Add of " << a << " + " << b << std::endl;
+}
+
+
+
 int main()
 {
-    auto lc = new boost::compute::detail::lru_cache<std::string, std::string>(100);
-
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCall("addNumbers", addNumbers);
-    ribScheduler.RegisterRPCall("RPCFunctionJAsync", [] (int a, int b) -> int {
+    ribScheduler.RegisterRPCall("testloop", testloop);
+    ribScheduler.RegisterRPCall("funcABCD", funcABCD);    
+
+    ribScheduler.RegisterRPCall("funcABCDMin", [] (int a, int b) -> int {
         std::cout << "Async Subtract of " << a << " - " << b << std::endl;
         return a - b;
     });

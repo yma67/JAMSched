@@ -94,9 +94,9 @@ setInterval(function () {
         case 'async':
             console.log("Sending async command...");
             var req = JAMP.createRemoteAsyncReq("RPCFunctionJAsync", [1, 2], "", 0, "device", 1, 1);
-            mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(req)));
+            mserv.publish('/' + cmdparser.app + '/requests/down/c', cbor.encode(JSON.stringify(req)));
             var req = JAMP.createRemoteAsyncReq("addNumbers", [10, 25], "", 0, "device", 1, 1);
-            mserv.publish('/' + cmdparser.app + '/requests/down', cbor.encode(JSON.stringify(req)));
+            mserv.publish('/' + cmdparser.app + '/requests/down/c', cbor.encode(JSON.stringify(req)));
 	break;
 	case 'strdup':
 	    console.log("Sending strdup command...");
