@@ -1,6 +1,4 @@
-#include <scheduler/scheduler.hpp>
-#include <scheduler/tasklocal.hpp>
-#include <concurrency/future.hpp>
+#include <jamscript.hpp>
 #include <catch2/catch.hpp>
 #include <thread>
 #include <chrono>

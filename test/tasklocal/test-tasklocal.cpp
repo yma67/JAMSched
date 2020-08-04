@@ -1,5 +1,4 @@
-#include <scheduler/scheduler.hpp>
-#include <scheduler/tasklocal.hpp>
+#include <jamscript.hpp>
 
 #include <catch2/catch.hpp>
 

@@ -1,8 +1,5 @@
 #include <future>
-#include "concurrency/future.hpp"
-#include <remote/remote.hpp>
-#include <scheduler/scheduler.hpp>
-#include <core/task/task.hpp>
+#include <jamscript.hpp>
 #include <cstring>
 #include <nlohmann/json.hpp>
 

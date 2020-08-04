@@ -1,7 +1,6 @@
 #ifndef JAMSCRIPT_TASKTHIEF_HH
 #define JAMSCRIPT_TASKTHIEF_HH
-#include <concurrency/spinlock.hpp>
-#include <core/task/task.hpp>
+#include "core/task/task.hpp"
 
 #include <condition_variable>
 #include <iostream>

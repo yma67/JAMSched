@@ -22,8 +22,13 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs
     }
 }
 
+// Note: 
+// 1 - Main Scheduler
+// 2 - Timer
+// 3 - Broadcaster
+// 4, 5 - Logger
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize)
-    : RIBScheduler(sharedStackSize, std::max(std::thread::hardware_concurrency() - 1, 1u)) {}
+    : RIBScheduler(sharedStackSize, std::max(std::thread::hardware_concurrency() - 5, 0u)) {}
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                                       const std::string &appName, const std::string &devName)
@@ -296,6 +301,12 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
+#if 0 // Sample Usage BroadCast
+    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
+    std::thread tBCastManager([&bCastManager] {
+        bCastManager.RunBroadcastMainLoop();
+    });
+#endif
     std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
@@ -303,15 +314,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
             [&thief] { thief->RunSchedulerMainLoop(); }
         });
     }
-#if 0 // Sample Usage BroadCast
-    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
-    std::promise<void> prStart;
-    std::thread tBCastManager([&] {
-        bCastManager(prStart);
-    });
-    prStart.get_future().wait();
-    tBCastManager.detach();
-#endif
     while (toContinue)
     {
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
@@ -428,5 +430,9 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         thiefs[i]->StopSchedulerMainLoop();
         tThiefs[i].join();
     }
+#if 0 // Sample Usage BroadCast
+    bCastManager.StopBroadcastMainLoop();
+    tBCastManager.join();
+#endif
     tTimer.join();
 }
