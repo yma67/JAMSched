@@ -2,7 +2,7 @@
 
 void JAMScript::ConditionVariableAny::notify_one()
 {
-    std::unique_lock<SpinMutex> lk(wListLock);
+    std::unique_lock lk(wListLock);
     if (!waitList.empty())
     {
         auto* pFr = &(*waitList.begin());
@@ -14,7 +14,7 @@ void JAMScript::ConditionVariableAny::notify_one()
 
 void JAMScript::ConditionVariableAny::notify_all()
 {
-    std::unique_lock<SpinMutex> lk(wListLock);
+    std::unique_lock lk(wListLock);
     while (!waitList.empty())
     {
         auto* pFr = &(*waitList.begin());

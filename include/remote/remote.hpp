@@ -379,7 +379,7 @@ namespace JAMScript
                     throw e;
                 }
             }
-            return fuExec.Get().get<T>();
+            return fuExec.Get().template get<T>();
         }
         Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                const std::string &appName, const std::string &devName);

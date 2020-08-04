@@ -147,13 +147,13 @@ TIMEOUT_PUBLIC struct timeout *timeout_init(struct timeout *, int);
 /* initialize timeout structure (same as TIMEOUT_INITIALIZER) */
 
 #ifndef TIMEOUT_DISABLE_RELATIVE_ACCESS
-TIMEOUT_PUBLIC bool timeout_pending(struct timeout *);
+TIMEOUT_PUBLIC bool jamscript_timeout_pending(struct timeout *);
 /* true if on timing wheel, false otherwise */
  
 TIMEOUT_PUBLIC bool timeout_expired(struct timeout *);
 /* true if on expired queue, false otherwise */
 
-TIMEOUT_PUBLIC void timeout_del(struct timeout *);
+TIMEOUT_PUBLIC void jamscript_timeout_del(struct timeout *);
 /* RemoveTask timeout from any timing wheel (okay if not member of any) */
 #endif
 
