@@ -28,7 +28,7 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs
 // 3 - Broadcaster
 // 4, 5 - Logger
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize)
-    : RIBScheduler(sharedStackSize, std::max(std::thread::hardware_concurrency() - 5, 0u)) {}
+    : RIBScheduler(sharedStackSize, std::max(std::thread::hardware_concurrency() - 5, 1u)) {}
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                                       const std::string &appName, const std::string &devName)
