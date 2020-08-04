@@ -3,7 +3,8 @@
 
 int funcABCD(int a, int b)
 {
-    std::cout << "Sync Add of " << a << " + " << b << std::endl;
+    std::cout << "Sync Add of " << a << " + " << b << " = " << a + b << std::endl;
+
     return a + b;
 }
 

@@ -1,104 +1,38 @@
-#include <future>
-#include "concurrency/future.hpp"
-#include <remote/remote.hpp>
 #include <scheduler/scheduler.hpp>
 #include <core/task/task.hpp>
-#include <cstring>
-#include <nlohmann/json.hpp>
+#include <time.h>
 
-int RPCFunctionJSync(int a, int b)
-{
-    std::cout << "Sync Add of " << a << " + " << b << std::endl;
-    return a + b;
+void hello1() {
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    printf("Time %ld, %ld\n", t.tv_sec, t.tv_nsec);
 }
 
-int addNumbers(int a, int b) 
-{
-    printf("a + b = %d\n", a + b); 
-    //std::cout << "Add NSync Add of " << a << " + " << b << std::endl;
-    return a + b;
+void hello2() {
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    printf("Time %ld, %ld\n", t.tv_sec, t.tv_nsec);
 }
 
-int scaleNumber(int x) 
-{
-    return x * 150;
+void hello3() {
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    printf("Time %ld, %ld\n", t.tv_sec, t.tv_nsec);
 }
 
-double getTime()
-{
-    return 100.56;
-}
-
-
-
-int RPCFunctionJAsync(int a, int b)
-{
-    std::cout << "Async Subtract of " << a << " - " << b << std::endl;
-    return a - b;
-}
-
-
-auto addNumberFunctor = std::function(addNumbers);
-auto scaleNumberFunctor = std::function(scaleNumber);
-auto getTimeFunctor = std::function(getTime);
-
-auto addNumberInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(addNumberFunctor)>(addNumberFunctor);
-auto scaleNumberInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(scaleNumberFunctor)>(scaleNumberFunctor);
-auto getTimeInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(getTimeFunctor)>(getTimeFunctor);
-
-auto RPCFunctionJSyncFunctor = std::function(RPCFunctionJSync);
-auto RPCFunctionJSyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJSyncFunctor)>(RPCFunctionJSyncFunctor);
-auto RPCFunctionJAsyncFunctor = std::function(RPCFunctionJAsync);
-auto RPCFunctionJAsyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
-auto DuplicateCStringFunctor = std::function(strdup);
-auto DuplicateCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
-
-std::unordered_map<std::string, JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
-
-    {std::string("addNumbers"), &addNumberInvoker},
-    {std::string("scaleNumber"), &scaleNumberInvoker},    
-    {std::string("getTime"), &getTimeInvoker},
-    
-    {std::string("RPCFunctionJSync"), &RPCFunctionJSyncInvoker},
-    {std::string("RPCFunctionJAsync"), &RPCFunctionJAsyncInvoker},
-    {std::string("DuplicateCString"), &DuplicateCStringInvoker}
-};
 
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
-    ribScheduler.RegisterRPCalls(invokerMap);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
+    ribScheduler.SetSchedule({{std::chrono::microseconds(0), std::chrono::microseconds(50), 1}, {std::chrono::microseconds(50), std::chrono::microseconds(100), 2}, {std::chrono::microseconds(100), std::chrono::microseconds(150), 3}, {std::chrono::microseconds(200), std::chrono::microseconds(50000), 0}},
+                             {{std::chrono::microseconds(0), std::chrono::microseconds(50), 1}, {std::chrono::microseconds(50), std::chrono::microseconds(100), 2}, {std::chrono::microseconds(100), std::chrono::microseconds(150), 3}, {std::chrono::microseconds(200), std::chrono::microseconds(50000), 0}});
                         
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
-        while (true)
-        {
-            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-                                     
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
-            printf("==============================================\n");
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
- //           ribScheduler.ExtractRemote(&jf);
-//            jf.Get();
-            //std::cout << jf << std::endl;
-        }
-    });
-                   
-    ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
-        while (true)
-        {
-            ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
-                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-                                     
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
-            printf(">>...........\n");
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
-//            int q = ribScheduler.ExtractRemote(&jf);
-            //std::cout << jf << std::endl;
-        }
-    });
+    ribScheduler.CreateRealTimeTask({true, 0}, 1, hello1);
+    ribScheduler.CreateRealTimeTask({true, 0}, 2, hello2);
+    ribScheduler.CreateRealTimeTask({true, 0}, 3, hello3);
+
+    //std::function(<void>)(hello1));
+
 
     ribScheduler.RunSchedulerMainLoop();
     return 0;
