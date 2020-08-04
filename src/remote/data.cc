@@ -41,7 +41,7 @@ static void BCastReceiveCallback(redisAsyncContext *c, void *r, void *privdata)
     }
 }
 
-void JAMScript::BroadcastManager::operator()(std::promise<void> prNotifier)
+void JAMScript::BroadcastManager::operator()(std::promise<void> &prNotifier)
 {
     auto* redisContext = redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort);
     if (redisContext->err)

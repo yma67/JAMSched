@@ -57,7 +57,7 @@ namespace JAMScript
         using JAMDataKeyType = std::pair<std::string, std::string>;
     public:
         void Insert(std::string key, char* data);
-        void operator()(std::promise<void> prNotifier);
+        void operator()(std::promise<void> &prNotifier);
         BroadcastManager(Remote *remote, RedisState redisState, std::vector<JAMDataKeyType> variableInfo);
         ~BroadcastManager();
     private:
