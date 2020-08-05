@@ -5,6 +5,7 @@
 #include <exception/exception.hpp>
 #include <concurrency/future.hpp>
 #include <nlohmann/json.hpp>
+#include <boost/compute/detail/lru_cache.hpp>
 #include <unordered_map>
 #include <cstdint>
 #include <cstring>
@@ -316,22 +317,26 @@ namespace JAMScript
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
         template <typename... Args>
-        Future<nlohmann::json> CreateRExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        void CreateRExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
+                {"opt", devId},
                 {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
-                {"condstr", condstr},
-                {"condvec", condvec}};
+                {"cond", condstr},
+                {"condvec", condvec},
+                {"actarg", "-"}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
-            auto& pr = rLookup[eIdFactory++] = std::make_unique<Promise<nlohmann::json>>();
-            auto fuExec = pr->GetFuture();
+            printf("Pushing... actid %d\n", eIdFactory);
+            auto tempEID = eIdFactory;
+            eIdFactory++;
+            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+            auto futureAck = pr->GetFuture();
             lk.unlock();
-            auto vReq = nlohmann::json::to_cbor(rexRequest);
-            mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-            return fuExec;
+            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
+            CreateRetryTask(futureAck, vReq, tempEID);
         }
 
         template <typename T, typename... Args>
@@ -339,12 +344,17 @@ namespace JAMScript
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
+                {"opt", devId},
                 {"actname", eName},
                 {"args", nlohmann::json::array({std::forward<Args>(eArgs)...})},
-                {"condstr", condstr},
-                {"condvec", condvec}};
+                {"cond", condstr},
+                {"condvec", condvec},
+                {"actarg", "-"}};
             std::unique_lock lk(mRexec);
             rexRequest.push_back({"actid", eIdFactory});
+            printf("Actid .... %d\n", eIdFactory);
+            
+            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
@@ -355,11 +365,10 @@ namespace JAMScript
             int retryNum = 0;
             while (retryNum < 3)
             {
-                auto vReq = nlohmann::json::to_cbor(rexRequest);
                 mqtt_publish(mq, const_cast<char *>(requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 try 
                 {
-                    futureAck.GetFor(std::chrono::milliseconds(500));
+                    futureAck.GetFor(std::chrono::milliseconds(100));
                     break;
                 } 
                 catch (const std::exception &e)
@@ -367,26 +376,31 @@ namespace JAMScript
                     if (retryNum < 3)
                     {
                         lk.lock();
+                        ackLookup.erase(tempEID);
                         auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
-                        futureAck = tprAck->GetFuture();
                         lk.unlock();
+                        futureAck = tprAck->GetFuture();                        
                         retryNum++;
-                        continue;
+                        if (retryNum < 3)                         
+                            continue;
+                        lk.lock();
+                        rLookup.erase(tempEID);
+                        lk.unlock();
+                        throw e;
                     }
-                    lk.lock();
-                    rLookup.erase(tempEID);
-                    lk.unlock();
-                    throw e;
                 }
             }
-            return fuExec.Get().template get<T>();
+            return fuExec.GetFor(std::chrono::seconds(1)).template get<T>();
         }
         Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                const std::string &appName, const std::string &devName);
         ~Remote();
 
     public:
-
+        nlohmann::json CreateAckMessage(uint32_t actid);
+        void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID);
+        //boost::compute::detail::lru_cache<uint32_t, uint32_t> *cache;
+        boost::compute::detail::lru_cache<uint32_t, uint32_t> *cache;
         RIBScheduler *scheduler;
         std::mutex mRexec;
         uint32_t eIdFactory;

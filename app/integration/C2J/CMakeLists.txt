@@ -1,3 +1,5 @@
-add_executable(testC2J1  main.cc)
-target_link_libraries(testC2J1 PRIVATE jamsched)
+add_executable(testC2JASync  async.cc)
+add_executable(testC2JSync  sync.cc)
+target_link_libraries(testC2JASync PRIVATE jamsched)
+target_link_libraries(testC2JSync PRIVATE jamsched)
 target_include_directories(jamsched PRIVATE "${PROJECT_SOURCE_DIR}/include/")

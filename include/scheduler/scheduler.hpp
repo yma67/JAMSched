@@ -107,7 +107,7 @@ namespace JAMScript
                 CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr(std::move(rpcAttr))]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
-                    jResult["actid"] = rpcAttr["actid"].get<std::string>();
+                    jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
                     for (int i = 0; i < 3; i++)
@@ -274,9 +274,15 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        Future<nlohmann::json> CreateRemoteExecution(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
-            return remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+        }
+
+        template <typename T, typename... Args>
+        T CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        {
+            return remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
         template <typename T>
