@@ -399,8 +399,7 @@ namespace JAMScript
     public:
         nlohmann::json CreateAckMessage(uint32_t actid);
         void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID);
-        //boost::compute::detail::lru_cache<uint32_t, uint32_t> *cache;
-        boost::compute::detail::lru_cache<uint32_t, uint32_t> *cache;
+        boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
         RIBScheduler *scheduler;
         std::mutex mRexec;
         uint32_t eIdFactory;
