@@ -1,18 +1,22 @@
 #ifndef JAMSCRIPT_DATA_HH
 #define JAMSCRIPT_DATA_HH
-#include <string>
 #include <queue>
+#include <mutex>
+#include <string>
 #include <future>
 #include <unordered_map>
+#include <condition_variable>
+
 #include <nlohmann/json.hpp>
 #include <hiredis/adapters/libevent.h>
 
-#include "remote/remote.hpp"
 #include "concurrency/mutex.hpp"
 #include "concurrency/condition_variable.hpp"
 
 namespace JAMScript
 {
+
+    class Remote;
 
     struct RedisState
     {
@@ -20,51 +24,68 @@ namespace JAMScript
         int redisPort;
     };
 
+    struct LogStreamObject
+    {
+        std::string logKey;
+        unsigned long long timeStamp;
+        std::vector<std::uint8_t> encodedObject;
+        LogStreamObject(std::string logKey, unsigned long long timeStamp, std::vector<std::uint8_t> encodedObject) : 
+        logKey(std::move(logKey)), timeStamp(timeStamp), encodedObject(encodedObject) {}
+    };
+
     class LogManager
     {
-
+    public:
+        void RunLoggerMainLoop();
+        void Log(std::string nameSpace, std::string varName, nlohmann::json streamObjectRaw);
+        template <typename... Args>
+        void Log(std::string nameSpace, std::string varName, Args &&... eArgs)
+        {
+            return Log(std::move(nameSpace), std::move(varName), nlohmann::json::array({std::forward<Args>(eArgs)...}));
+        }
+        LogManager(Remote *remote, RedisState redisState);
+        ~LogManager();
+    private:
+        Remote *remote;
+        RedisState redisState;
+        redisAsyncContext *redisContext;
+        struct event_base *loggerEventLoop;
+        std::mutex mAsyncBuffer;
+        std::condition_variable cvAsyncBuffer;
+        std::deque<LogStreamObject *> asyncBufferEncoded;
     };
 
     class BroadcastVariable
     {
     public:
     
-        void Insert(char* data)
-        {
-            std::lock_guard lk(mVarStream);
-            varStream.push_back({ data, data + std::strlen(data) });
-            cvVarStream.notify_one();
-        }
-
-        template<typename T>
-        T Get() 
-        {
-            std::lock_guard lk(mVarStream);
-            while (varStream.size() < 1) cvVarStream.wait(lk);
-            auto streamObjectRaw = std::move(varStream.front());
-            varStream.pop_front();
-            return nlohmann::json::from_cbor(streamObjectRaw).get<T>();
-        }
-
+        void Append(char* data);
+        nlohmann::json Get();
+        const std::string &GetBroadcastKey() { return bCastKey; }
+        BroadcastVariable(std::string bCastKey) : bCastKey(bCastKey), isCancelled(false) {}
+        ~BroadcastVariable() { isCancelled = true; cvVarStream.notify_all(); }
     private:
+        std::string bCastKey;
+        bool isCancelled;
         Mutex mVarStream;
         ConditionVariable cvVarStream;
-        std::deque<std::vector<char>> varStream;
+        std::deque<std::vector<std::uint8_t>> varStream;
     };
 
     class BroadcastManager
     {
         using JAMDataKeyType = std::pair<std::string, std::string>;
     public:
-        void Insert(std::string key, char* data);
-        void operator()(std::promise<void> &prNotifier);
+        void Append(std::string key, char* data);
+        void RunBroadcastMainLoop();
+        void StopBroadcastMainLoop();
         BroadcastManager(Remote *remote, RedisState redisState, std::vector<JAMDataKeyType> variableInfo);
         ~BroadcastManager();
     private:
         Remote *remote;
         RedisState redisState;
+        redisAsyncContext *redisContext;
         struct event_base *bCastEventLoop;
-        bool isBCastEventLoopDispatched;
         std::size_t nameSpaceMaxLen, varNameMaxLen;
         std::unordered_map<std::string, std::unordered_map<std::string, std::unique_ptr<BroadcastVariable>>> bCastVarStores;
     };

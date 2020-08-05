@@ -3,7 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
-#include <core/task/task.hpp>
+#include <jamscript.hpp>
 #include <boost/intrusive_ptr.hpp>
 #define task_niter 300
 

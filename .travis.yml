@@ -12,7 +12,9 @@ compiler:
 before_install: 
   - sudo apt-get -y install mosquitto
   - sudo apt-get -y install mosquitto-clients
-  - sudo apt-get install libboost-all-dev
+  - sudo apt-get -y install libboost-all-dev
+  - sudo apt-get -y install libevent-dev
+  - sudo apt-get -y install libhiredis-dev
   - |
     wget https://cmake.org/files/v3.17/cmake-3.17.0-rc3-Linux-x86_64.tar.gz
     tar -xf	cmake-3.17.0-rc3-Linux-x86_64.tar.gz

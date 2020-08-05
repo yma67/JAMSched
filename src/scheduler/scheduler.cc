@@ -296,6 +296,12 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
+#if 0 // Sample Usage BroadCast
+    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
+    std::thread tBCastManager([&bCastManager] {
+        bCastManager.RunBroadcastMainLoop();
+    });
+#endif
     std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
@@ -303,15 +309,6 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
             [&thief] { thief->RunSchedulerMainLoop(); }
         });
     }
-#if 0 // Sample Usage BroadCast
-    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
-    std::promise<void> prStart;
-    std::thread tBCastManager([&] {
-        bCastManager(prStart);
-    });
-    prStart.get_future().wait();
-    tBCastManager.detach();
-#endif
     while (toContinue)
     {
         std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
@@ -428,5 +425,9 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         thiefs[i]->StopSchedulerMainLoop();
         tThiefs[i].join();
     }
+#if 0 // Sample Usage BroadCast
+    bCastManager.StopBroadcastMainLoop();
+    tBCastManager.join();
+#endif
     tTimer.join();
 }

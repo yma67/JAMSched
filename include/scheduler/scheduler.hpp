@@ -48,7 +48,9 @@ namespace JAMScript
     public:
 
         friend class ConditionVariableAny;
-        friend class StealScheduler;
+        friend class BroadcastManager;
+        friend class StealScheduler;        
+        friend class LogManager;
         friend class Decider;
         friend class Remote;
 

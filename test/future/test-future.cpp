@@ -1,6 +1,4 @@
-#include <scheduler/scheduler.hpp>
-#include <scheduler/tasklocal.hpp>
-#include <concurrency/future.hpp>
+#include <jamscript.hpp>
 #include <catch2/catch.hpp>
 #include <thread>
 #include <chrono>
@@ -90,7 +88,9 @@ TEST_CASE("LExec", "[future]")
     });
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [&ribScheduler]() {
         auto fu = ribScheduler.CreateLocalNamedInteractiveExecution<int>({false, 1024 * 256}, std::chrono::milliseconds(1000), std::chrono::microseconds(50), std::string("testExec"), 3, 4);
+#ifndef JAMSCRIPT_ON_TRAVIS
         JAMScript::ThisTask::SleepFor(std::chrono::microseconds(100));
+#endif
         REQUIRE(fu.Get() == 7);
         ribScheduler.ShutDown();
     }).Detach();
