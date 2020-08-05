@@ -306,6 +306,11 @@ namespace JAMScript
             std::function<const nvoid_t *(Args...)> fn;
         };
 
+        class HeartbeatFailureException : public std::exception
+        {
+
+        };
+
     } // namespace RExecDetails
 
     class RIBScheduler;
@@ -340,7 +345,8 @@ namespace JAMScript
         }
 
         template <typename T, typename... Args>
-        T CreateRExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        T CreateRExecSyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
+                                      std::function<void()> heartBeatFailCallback, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
@@ -390,8 +396,23 @@ namespace JAMScript
                     }
                 }
             }
-            return fuExec.GetFor(std::chrono::seconds(1)).template get<T>();
+            try 
+            {
+                fuExec.Wait();
+            } 
+            catch (const RExecDetails::HeartbeatFailureException& e)
+            {
+                heartBeatFailCallback();
+            }
+            return fuExec.Get().template get<T>();
         }
+
+        template <typename T, typename... Args>
+        T CreateRExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        {
+            return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, [] { ThisTask::Exit(); }, std::forward<Args>(eArgs)...);
+        }
+
         Remote(RIBScheduler *scheduler, const std::string &hostAddr,
                const std::string &appName, const std::string &devName);
         ~Remote();
