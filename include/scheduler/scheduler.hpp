@@ -43,6 +43,11 @@ namespace JAMScript
         StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
     };
 
+    class LogManager;
+    struct RedisState;
+    class JAMDataKey;
+    class BroadcastManager;
+
     class RIBScheduler : public SchedulerBase
     {
     public:
@@ -291,13 +296,23 @@ namespace JAMScript
             return future.Get().get<T>();
         }
 
+        using JAMDataKeyType = std::pair<std::string, std::string>;
+
         RIBScheduler(uint32_t sharedStackSize);
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName);
-        RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName, 
+                     RedisState redisState, std::vector<JAMDataKeyType> variableInfo);
+        RIBScheduler(uint32_t sharedStackSize, 
+                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName, 
+                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName, 
+                     RedisState redisState, std::vector<JAMDataKeyType> variableInfo, 
                      std::vector<std::unique_ptr<StealScheduler>> thiefs);
         ~RIBScheduler() override;
 
@@ -318,6 +333,9 @@ namespace JAMScript
         Duration vClockI, vClockB;
         std::mutex sReadyRTSchedule;
         std::unique_ptr<Remote> remote;
+        std::unique_ptr<LogManager> logManager;
+        std::unique_ptr<BroadcastManager> broadcastManger;
+        std::thread tLogManger, tBroadcastManager;
         std::condition_variable cvReadyRTSchedule;
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
 

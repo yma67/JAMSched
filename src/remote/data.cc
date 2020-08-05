@@ -75,7 +75,7 @@ void JAMScript::LogManager::RunLoggerMainLoop()
                 [](redisAsyncContext *c, void *reply, void *privdata) {
                     delete reinterpret_cast<LogStreamObject *>(privdata);
                 }, 
-                ptrBufferEncoded, "ZADD %s %llu %b", 
+                ptrBufferEncoded, "XADD %s %llu %b", 
                 ptrBufferEncoded->logKey.c_str(),
                 ptrBufferEncoded->timeStamp, 
                 ptrBufferEncoded->encodedObject.data(), 

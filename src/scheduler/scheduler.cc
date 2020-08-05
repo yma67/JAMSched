@@ -7,13 +7,13 @@
 #define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS 10000
 #endif
 
-#ifndef END_OF_RT_SLOT_SPIN_MAX_MS
-#define END_OF_RT_SLOT_SPIN_MAX_MS 200
+#ifndef END_OF_RT_SLOT_SPIN_MAX_US
+#define END_OF_RT_SLOT_SPIN_MAX_US 200
 #endif
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs)
     : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
-      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)),
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), logManager(nullptr), broadcastManger(nullptr),
       numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {
     for (uint32_t i = 0; i < nThiefs; i++)
@@ -32,9 +32,18 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
 }
 
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                                      const std::string &appName, const std::string &devName, 
+                                      RedisState redisState, std::vector<JAMDataKeyType> variableInfo)
+    : RIBScheduler(sharedStackSize, hostAddr, appName, devName)
+{
+    logManager = std::make_unique<LogManager>(remote.get(), redisState);
+    broadcastManger = std::make_unique<BroadcastManager>(remote.get(), std::move(redisState), std::move(variableInfo));
+}
+
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs)
-    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
-      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::move(thiefs)),
+    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)), logManager(nullptr), 
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::move(thiefs)), broadcastManger(nullptr),
       numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {}
 
@@ -42,6 +51,16 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
                                       const std::string &appName, const std::string &devName, std::vector<std::unique_ptr<StealScheduler>> thiefs)
     : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
 {
+    remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
+}
+
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                                      const std::string &appName, const std::string &devName, RedisState redisState,
+                                      std::vector<JAMDataKeyType> variableInfo, std::vector<std::unique_ptr<StealScheduler>> thiefs)
+    : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
+{
+    logManager = std::make_unique<LogManager>(remote.get(), redisState);
+    broadcastManger = std::make_unique<BroadcastManager>(remote.get(), std::move(redisState), std::move(variableInfo));
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
 }
 
@@ -296,12 +315,15 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
-#if 0 // Sample Usage BroadCast
-    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
-    std::thread tBCastManager([&bCastManager] {
-        bCastManager.RunBroadcastMainLoop();
-    });
-#endif
+    if (broadcastManger != nullptr && logManager != nullptr)
+    {
+        tBroadcastManager = std::thread([this] {
+            broadcastManger->RunBroadcastMainLoop();
+        });
+        tLogManger = std::thread([this] {
+            logManager->RunLoggerMainLoop();
+        });
+    }
     std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
@@ -365,12 +387,12 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
+                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                     {
                         cvQMutex.wait_until(
                             lockRT,
                             GetCycleStartTime() + 
-                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS)), 
+                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)), 
                             [this] () -> bool {
                                 return !(rtScheduleGreedy.empty() && rtScheduleNormal.empty() && toContinue);
                             }
@@ -425,9 +447,11 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         thiefs[i]->StopSchedulerMainLoop();
         tThiefs[i].join();
     }
-#if 0 // Sample Usage BroadCast
-    bCastManager.StopBroadcastMainLoop();
-    tBCastManager.join();
-#endif
+    if (broadcastManger != nullptr && logManager != nullptr)
+    {
+        tLogManger.join();
+        broadcastManger->StopBroadcastMainLoop();
+        tBroadcastManager.join();
+    }
     tTimer.join();
 }
