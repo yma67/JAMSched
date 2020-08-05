@@ -80,8 +80,6 @@ TEST_CASE("InterLock", "[future]")
 
 TEST_CASE("LExec", "[future]")
 {
-    for (int i = 0; i < 10000; i++)
-    {
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
@@ -97,6 +95,4 @@ TEST_CASE("LExec", "[future]")
         ribScheduler.ShutDown();
     }).Detach();
     ribScheduler.RunSchedulerMainLoop();
-    }
-
 }
