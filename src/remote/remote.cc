@@ -133,7 +133,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             printf("REXEC-ASY recevied \n");
             if (rMsg.contains("actid")) 
             {
-                auto actId = rMsg["actid"].get<int>();
+                auto actId = rMsg["actid"].get<uint32_t>();
                 if (scheduler->remote->cache.contains(actId))
                 {
                     auto jAck = scheduler->remote->CreateAckMessage(actId);
