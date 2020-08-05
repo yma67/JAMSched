@@ -1,5 +1,6 @@
 #include "scheduler/scheduler.hpp"
 #include "core/task/task.hpp"
+#include "remote/data.hpp"
 #include <algorithm>
 
 #ifndef RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS
@@ -295,6 +296,12 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
+#if 0 // Sample Usage BroadCast
+    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
+    std::thread tBCastManager([&bCastManager] {
+        bCastManager.RunBroadcastMainLoop();
+    });
+#endif
     std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
@@ -418,5 +425,9 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         thiefs[i]->StopSchedulerMainLoop();
         tThiefs[i].join();
     }
+#if 0 // Sample Usage BroadCast
+    bCastManager.StopBroadcastMainLoop();
+    tBCastManager.join();
+#endif
     tTimer.join();
 }

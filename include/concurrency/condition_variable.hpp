@@ -25,7 +25,7 @@ namespace JAMScript
         template <typename Tl>
         void wait(Tl &li)
         {
-            std::unique_lock<SpinMutex> lkList(wListLock);
+            std::unique_lock lkList(wListLock);
             TaskInterface *taskToSleep = TaskInterface::Active();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
@@ -51,7 +51,7 @@ namespace JAMScript
         {
             std::cv_status isTimeout = std::cv_status::no_timeout;
             TimePoint timeoutTime = std::move(convert(timeoutTime_));
-            std::unique_lock<SpinMutex> lk(wListLock);
+            std::unique_lock lk(wListLock);
             TaskInterface *taskToSleep = TaskInterface::Active();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
@@ -95,8 +95,6 @@ namespace JAMScript
 
         ConditionVariableAny(ConditionVariableAny const &) = delete;
         ConditionVariableAny &operator=(ConditionVariableAny const &) = delete;
-        ConditionVariableAny &operator=(ConditionVariableAny &&) = delete;
-        ConditionVariableAny(ConditionVariableAny &&) = delete;
 
         JAMStorageTypes::WaitListType waitList;
         SpinMutex wListLock;
@@ -152,8 +150,6 @@ namespace JAMScript
 
         ConditionVariable(ConditionVariable const &) = delete;
         ConditionVariable &operator=(ConditionVariable const &) = delete;
-        ConditionVariable &operator=(ConditionVariable &&) = delete;
-        ConditionVariable(ConditionVariable &&) = delete;
 
         ConditionVariableAny cv;
 
