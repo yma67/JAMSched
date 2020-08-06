@@ -30,9 +30,8 @@ int main()
                              {{std::chrono::microseconds(0), std::chrono::microseconds(500), 1}, {std::chrono::microseconds(500), std::chrono::microseconds(1000), 2}, {std::chrono::microseconds(1000), std::chrono::microseconds(1500), 3}, {std::chrono::microseconds(2000), std::chrono::microseconds(50000), 0}});
 
     ribScheduler.CreateRealTimeTask({true, 0}, 1, std::function<int(JAMScript::RIBScheduler &, int)>(hello1), std::ref(ribScheduler), 5);                        
-    ribScheduler.CreateRealTimeTask({true, 0}, 3, hello3);
     ribScheduler.CreateRealTimeTask({true, 0}, 2, hello2);
-
+    ribScheduler.CreateRealTimeTask({true, 0}, 3, hello3);
     //ribScheduler.CreateRealTimeTask({true, 0}, 1, std::function<int(int)>(hello1), 5);    
 
     //std::function(<void>)(hello1));
