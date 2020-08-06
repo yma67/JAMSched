@@ -317,7 +317,9 @@ namespace JAMScript
     class Remote
     {
     public:
-
+        friend class RIBScheduler;
+        friend class LogManager;
+        friend class BroadcastManager;
         void CancelAllRExecRequests();
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
@@ -417,15 +419,29 @@ namespace JAMScript
                const std::string &appName, const std::string &devName);
         ~Remote();
 
-    public:
-        nlohmann::json CreateAckMessage(uint32_t actid);
+    private:
+        
+        struct CloudFogInfo
+        {
+            std::uint32_t memoryLeakId;
+            bool isMemoryLeakFixed;
+            std::string nameOfMemoryLeak;
+            std::string reasonOfMemoryLeak;
+            CloudFogInfo(std::uint32_t mlID, bool isFixed, std::string name, std::string reason)
+                : memoryLeakId(std::move(mlID)), isMemoryLeakFixed(std::move(isFixed)), 
+                  nameOfMemoryLeak(std::move(name)), reasonOfMemoryLeak(std::move(reason))
+            {}
+        };
+
         void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID);
-        boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
-        RIBScheduler *scheduler;
         std::mutex mRexec;
-        uint32_t eIdFactory;
+        bool isRegistered;
         mqtt_adapter_t *mq;
+        RIBScheduler *scheduler;
         const std::string devId, appId;
+        std::unique_ptr<CloudFogInfo> cloudFogInfo;
+        uint32_t eIdFactory, cloudFogInfoCounter, pongCounter;
+        boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
         std::string replyUp, replyDown, requestUp, requestDown, announceDown;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
