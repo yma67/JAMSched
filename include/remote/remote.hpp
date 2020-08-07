@@ -324,7 +324,7 @@ namespace JAMScript
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
         template <typename... Args>
-        void CreateRExecAsyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
+        bool CreateRExecAsyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
                                           std::function<void()> failureCallback, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
@@ -339,7 +339,7 @@ namespace JAMScript
             if (!isRegistered)
             {
                 failureCallback();
-                ThisTask::Exit();
+                return false;
             }
             rexRequest.push_back({"actid", eIdFactory});
             printf("Pushing... actid %d\n", eIdFactory);
@@ -446,7 +446,7 @@ namespace JAMScript
             {}
         };
 
-        void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
+        bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
         std::mutex mRexec;
         mqtt_adapter_t *mq;
         RIBScheduler *scheduler;

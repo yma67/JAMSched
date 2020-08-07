@@ -65,7 +65,7 @@ void JAMScript::Remote::CancelAllRExecRequests()
     }
 }
 
-void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback)
+bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
                                [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
@@ -102,6 +102,7 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
             }
         }
     }).Detach();
+    return true;
 }
 
 #define RegisterTopic(topicName, commandName, ...) {                                                                   \
