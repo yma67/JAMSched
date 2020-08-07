@@ -308,7 +308,12 @@ namespace JAMScript
 
         class HeartbeatFailureException : public std::exception
         {
+        private:
+            std::string message_;
 
+        public:
+            explicit HeartbeatFailureException() : message_("Cancelled due to bad remote connection") {};
+            virtual const char *what() const throw() { return message_.c_str(); }
         };
 
     } // namespace RExecDetails
@@ -374,7 +379,7 @@ namespace JAMScript
             if (!isRegistered)
             {
                 heartBeatFailCallback();
-                ThisTask::Exit();
+                throw RExecDetails::HeartbeatFailureException();
             }
             rexRequest.push_back({"actid", eIdFactory});
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
@@ -397,7 +402,7 @@ namespace JAMScript
                 catch (const RExecDetails::HeartbeatFailureException &he)
                 {
                     heartBeatFailCallback();
-                    ThisTask::Exit();
+                    throw he;
                 }
                 catch (const std::exception &e)
                 {
@@ -420,7 +425,7 @@ namespace JAMScript
             catch (const RExecDetails::HeartbeatFailureException& e)
             {
                 heartBeatFailCallback();
-                ThisTask::Exit();
+                throw e;
             }
             return fuExec.Get().template get<T>();
         }
