@@ -160,15 +160,18 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 rMsg.contains("appName") && rMsg["appName"].is_string() &&
                 rMsg.contains("devName") && rMsg["devName"].is_string()) 
             {
-                std::lock_guard lk(remote->scheduler->sRemoteConnections);
+                auto deviceNameStr = rMsg["devName"].get<std::string>();
+                auto appNameStr = rMsg["appName"].get<std::string>();
                 auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
+                remote->cloudFogInfo = std::make_unique<CloudFogInfo>(deviceNameStr ,appNameStr, hostAddrStr);
+                std::lock_guard lk(remote->scheduler->sRemoteConnections);
                 remote->scheduler->optionalRemoteConnections.emplace(
                     hostAddrStr, 
                     std::make_unique<Remote>(
                         remote->scheduler, 
                         std::move(hostAddrStr),
-                        rMsg["appName"].get<std::string>(), 
-                        rMsg["devName"].get<std::string>()
+                        std::move(appNameStr), 
+                        std::move(deviceNameStr)
                     )
                 );
             }
