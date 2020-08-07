@@ -406,8 +406,11 @@ namespace JAMScript
                 }
                 catch (const InvalidArgumentException &e)
                 {
-                    retryNum++;
-                    if (retryNum < 3) continue;
+                    if (retryNum < 3)
+                    {
+                        retryNum++;
+                        continue;
+                    }
                     lk.lock();
                     rLookup.erase(tempEID);
                     lk.unlock();

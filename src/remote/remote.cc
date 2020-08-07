@@ -84,21 +84,18 @@ bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
                 callback();
                 ThisTask::Exit();
             }
-            catch (const std::exception &e)
+            catch (const InvalidArgumentException &e)
             {
                 if (retryNum < 3)
                 {
                     retryNum++;
-                    if (retryNum < 3)
-                    {
-                        continue;
-                    }
-                    {
-                        std::lock_guard lk(mRexec);
-                        ackLookup.erase(tempEID);
-                    }
-                    callback();
+                    continue;
                 }
+                {
+                    std::lock_guard lk(mRexec);
+                    ackLookup.erase(tempEID);
+                }
+                callback();
             }
         }
     }).Detach();
