@@ -406,16 +406,12 @@ namespace JAMScript
                 }
                 catch (const std::exception &e)
                 {
-                    if (retryNum < 3)
-                    {
-                        retryNum++;
-                        if (retryNum < 3)                         
-                            continue;
-                        lk.lock();
-                        rLookup.erase(tempEID);
-                        lk.unlock();
-                        throw e;
-                    }
+                    retryNum++;
+                    if (retryNum < 3) continue;
+                    lk.lock();
+                    rLookup.erase(tempEID);
+                    lk.unlock();
+                    throw e;
                 }
             }
             try 
