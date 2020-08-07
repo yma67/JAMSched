@@ -95,6 +95,12 @@ namespace JAMScript
             return CreateConnection(std::make_unique<Remote>(this, hostAddr, appName, devName));
         }
 
+        void DeleteConnectionByHostAddress(std::string hostAddr)
+        {
+            std::lock_guard lk(sRemoteConnections);
+            optionalRemoteConnections.erase(hostAddr);
+        }
+
         // Not using const ref for memory safety
         nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
         {
@@ -341,6 +347,7 @@ namespace JAMScript
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
+        std::once_flag ribSchedulerShutdownFlag;
         std::mutex sReadyRTSchedule, sRemoteConnections;
         std::unique_ptr<Remote> remote;
         std::unique_ptr<LogManager> logManager;
@@ -364,6 +371,7 @@ namespace JAMScript
 
     private:
 
+        void ShutDownRunOnce();
         uint32_t GetThiefSizes();
         StealScheduler* GetMinThief();
         bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);

@@ -122,17 +122,29 @@ void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &t
     timer.SetTimeoutUntil(task, tp, lk);
 }
 
-void JAMScript::RIBScheduler::ShutDown()
+void JAMScript::RIBScheduler::ShutDownRunOnce()
 {
     if (remote != nullptr)
     {
         remote->CancelAllRExecRequests();
+    }
+    {
+        std::lock_guard lk(sRemoteConnections);
+        for (auto& [st, pr]: optionalRemoteConnections)
+        {
+            pr->CancelAllRExecRequests();
+        }
     }
     if (toContinue)
     {
         toContinue = false;
     }
     cvQMutex.notify_all();
+}
+
+void JAMScript::RIBScheduler::ShutDown()
+{
+    std::call_once(ribSchedulerShutdownFlag, [this] { this->ShutDownRunOnce(); });
 }
 
 void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)

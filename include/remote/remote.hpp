@@ -325,7 +325,6 @@ namespace JAMScript
         friend class LogManager;
         friend class BroadcastManager;
         void CancelAllRExecRequests();
-        static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
         template <typename... Args>
         bool CreateRExecAsyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
@@ -450,6 +449,8 @@ namespace JAMScript
         };
 
         bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
+        static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
+
         std::mutex mRexec;
         mqtt_adapter_t *mq;
         RIBScheduler *scheduler;

@@ -46,6 +46,7 @@ JAMScript::Remote::~Remote()
 void JAMScript::Remote::CancelAllRExecRequests()
 {
     std::lock_guard lk(mRexec);
+    if (!isRegistered) return;
     isRegistered = false;
     if (!rLookup.empty())
     {
@@ -163,22 +164,12 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 auto appNameStr = rMsg["appName"].get<std::string>();
                 auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
                 remote->cloudFogInfo = std::make_unique<CloudFogInfo>(deviceNameStr ,appNameStr, hostAddrStr);
-                std::lock_guard lk(remote->scheduler->sRemoteConnections);
-                remote->scheduler->optionalRemoteConnections.emplace(
-                    hostAddrStr, 
-                    std::make_unique<Remote>(
-                        remote->scheduler, 
-                        std::move(hostAddrStr),
-                        std::move(appNameStr), 
-                        std::move(deviceNameStr)
-                    )
-                );
+                remote->scheduler->CreateConnection(std::move(hostAddrStr), std::move(appNameStr), std::move(deviceNameStr));
             }
             else if (rMsg.contains("opt")  && rMsg["opt"].is_string() && rMsg["opt"].get<std::string>() == "DEL" &&
                      rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string())
             {
-                std::lock_guard lk(remote->scheduler->sRemoteConnections);
-                remote->scheduler->optionalRemoteConnections.erase(rMsg["hostAddr"].get<std::string>());
+                remote->scheduler->DeleteConnectionByHostAddress(rMsg["hostAddr"].get<std::string>());
             }
         });
         RegisterTopic(remote->replyDown, "REXEC-ACK", {
