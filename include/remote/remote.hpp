@@ -309,11 +309,10 @@ namespace JAMScript
         class HeartbeatFailureException : public std::exception
         {
         private:
-            std::string message_;
+            std::string message_ = "Cancelled due to bad remote connection";
 
         public:
-            explicit HeartbeatFailureException() : message_("Cancelled due to bad remote connection") {};
-            virtual const char *what() const throw() { return message_.c_str(); }
+            virtual const char *what() const throw() override { return message_.c_str(); }
         };
 
     } // namespace RExecDetails
@@ -432,7 +431,7 @@ namespace JAMScript
         template <typename T, typename... Args>
         T CreateRExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
-            return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, {}, std::forward<Args>(eArgs)...);
+            return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
 
         Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appName, std::string devName);
