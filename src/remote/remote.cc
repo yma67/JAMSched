@@ -20,11 +20,11 @@ static void connected(void *a)
 
 JAMScript::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appName, std::string devName)
     : scheduler(scheduler), devId(std::move(devName)), appId(std::move(appName)), isRegistered(false), 
-      requestUp(std::string("/") + appName + "/requests/up"), cloudFogInfoCounter(0U), 
-      requestDown(std::string("/") + appName + "/requests/down/c"), cloudFogInfo(nullptr),
-      replyUp(std::string("/") + appName + "/replies/up"), cache(1024), pongCounter(0U),
-      replyDown(std::string("/") + appName + "/replies/down"), hostAddr(std::move(hostAddr)),
-      announceDown(std::string("/") + appName + "/announce/down"),
+      requestUp(std::string("/") + appId + "/requests/up"), cloudFogInfoCounter(0U), 
+      requestDown(std::string("/") + appId + "/requests/down/c"), cloudFogInfo(nullptr),
+      replyUp(std::string("/") + appId + "/replies/up"), cache(1024), pongCounter(0U),
+      replyDown(std::string("/") + appId + "/replies/down"), hostAddr(std::move(hostAddr)),
+      announceDown(std::string("/") + appId + "/announce/down"),
       mq(mqtt_createserver(const_cast<char *>(hostAddr.c_str()), 1,
                            const_cast<char *>(devName.c_str()), connected))
 {
@@ -119,6 +119,7 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
     auto *remote = static_cast<Remote *>(ctx);
+    printf("RemoteArrivedCallback....\n");
     try {
         std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
         nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
