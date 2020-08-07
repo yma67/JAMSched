@@ -84,6 +84,17 @@ namespace JAMScript
             localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
         }
 
+        void CreateConnection(std::unique_ptr<Remote> prConn)
+        {
+            std::lock_guard lk(sRemoteConnections);
+            optionalRemoteConnections.emplace(prConn->hostAddr, std::move(prConn));
+        }
+
+        void CreateConnection(std::string hostAddr, std::string appName, std::string devName)
+        {
+            return CreateConnection(std::make_unique<Remote>(this, hostAddr, appName, devName));
+        }
+
         // Not using const ref for memory safety
         nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
         {
@@ -102,14 +113,13 @@ namespace JAMScript
             return {};
         }
 
-        // Not using const ref for memory safety
-        bool CreateRPBatchCall(nlohmann::json rpcAttr) 
+        bool CreateRPBatchCall(Remote *execRemote, nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end() &&
-                remote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
+                execRemote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr(std::move(rpcAttr))]() 
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, execRemote, rpcAttr(std::move(rpcAttr))]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<int>();
@@ -117,7 +127,7 @@ namespace JAMScript
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
                     for (int i = 0; i < 3; i++)
                     {
-                        if (mqtt_publish(remote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                        if (mqtt_publish(execRemote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
                         {
                             break;
                         }
@@ -331,7 +341,7 @@ namespace JAMScript
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
-        std::mutex sReadyRTSchedule;
+        std::mutex sReadyRTSchedule, sRemoteConnections;
         std::unique_ptr<Remote> remote;
         std::unique_ptr<LogManager> logManager;
         std::unique_ptr<BroadcastManager> broadcastManger;
@@ -341,8 +351,9 @@ namespace JAMScript
 
         std::vector<std::unique_ptr<StealScheduler>> thiefs;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
-        
+                
         std::unordered_map<std::string, std::any> lexecFuncMap;
+        std::unordered_map<std::string, std::unique_ptr<Remote>> optionalRemoteConnections;
         std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
 
         JAMStorageTypes::BatchQueueType bQueue;

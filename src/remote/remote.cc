@@ -18,18 +18,17 @@ static void connected(void *a)
     printf("Connected to ... mqtt... \n");
 }
 
-JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
-                          const std::string &appName, const std::string &devName)
-    : scheduler(scheduler), devId(devName), appId(appName), eIdFactory(0U), isRegistered(false), 
+JAMScript::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appName, std::string devName)
+    : scheduler(scheduler), devId(std::move(devName)), appId(std::move(appName)), isRegistered(false), 
       requestUp(std::string("/") + appName + "/requests/up"), cloudFogInfoCounter(0U), 
       requestDown(std::string("/") + appName + "/requests/down/c"), cloudFogInfo(nullptr),
       replyUp(std::string("/") + appName + "/replies/up"), cache(1024), pongCounter(0U),
-      replyDown(std::string("/") + appName + "/replies/down"),
+      replyDown(std::string("/") + appName + "/replies/down"), hostAddr(std::move(hostAddr)),
       announceDown(std::string("/") + appName + "/announce/down"),
       mq(mqtt_createserver(const_cast<char *>(hostAddr.c_str()), 1,
                            const_cast<char *>(devName.c_str()), connected))
 {
-    MQTTAsync_setMessageArrivedCallback(mq->mqttserv, scheduler, RemoteArrivedCallback);
+    MQTTAsync_setMessageArrivedCallback(mq->mqttserv, this, RemoteArrivedCallback);
     mqtt_set_subscription(mq, const_cast<char *>(requestUp.c_str()));
     mqtt_set_subscription(mq, const_cast<char *>(requestDown.c_str()));
     mqtt_set_subscription(mq, const_cast<char *>(replyUp.c_str()));
@@ -40,24 +39,36 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, const std::string &hostAddr,
 
 JAMScript::Remote::~Remote() 
 { 
+    CancelAllRExecRequests();
     mqtt_deleteserver(mq); 
 }
 
 void JAMScript::Remote::CancelAllRExecRequests()
 {
     std::lock_guard lk(mRexec);
+    isRegistered = false;
     if (!rLookup.empty())
     {
+        for (auto& [id, fu]: rLookup)
+        {
+            fu->SetException(std::make_exception_ptr(RExecDetails::HeartbeatFailureException()));
+        }
         rLookup.clear();
+    }
+    if (!ackLookup.empty())
+    {
+        for (auto& [id, fu]: ackLookup)
+        {
+            fu->SetException(std::make_exception_ptr(RExecDetails::HeartbeatFailureException()));
+        }
+        ackLookup.clear();
     }
 }
 
-void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID)
+void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback)
 {
-    auto prAck = std::make_unique<Promise<void>>();
-    auto fAck = prAck->GetFuture();
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
-                               [this, prAck { std::move(prAck) }, vReq { std::move(vReq) }, 
+                               [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
                                 futureAck { std::move(futureAck) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
@@ -67,22 +78,26 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
             {
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
-            } 
+            }
+            catch (const RExecDetails::HeartbeatFailureException& he)
+            {
+                callback();
+                ThisTask::Exit();
+            }
             catch (const std::exception &e)
             {
                 if (retryNum < 3)
                 {
-                    std::unique_lock lk(mRexec);
-                    ackLookup.erase(tempEID);
-                    auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
-                    lk.unlock();
-                    futureAck = std::move(tprAck->GetFuture());                        
-                    retryNum++;   
+                    retryNum++;
                     if (retryNum < 3)
                     {
                         continue;
-                    }     
-                    prAck->SetException(std::make_exception_ptr(e));
+                    }
+                    {
+                        std::lock_guard lk(mRexec);
+                        ackLookup.erase(tempEID);
+                    }
+                    callback();
                 }
             }
         }
@@ -103,85 +118,100 @@ void JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
 
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
-    auto *scheduler = static_cast<RIBScheduler *>(ctx);
+    auto *remote = static_cast<Remote *>(ctx);
     try {
         std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
         nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
-        RegisterTopic(scheduler->remote->announceDown, "PING", {
-            if (!scheduler->remote->isRegistered)
+        RegisterTopic(remote->announceDown, "PING", {
+            if (!remote->isRegistered)
             {
-                auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", scheduler->remote->devId}, {"cmd", "REGISTER"}, {"opt", "DEVICE"}}).dump());
-                mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", remote->devId}, {"cmd", "REGISTER"}, {"opt", "DEVICE"}}).dump());
+                mqtt_publish(remote->mq, const_cast<char *>(remote->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
             }
-            if (scheduler->remote->cloudFogInfo == nullptr && (scheduler->remote->cloudFogInfoCounter % CLOUD_FOG_COUNT_STEP) == 0)
+            if (remote->cloudFogInfo == nullptr && (remote->cloudFogInfoCounter % CLOUD_FOG_COUNT_STEP) == 0)
             {
-                auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", scheduler->remote->devId}, {"cmd", "GET-CF-INFO"}, {"opt", "DEVICE"}}).dump());
-                mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                scheduler->remote->cloudFogInfoCounter = scheduler->remote->cloudFogInfoCounter + 1;
+                auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", remote->devId}, {"cmd", "GET-CF-INFO"}, {"opt", "DEVICE"}}).dump());
+                mqtt_publish(remote->mq, const_cast<char *>(remote->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                remote->cloudFogInfoCounter = remote->cloudFogInfoCounter + 1;
             }
-            if (scheduler->remote->pongCounter == 0)
+            if (remote->pongCounter == 0)
             {
-                auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", scheduler->remote->devId}, {"cmd", "PONG"}, {"opt", "DEVICE"}}).dump());
-                mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                scheduler->remote->pongCounter = rand() % PONG_COUNTER_MAX;
+                auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", remote->devId}, {"cmd", "PONG"}, {"opt", "DEVICE"}}).dump());
+                mqtt_publish(remote->mq, const_cast<char *>(remote->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                remote->pongCounter = rand() % PONG_COUNTER_MAX;
             }
             else
             {
-                scheduler->remote->pongCounter = scheduler->remote->pongCounter - 1;
+                remote->pongCounter = remote->pongCounter - 1;
             }
             printf("Ping.. received... \n");
         });
-        RegisterTopic(scheduler->remote->announceDown, "KILL", {
-            scheduler->ShutDown();
+        RegisterTopic(remote->announceDown, "KILL", {
+            remote->scheduler->ShutDown();
         });
-        RegisterTopic(scheduler->remote->replyDown, "REGISTER-ACK", {
-            scheduler->remote->isRegistered = true;
+        RegisterTopic(remote->replyDown, "REGISTER-ACK", {
+            std::lock_guard lk(remote->mRexec);
+            remote->isRegistered = true;
         });
-        RegisterTopic(scheduler->remote->announceDown, "PUT-CF-INFO", {
-            if (rMsg.contains("opt") && rMsg["opt"].get<std::string>() == "ADD" &&
-                rMsg.contains("actarg") && rMsg["actarg"].get<std::string>() == "fog") 
+        RegisterTopic(remote->announceDown, "PUT-CF-INFO", {
+            if (rMsg.contains("opt") && rMsg["opt"].is_string() && rMsg["opt"].get<std::string>() == "ADD" &&
+                rMsg.contains("actarg") && rMsg["actarg"].is_string() && rMsg["actarg"].get<std::string>() == "fog" && 
+                rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string() &&
+                rMsg.contains("appName") && rMsg["appName"].is_string() &&
+                rMsg.contains("devName") && rMsg["devName"].is_string()) 
             {
-                scheduler->remote->cloudFogInfo = std::make_unique<CloudFogInfo>(rMsg["number"].get<std::uint32_t>(), rMsg["isFixed"].get<bool>(), 
-                rMsg["name"].get<std::string>(), rMsg["name"].get<std::string>());
+                std::lock_guard lk(remote->scheduler->sRemoteConnections);
+                auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
+                remote->scheduler->optionalRemoteConnections.emplace(
+                    hostAddrStr, 
+                    std::make_unique<Remote>(
+                        remote->scheduler, 
+                        std::move(hostAddrStr),
+                        rMsg["appName"].get<std::string>(), 
+                        rMsg["devName"].get<std::string>()
+                    )
+                );
             }
-            else if (rMsg.contains("opt") && rMsg["opt"].get<std::string>() == "DEL")
+            else if (rMsg.contains("opt")  && rMsg["opt"].is_string() && rMsg["opt"].get<std::string>() == "DEL" &&
+                     rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string())
             {
-                scheduler->remote->cloudFogInfo = nullptr;
+                std::lock_guard lk(remote->scheduler->sRemoteConnections);
+                remote->scheduler->optionalRemoteConnections.erase(rMsg["hostAddr"].get<std::string>());
             }
         });
-        RegisterTopic(scheduler->remote->replyDown, "REXEC-ACK", {
-            if (rMsg.contains("actid")) 
+        RegisterTopic(remote->replyDown, "REXEC-ACK", {
+            if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
             {
                 auto actId = rMsg["actid"].get<uint32_t>();
-                if (scheduler->remote->ackLookup.find(actId) != scheduler->remote->ackLookup.end()) 
+                if (remote->ackLookup.find(actId) != remote->ackLookup.end()) 
                 {
-                    scheduler->remote->ackLookup[actId]->SetValue();
-                    scheduler->remote->ackLookup.erase(actId);
+                    remote->ackLookup[actId]->SetValue();
+                    remote->ackLookup.erase(actId);
                 }
             }
         });
-        RegisterTopic(scheduler->remote->requestDown, "REXEC-ASY", {
+        RegisterTopic(remote->requestDown, "REXEC-ASY", {
             printf("REXEC-ASY recevied \n");
-            if (rMsg.contains("actid")) 
+            if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
             {
                 auto actId = rMsg["actid"].get<uint32_t>();
-                if (scheduler->remote->cache.contains(actId) || scheduler->toContinue && scheduler->CreateRPBatchCall(std::move(rMsg))) {
+                if (remote->cache.contains(actId) || remote->scheduler->toContinue && remote->scheduler->CreateRPBatchCall(remote, std::move(rMsg))) {
                     auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
-                    mqtt_publish(scheduler->remote->mq, const_cast<char *>(scheduler->remote->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    mqtt_publish(remote->mq, const_cast<char *>(remote->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 }
             }
         });
-        RegisterTopic(scheduler->remote->requestDown, "REXEC-SYN", {
+        RegisterTopic(remote->requestDown, "REXEC-SYN", {
 
         });
-        RegisterTopic(scheduler->remote->replyDown, "REXEC-RES", {
-            if (rMsg.contains("actid") && rMsg.contains("args")) 
+        RegisterTopic(remote->replyDown, "REXEC-RES", {
+            if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned() && rMsg.contains("args")) 
             {
                 auto actId = rMsg["actid"].get<uint32_t>();
-                if (scheduler->remote->rLookup.find(actId) != scheduler->remote->rLookup.end()) 
+                if (remote->rLookup.find(actId) != remote->rLookup.end()) 
                 {
-                    scheduler->remote->rLookup[actId]->SetValue(rMsg["args"]);
-                    scheduler->remote->rLookup.erase(actId);
+                    remote->rLookup[actId]->SetValue(rMsg["args"]);
+                    remote->rLookup.erase(actId);
                 }
             }
         });

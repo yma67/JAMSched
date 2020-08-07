@@ -324,7 +324,8 @@ namespace JAMScript
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
         template <typename... Args>
-        void CreateRExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        void CreateRExecAsyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
+                                          std::function<void()> failureCallback, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
@@ -335,6 +336,11 @@ namespace JAMScript
                 {"condvec", condvec},
                 {"actarg", "-"}};
             std::unique_lock lk(mRexec);
+            if (!isRegistered)
+            {
+                failureCallback();
+                ThisTask::Exit();
+            }
             rexRequest.push_back({"actid", eIdFactory});
             printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
@@ -343,7 +349,13 @@ namespace JAMScript
             auto futureAck = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
-            CreateRetryTask(futureAck, vReq, tempEID);
+            return CreateRetryTask(futureAck, vReq, tempEID, std::move(failureCallback));
+        }
+
+        template <typename... Args>
+        void CreateRExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        {
+            return CreateRExecAsyncWithCallback(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
 
         template <typename T, typename... Args>
@@ -359,9 +371,12 @@ namespace JAMScript
                 {"condvec", condvec},
                 {"actarg", "-"}};
             std::unique_lock lk(mRexec);
+            if (!isRegistered)
+            {
+                heartBeatFailCallback();
+                ThisTask::Exit();
+            }
             rexRequest.push_back({"actid", eIdFactory});
-            printf("Actid .... %d\n", eIdFactory);
-            
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
@@ -379,15 +394,15 @@ namespace JAMScript
                     futureAck.GetFor(std::chrono::milliseconds(100));
                     break;
                 } 
+                catch (const RExecDetails::HeartbeatFailureException &he)
+                {
+                    heartBeatFailCallback();
+                    ThisTask::Exit();
+                }
                 catch (const std::exception &e)
                 {
                     if (retryNum < 3)
                     {
-                        lk.lock();
-                        ackLookup.erase(tempEID);
-                        auto& tprAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
-                        lk.unlock();
-                        futureAck = tprAck->GetFuture();                        
                         retryNum++;
                         if (retryNum < 3)                         
                             continue;
@@ -405,6 +420,7 @@ namespace JAMScript
             catch (const RExecDetails::HeartbeatFailureException& e)
             {
                 heartBeatFailCallback();
+                ThisTask::Exit();
             }
             return fuExec.Get().template get<T>();
         }
@@ -415,36 +431,33 @@ namespace JAMScript
             return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, [] { ThisTask::Exit(); }, std::forward<Args>(eArgs)...);
         }
 
-        Remote(RIBScheduler *scheduler, const std::string &hostAddr,
-               const std::string &appName, const std::string &devName);
+        Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appName, std::string devName);
         ~Remote();
 
     private:
         
         struct CloudFogInfo
         {
-            std::uint32_t memoryLeakId;
-            bool isMemoryLeakFixed;
-            std::string nameOfMemoryLeak;
-            std::string reasonOfMemoryLeak;
-            CloudFogInfo(std::uint32_t mlID, bool isFixed, std::string name, std::string reason)
-                : memoryLeakId(std::move(mlID)), isMemoryLeakFixed(std::move(isFixed)), 
-                  nameOfMemoryLeak(std::move(name)), reasonOfMemoryLeak(std::move(reason))
+            std::string devIdAlkd;
+            std::string appIdAlkd;
+            std::string hostAddrAlkd;
+            CloudFogInfo(std::string devIdAlkd, std::string appIdAlkd, std::string hostAddrAlkd)
+                : devIdAlkd(std::move(devIdAlkd)), appIdAlkd(std::move(appIdAlkd)), hostAddrAlkd(std::move(hostAddrAlkd))
             {}
         };
 
-        void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID);
+        void CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
         std::mutex mRexec;
-        bool isRegistered;
         mqtt_adapter_t *mq;
         RIBScheduler *scheduler;
-        const std::string devId, appId;
+        std::atomic<bool> isRegistered;
+        const std::string devId, appId, hostAddr;
         std::unique_ptr<CloudFogInfo> cloudFogInfo;
         uint32_t eIdFactory, cloudFogInfoCounter, pongCounter;
         boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
         std::string replyUp, replyDown, requestUp, requestDown, announceDown;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
     };
 
 } // namespace JAMScript
