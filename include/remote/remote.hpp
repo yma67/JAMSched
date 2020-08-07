@@ -432,7 +432,7 @@ namespace JAMScript
         template <typename T, typename... Args>
         T CreateRExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
-            return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, [] { ThisTask::Exit(); }, std::forward<Args>(eArgs)...);
+            return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, {}, std::forward<Args>(eArgs)...);
         }
 
         Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appName, std::string devName);
