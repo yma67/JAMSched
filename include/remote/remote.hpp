@@ -402,16 +402,16 @@ namespace JAMScript
                 catch (const RExecDetails::HeartbeatFailureException &he)
                 {
                     heartBeatFailCallback();
-                    throw he;
+                    throw RExecDetails::HeartbeatFailureException();
                 }
-                catch (const std::exception &e)
+                catch (const InvalidArgumentException &e)
                 {
                     retryNum++;
                     if (retryNum < 3) continue;
                     lk.lock();
                     rLookup.erase(tempEID);
                     lk.unlock();
-                    throw e;
+                    throw InvalidArgumentException("timed out");
                 }
             }
             try 
@@ -421,7 +421,7 @@ namespace JAMScript
             catch (const RExecDetails::HeartbeatFailureException& e)
             {
                 heartBeatFailCallback();
-                throw e;
+                throw RExecDetails::HeartbeatFailureException();
             }
             return fuExec.Get().template get<T>();
         }
