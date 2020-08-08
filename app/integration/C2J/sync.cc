@@ -1,4 +1,4 @@
-#include <scheduler/scheduler.hpp>
+#include <jamscript.hpp>
 
 int main()
 {
