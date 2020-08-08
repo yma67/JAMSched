@@ -16,7 +16,7 @@ find_package(Boost 1.65.0)
 include_directories(${Boost_INCLUDE_DIRS})
 
 # Paho MQTT 
-include_directories("/usr/local/lib")
+include_directories("/usr/local/include")
 
 # Find C/C++ sources
 file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
