@@ -1,7 +1,4 @@
-#include <future>
 #include <jamscript.hpp>
-#include <cstring>
-#include <nlohmann/json.hpp>
 
 int RPCFunctionJSync(int a, int b)
 {
