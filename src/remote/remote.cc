@@ -149,7 +149,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         RegisterTopic(remote->announceDown, "KILL", {
             remote->scheduler->ShutDown();
         });
-        RegisterTopic(remote->replyDown, "REGISTER-ACK", {
+        RegisterTopic(remote->announceDown, "REGISTER-ACK", {
             std::lock_guard lk(remote->mRexec);
             remote->isRegistered = true;
         });
