@@ -15,6 +15,11 @@ endif()
 find_package(Boost 1.65.0)
 include_directories(${Boost_INCLUDE_DIRS})
 
+# Paho MQTT 
+find_library(paho-mqtt3a NAMES libpaho-mqtt3a.so REQUIRED)
+add_library(pahomqtt3a SHARED IMPORTED)
+set_property(TARGET pahomqtt3a PROPERTY IMPORTED_LOCATION ${paho-mqtt3a})
+
 # Find C/C++ sources
 file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 set(JAMCOMPONENTS_SOURCES_LIST "")
@@ -38,5 +43,5 @@ endif(JAMSCRIPT_DEBUG_LINEINFO_OPT)
 find_package(Threads)
 add_library(jamsched ${JAMCOMPONENTS_SOURCES_LIST})
 target_compile_features(jamsched PUBLIC cxx_std_17)
-target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json paho-mqtt3a hiredis event ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json pahomqtt3a hiredis event ${CMAKE_THREAD_LIBS_INIT})
 target_include_directories(jamsched PUBLIC ${PROJECT_SOURCE_DIR}/include)
