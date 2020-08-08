@@ -34,9 +34,8 @@ namespace JAMScript
 
     struct StackTraits
     {
-        bool useSharedStack;
+        bool useSharedStack, canSteal;
         uint32_t stackSize;
-        bool canSteal;
         int pinCore;
         StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1) {}
         StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1) {}
@@ -348,12 +347,15 @@ namespace JAMScript
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
         std::once_flag ribSchedulerShutdownFlag;
-        std::mutex sReadyRTSchedule, sRemoteConnections;
+
         std::unique_ptr<Remote> remote;
         std::unique_ptr<LogManager> logManager;
         std::unique_ptr<BroadcastManager> broadcastManger;
+
+        std::mutex sReadyRTSchedule, sRemoteConnections;
         std::thread tLogManger, tBroadcastManager;
         std::condition_variable cvReadyRTSchedule;
+
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
 
         std::vector<std::unique_ptr<StealScheduler>> thiefs;

@@ -115,6 +115,7 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
     iLock.unlock();
     task->SwapOut();
     iLock.lock();
+    lk.lock();
     if (!timeout_expired(task->timeOut.get())) jamscript_timeout_del(task->timeOut.get());
 }
 
@@ -129,5 +130,6 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
     iLock.unlock();
     task->SwapOut();
     iLock.lock();
+    lk.lock();
     if (!timeout_expired(task->timeOut.get())) jamscript_timeout_del(task->timeOut.get());
 }

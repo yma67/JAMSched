@@ -1,5 +1,10 @@
 #include <jamscript.hpp>
 
+
+struct VeryLargeObject {
+    char veryLargeDummy[1024 * 1024 * 1024];
+};
+VeryLargeObject* globalVLO = nullptr;
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
@@ -9,7 +14,9 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {
-            // Sleep for 70us          
+            VeryLargeObject *vlo  = new VeryLargeObject;
+            globalVLO = vlo;
+            // Sleep for 70ms          
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             // this statement should prevent if the coroutines are not scheduled in the same pthread
             printf("==============================================\n");
