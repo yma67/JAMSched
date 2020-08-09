@@ -299,8 +299,58 @@ namespace JAMScript
             remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
+        template <typename... Args>
+        void CreateRemoteExecAsyncBroadcast(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        {
+            remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            std::lock_guard lk(sRemoteConnections);
+            for (auto& [hName, pRemote]: optionalRemoteConnections)
+            {
+                pRemote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            }
+        }
+
         template <typename T, typename... Args>
-        T CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        T CreateRemoteExecSyncBroadcast(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        {
+            auto prEarliestReturn = std::make_shared<Promise<T>>();
+            auto fuEarliestReturn = prEarliestReturn->GetFuture();
+            {
+                std::lock_guard lk(sRemoteConnections);
+                for (auto& [hName, pRemote]: optionalRemoteConnections)
+                {
+                    CreateBatchTask({true, 0, true}, Duration::max(), [this, prEarliestReturn, &eName, &condstr, condvec, hName] (Args &&... eArgsTransfer) {
+                        try
+                        {
+                            std::lock_guard lk(sRemoteConnections);
+                            if (optionalRemoteConnections.find(hName) != optionalRemoteConnections.end())
+                            {
+                                auto rvResult = pRemoteRaw->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgsTransfer)...);
+                                prEarliestReturn->SetValue(std::move(rvResult));
+                            }
+                        }
+                        catch(const std::exception& e)
+                        {
+                            
+                        }
+                    }, eArgs...).Detach();
+                }
+            }
+            CreateBatchTask({true, 0, true}, Duration::max(), [this, prEarliestReturn, &eName, &condstr, condvec] (Args &&... eArgsTransfer) {
+                try
+                {
+                    prEarliestReturn->SetValue(remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgsTransfer)...));
+                }
+                catch(const std::exception& e)
+                {
+                    
+                }
+            }, std::forward<Args>(eArgs)...).Detach();
+            return fuEarliestReturn.Get();
+        }
+
+        template <typename T, typename... Args>
+        T CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
             return remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
@@ -352,7 +402,8 @@ namespace JAMScript
         std::unique_ptr<LogManager> logManager;
         std::unique_ptr<BroadcastManager> broadcastManger;
 
-        std::mutex sReadyRTSchedule, sRemoteConnections;
+        std::mutex sReadyRTSchedule;
+        SpinMutex sRemoteConnections;
         std::thread tLogManger, tBroadcastManager;
         std::condition_variable cvReadyRTSchedule;
 

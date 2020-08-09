@@ -451,7 +451,7 @@ namespace JAMScript
         bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
 
-        std::mutex mRexec;
+        SpinMutex mRexec;
         mqtt_adapter_t *mq;
         RIBScheduler *scheduler;
         std::atomic<bool> isRegistered;

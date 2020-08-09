@@ -67,7 +67,7 @@ namespace JAMScript
     private:
         std::string bCastKey;
         bool isCancelled;
-        Mutex mVarStream;
+        SpinMutex mVarStream;
         ConditionVariable cvVarStream;
         std::deque<std::vector<std::uint8_t>> varStream;
     };
