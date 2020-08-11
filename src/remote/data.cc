@@ -40,10 +40,17 @@ void JAMScript::LogManager::Log(std::string nameSpace, std::string varName, nloh
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    std::lock_guard lk(mAsyncBuffer);
+    std::unique_lock lk(Remote::mCallback);
+    if (remote->mainFogInfo == nullptr)
+    {
+        throw InvalidArgumentException("Fog not connected");
+    }
+    auto appId = remote->mainFogInfo->appId;
+    lk.unlock();
+    std::lock_guard lkAsyncBuffer(mAsyncBuffer);
     asyncBufferEncoded.push_back(
         new LogStreamObject(
-            ConvertToRedisKey(remote->appId, nameSpace, varName), 
+            ConvertToRedisKey(appId, nameSpace, varName), 
             tv.tv_sec * 1000LL + tv.tv_usec / 1000,
             nlohmann::json::to_cbor(streamObjectRaw.dump())
         )
@@ -142,7 +149,13 @@ JAMScript::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisSt
         auto& nameSpaceRef = bCastVarStores[vInfo.first];
         if (nameSpaceRef.find(vInfo.second) == nameSpaceRef.end())
         {
-            auto pBCVar = std::make_unique<BroadcastVariable>(ConvertToRedisKey(remote->appId, vInfo.first, vInfo.second));
+            std::unique_lock lk(Remote::mCallback);
+            if (remote->mainFogInfo == nullptr)
+            {
+                throw InvalidArgumentException("Fog not connected");
+            }
+            auto pBCVar = std::make_unique<BroadcastVariable>(ConvertToRedisKey(remote->mainFogInfo->appId, vInfo.first, vInfo.second));
+            lk.unlock();
             auto& refBCastVar = *pBCVar;
             nameSpaceRef.emplace(vInfo.second, std::move(pBCVar));
             redisAsyncCommand(
@@ -189,7 +202,13 @@ void JAMScript::BroadcastManager::StopBroadcastMainLoop()
 
 void JAMScript::BroadcastManager::Append(std::string key, char* data)
 {
-    std::string appId(remote->appId.size(), 0), nameSpace(nameSpaceMaxLen, 0), varName(varNameMaxLen, 0);
+    std::unique_lock lk(Remote::mCallback);
+    if (remote->mainFogInfo == nullptr)
+    {
+        return;
+    }
+    std::string appId(remote->mainFogInfo->appId.size(), 0), nameSpace(nameSpaceMaxLen, 0), varName(varNameMaxLen, 0);
+    lk.unlock();
     std::sscanf(key.c_str(), "aps[%s].ns[%s].bcasts[%s]", appId.data(), nameSpace.data(), varName.data());
     if (bCastVarStores.find(nameSpace) != bCastVarStores.end())
     {

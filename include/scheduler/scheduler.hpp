@@ -57,6 +57,7 @@ namespace JAMScript
         friend class LogManager;
         friend class Decider;
         friend class Remote;
+        friend class Time;
 
         friend void ThisTask::Yield();
 
@@ -83,23 +84,6 @@ namespace JAMScript
             localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
         }
 
-        void CreateConnection(std::unique_ptr<Remote> prConn)
-        {
-            std::lock_guard lk(sRemoteConnections);
-            optionalRemoteConnections.emplace(prConn->hostAddr, std::move(prConn));
-        }
-
-        void CreateConnection(std::string hostAddr, std::string appName, std::string devName)
-        {
-            return CreateConnection(std::make_unique<Remote>(this, hostAddr, appName, devName));
-        }
-
-        void DeleteConnectionByHostAddress(std::string hostAddr)
-        {
-            std::lock_guard lk(sRemoteConnections);
-            optionalRemoteConnections.erase(hostAddr);
-        }
-
         // Not using const ref for memory safety
         nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
         {
@@ -118,7 +102,7 @@ namespace JAMScript
             return {};
         }
 
-        bool CreateRPBatchCall(Remote *execRemote, nlohmann::json rpcAttr) 
+        bool CreateRPBatchCall(CloudFogInfo *execRemote, nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end() &&
@@ -132,7 +116,7 @@ namespace JAMScript
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
                     for (int i = 0; i < 3; i++)
                     {
-                        if (mqtt_publish(execRemote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                        if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
                         {
                             break;
                         }
@@ -294,59 +278,21 @@ namespace JAMScript
         }
 
         template <typename... Args>
+        void CreateRemoteExecAsyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        {
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+        }
+
+        template <typename... Args>
         void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
             remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
-        template <typename... Args>
-        void CreateRemoteExecAsyncBroadcast(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
-        {
-            remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
-            std::lock_guard lk(sRemoteConnections);
-            for (auto& [hName, pRemote]: optionalRemoteConnections)
-            {
-                pRemote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
-            }
-        }
-
         template <typename T, typename... Args>
-        T CreateRemoteExecSyncBroadcast(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        T CreateRemoteExecSyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
-            auto prEarliestReturn = std::make_shared<Promise<T>>();
-            auto fuEarliestReturn = prEarliestReturn->GetFuture();
-            {
-                std::lock_guard lk(sRemoteConnections);
-                for (auto& [hName, pRemote]: optionalRemoteConnections)
-                {
-                    CreateBatchTask({true, 0, true}, Duration::max(), [this, prEarliestReturn, &eName, &condstr, condvec, hName] (Args &&... eArgsTransfer) {
-                        try
-                        {
-                            std::lock_guard lk(sRemoteConnections);
-                            if (optionalRemoteConnections.find(hName) != optionalRemoteConnections.end())
-                            {
-                                auto rvResult = pRemoteRaw->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgsTransfer)...);
-                                prEarliestReturn->SetValue(std::move(rvResult));
-                            }
-                        }
-                        catch(const std::exception& e)
-                        {
-                            
-                        }
-                    }, eArgs...).Detach();
-                }
-            }
-            CreateBatchTask({true, 0, true}, Duration::max(), [this, prEarliestReturn, &eName, &condstr, condvec] (Args &&... eArgsTransfer) {
-                try
-                {
-                    prEarliestReturn->SetValue(remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgsTransfer)...));
-                }
-                catch(const std::exception& e)
-                {
-                    
-                }
-            }, std::forward<Args>(eArgs)...).Detach();
-            return fuEarliestReturn.Get();
+            return remote->CreateRExecSyncWithCallbackToEachConnection<T>(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
 
         template <typename T, typename... Args>
@@ -403,7 +349,6 @@ namespace JAMScript
         std::unique_ptr<BroadcastManager> broadcastManger;
 
         std::mutex sReadyRTSchedule;
-        SpinMutex sRemoteConnections;
         std::thread tLogManger, tBroadcastManager;
         std::condition_variable cvReadyRTSchedule;
 
@@ -413,7 +358,6 @@ namespace JAMScript
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
                 
         std::unordered_map<std::string, std::any> lexecFuncMap;
-        std::unordered_map<std::string, std::unique_ptr<Remote>> optionalRemoteConnections;
         std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
 
         JAMStorageTypes::BatchQueueType bQueue;

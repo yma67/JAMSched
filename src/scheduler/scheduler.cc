@@ -128,13 +128,6 @@ void JAMScript::RIBScheduler::ShutDownRunOnce()
     {
         remote->CancelAllRExecRequests();
     }
-    {
-        std::lock_guard lk(sRemoteConnections);
-        for (auto& [st, pr]: optionalRemoteConnections)
-        {
-            pr->CancelAllRExecRequests();
-        }
-    }
     if (toContinue)
     {
         toContinue = false;
@@ -327,6 +320,11 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
+    std::vector<std::thread> remoteCheckers;
+    if (remote != nullptr)
+    {
+        remoteCheckers.push_back(std::thread { [this] { remote->CheckExpire(); }});
+    }
     if (broadcastManger != nullptr && logManager != nullptr)
     {
         tBroadcastManager = std::thread([this] {
@@ -464,6 +462,11 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         tLogManger.join();
         broadcastManger->StopBroadcastMainLoop();
         tBroadcastManager.join();
+    }
+    if (remote != nullptr)
+    {
+        remote->cvLoopSleep.notify_one();
+        remoteCheckers[0].join();
     }
     tTimer.join();
 }
