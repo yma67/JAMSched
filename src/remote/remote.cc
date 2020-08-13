@@ -218,12 +218,17 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                 lk.lock();
                 rLookup.erase(tempEID);
                 lk.unlock();
+                if (failureCountCommon->fetch_add(1U) == countCommon)
+                {
+                    heartBeatFailCallback();
+                    prCommon->SetException(std::make_exception_ptr(InvalidArgumentException(std::string(e.what()))));
+                }
                 return;
             }
         }
         try 
         {
-            auto valueResult = fuExec.Get();
+            auto valueResult = fuExec.GetFor(std::chrono::minutes(5));
             prCommon->SetValue(std::move(valueResult));
         }
         catch (const RExecDetails::HeartbeatFailureException &he)
@@ -315,12 +320,17 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                 lk.lock();
                 rLookup.erase(tempEID);
                 lk.unlock();
+                if (failureCountCommon->fetch_add(1U) == countCommon)
+                {
+                    heartBeatFailCallback();
+                    prCommon->SetException(std::make_exception_ptr(InvalidArgumentException(std::string(e.what()))));
+                }
                 return;
             }
         }
         try 
         {
-            auto valueResult = fuExec.Get();
+            auto valueResult = fuExec.GetFor(std::chrono::minutes(5));
             prCommon->SetValue(std::move(valueResult));
         }
         catch (const RExecDetails::HeartbeatFailureException &he)
