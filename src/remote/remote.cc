@@ -88,7 +88,7 @@ void JAMScript::Remote::CheckExpire()
     {
         {
             std::unique_lock lkSleep { mLoopSleep };
-            if (cvLoopSleep.wait_for(lkSleep, std::chrono::seconds(1), [this] { return !scheduler->toContinue; }))
+            if (cvLoopSleep.wait_for(lkSleep, std::chrono::minutes(1), [this] { return !scheduler->toContinue; }))
             {
                 return;
             }
