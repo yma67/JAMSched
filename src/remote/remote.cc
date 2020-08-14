@@ -194,8 +194,8 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                     return;
                 }
                 auto& refCFINFO = cloudFogInfo[hostName];
-                lk.unlock();
                 mqtt_publish(refCFINFO->mqttAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                lk.unlock();
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
             } 
@@ -297,8 +297,8 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                     return;
                 }
                 auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
-                lk.unlock();
                 mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                lk.unlock();
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
             } 
@@ -374,8 +374,8 @@ bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
                         return;
                     }
                     auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
-                    lkPublish.unlock();
                     mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    lkPublish.unlock();
                 }
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 return;
@@ -423,8 +423,8 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
                         return;
                     }
                     auto& refCFINFO = cloudFogInfo[hostName];
-                    lkPublish.unlock();
                     mqtt_publish(refCFINFO->mqttAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    lkPublish.unlock();
                 }
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 return;
@@ -483,24 +483,18 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             if (!cfINFO->isRegistered)
             {
                 auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "REGISTER"}, {"opt", "DEVICE"}}).dump());
-                lkValidConn.unlock();
                 mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                lkValidConn.lock();
             }
             if (cfINFO == remote->mainFogInfo.get() && remote->cloudFogInfo.empty() && (cfINFO->cloudFogInfoCounter % CLOUD_FOG_COUNT_STEP) == 0)
             {
                 auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "GET-CF-INFO"}, {"opt", "DEVICE"}}).dump());
-                lkValidConn.unlock();
                 mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                lkValidConn.lock();
                 cfINFO->cloudFogInfoCounter = cfINFO->cloudFogInfoCounter + 1;
             }
             if (cfINFO->pongCounter == 0)
             {
                 auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "PONG"}, {"opt", "DEVICE"}}).dump());
-                lkValidConn.unlock();
                 mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                lkValidConn.lock();
                 cfINFO->pongCounter = rand() % PONG_COUNTER_MAX;
             }
             else
@@ -557,9 +551,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 auto actId = rMsg["actid"].get<uint32_t>();
                 if (remote->cache.contains(actId) || remote->scheduler->toContinue && remote->scheduler->CreateRPBatchCall(cfINFO, std::move(rMsg))) {
                     auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
-                    lkValidConn.unlock();
                     mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                    lkValidConn.lock();
                 }   
             }
         });
