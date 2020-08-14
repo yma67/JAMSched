@@ -30,10 +30,11 @@ namespace JAMScript
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
             taskToSleep->Disable();
-            li.unlock();
             lkList.unlock();
+            li.unlock();
             taskToSleep->SwapOut();
             li.lock();
+            lkList.lock();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting after?\n");
         }
 

@@ -8,7 +8,7 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(1));
             printf("==============================================\n");
             try 
             {
@@ -25,7 +25,7 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(1));
             printf("~~~~~~~~~~~~~~~~~~~~~~~==========\n");
             try 
             {
