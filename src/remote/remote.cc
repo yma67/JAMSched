@@ -23,11 +23,11 @@ static void connected(void *a)
 }
 
 JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::string appId, std::string hostAddr)
-    : devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr)), isRegistered(false), remote(remote),
-        requestUp(std::string("/") + appId + "/requests/up"), requestDown(std::string("/") + appId + "/requests/down/c"),
-        replyUp(std::string("/") + appId + "/replies/up"), replyDown(std::string("/") + appId + "/replies/down"), isExpired(false),
-        announceDown(std::string("/") + appId + "/announce/down"), pongCounter(0U), cloudFogInfoCounter(0U), prevHearbeat(Clock::now()),
-        mqttAdapter(mqtt_createserver(const_cast<char *>(hostAddr.c_str()), 1, const_cast<char *>(devId.c_str()), connected))
+    :   devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr)), isRegistered(false), remote(remote),
+        requestUp(std::string("/") + this->appId + "/requests/up"), requestDown(std::string("/") + this->appId + "/requests/down/c"),
+        replyUp(std::string("/") + this->appId + "/replies/up"), replyDown(std::string("/") + this->appId + "/replies/down"), isExpired(false),
+        announceDown(std::string("/") + this->appId + "/announce/down"), pongCounter(0U), cloudFogInfoCounter(0U), prevHearbeat(Clock::now()),
+        mqttAdapter(mqtt_createserver(const_cast<char *>(this->hostAddr.c_str()), 1, const_cast<char *>(this->devId.c_str()), connected))
 {
     MQTTAsync_setMessageArrivedCallback(mqttAdapter->mqttserv, this, JAMScript::Remote::RemoteArrivedCallback);
     mqtt_set_subscription(mqttAdapter, const_cast<char *>(requestUp.c_str()));
@@ -73,7 +73,7 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::st
       devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr))
 {
     std::lock_guard lockCtor(mCallback);
-    mainFogInfo = std::make_unique<CloudFogInfo>(this, devId, appId, hostAddr);
+    mainFogInfo = std::make_unique<CloudFogInfo>(this, this->devId, this->appId, this->hostAddr);
     Remote::isValidConnection.insert(mainFogInfo.get());
 }
 
