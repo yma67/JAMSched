@@ -530,8 +530,8 @@ namespace JAMScript
                             throw RExecDetails::HeartbeatFailureException();
                         }
                         auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
-                        mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                         lk.unlock();
+                        mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                     }
                     futureAck.GetFor(std::chrono::milliseconds(100));
                     break;
