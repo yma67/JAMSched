@@ -522,14 +522,15 @@ namespace JAMScript
                 try 
                 {
                     {
-                        std::unique_lock lkPublish(Remote::mCallback);
+                        lk.lock();
                         if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                         {
-                            lkPublish.unlock();
+                            lk.unlock();
                             heartBeatFailCallback();
-                            ThisTask::Exit();
+                            throw RExecDetails::HeartbeatFailureException();
                         }
                         mqtt_publish(mainFogInfo->mqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                        lk.unlock();
                     }
                     futureAck.GetFor(std::chrono::milliseconds(100));
                     break;
@@ -582,7 +583,7 @@ namespace JAMScript
         bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
         bool CreateRetryTask(std::string hostName, Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
-        static std::recursive_mutex mCallback;
+        static SpinMutex mCallback;
         static std::unordered_set<CloudFogInfo *> isValidConnection;
         std::mutex mLoopSleep;
         std::condition_variable cvLoopSleep;
@@ -594,6 +595,7 @@ namespace JAMScript
         boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
+
     };
 
 } // namespace JAMScript

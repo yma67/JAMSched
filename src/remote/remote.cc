@@ -14,7 +14,7 @@
 
 const std::string JAMScript::RExecDetails::HeartbeatFailureException::message_ = std::string("Cancelled due to bad remote connection");
 std::unordered_set<JAMScript::CloudFogInfo *> JAMScript::Remote::isValidConnection;
-std::recursive_mutex JAMScript::Remote::mCallback;
+JAMScript::SpinMutex JAMScript::Remote::mCallback;
 
 static void connected(void *a)
 {
@@ -470,7 +470,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         mqtt_free_topic_msg(topicname, &msg);
         return 1;
     }
-    cfINFO->isExpired = false;
     auto *remote = cfINFO->remote;
     printf("RemoteArrivedCallback....\n");
     try {
@@ -506,6 +505,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         });
         RegisterTopic(cfINFO->announceDown, "REGISTER-ACK", {
             cfINFO->isRegistered = true;
+            cfINFO->isExpired = false;
         });
         RegisterTopic(cfINFO->announceDown, "PUT-CF-INFO", {
             if (rMsg.contains("opt") && rMsg["opt"].is_string() && rMsg["opt"].get<std::string>() == "ADD" &&
