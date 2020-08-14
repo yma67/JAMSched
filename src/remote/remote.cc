@@ -194,8 +194,8 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                     return;
                 }
                 auto& refCFINFO = cloudFogInfo[hostName];
-                mqtt_publish(refCFINFO->mqttAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 lk.unlock();
+                mqtt_publish(refCFINFO->mqttAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
             } 
@@ -296,8 +296,9 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                     }
                     return;
                 }
-                mqtt_publish(mainFogInfo->mqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
                 lk.unlock();
+                mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
             } 
@@ -372,7 +373,9 @@ bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
                         callback();
                         return;
                     }
-                    mqtt_publish(mainFogInfo->mqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
+                    lkPublish.unlock();
+                    mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 }
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 return;
@@ -420,6 +423,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
                         return;
                     }
                     auto& refCFINFO = cloudFogInfo[hostName];
+                    lkPublish.unlock();
                     mqtt_publish(refCFINFO->mqttAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 }
                 futureAck.GetFor(std::chrono::milliseconds(100));
