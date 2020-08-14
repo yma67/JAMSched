@@ -6,10 +6,11 @@ int main()
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
+        int rounds = 0;
         while (true)
         {
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
-            printf("==============================================\n");
+            printf("==============================================round no %d\n", rounds++);
             try 
             {
                 auto res = ribScheduler.CreateRemoteExecSync<std::string>(std::string("gethello"), std::string(""), 0, std::string("david"));
@@ -23,10 +24,11 @@ int main()
         }
     });
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
+        int rounds = 0;
         while (true)
         {                                        
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
-            printf("~~~~~~~~~~~~~~~~~~~~~~~==========\n");
+            printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~round no %d\n", rounds++);
             try 
             {
                 auto res = ribScheduler.CreateRemoteExecSync<int>(std::string("addNumbers"), std::string(""), 0, 45, 67);

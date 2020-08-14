@@ -345,6 +345,7 @@ namespace JAMScript
         {
             auto sleepStartTime = Clock::now();
             TaskInterface::Active()->SleepFor(dt);
+            BOOST_ASSERT_MSG(sleepStartTime + dt <= Clock::now(), "Early Wakeup?");
         }
 
         template <typename _Clock, typename _Dur>
@@ -352,6 +353,7 @@ namespace JAMScript
         {
             auto sleepStartTime = Clock::now();
             TaskInterface::Active()->SleepUntil(tp);
+            BOOST_ASSERT_MSG(tp <= Clock::now(), "Early Wakeup?");
         }
 
     } // namespace ThisTask

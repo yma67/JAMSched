@@ -549,6 +549,7 @@ namespace JAMScript
                         continue;
                     }
                     lk.lock();
+                    ackLookup.erase(tempEID);
                     rLookup.erase(tempEID);
                     lk.unlock();
                     throw InvalidArgumentException("timed out");

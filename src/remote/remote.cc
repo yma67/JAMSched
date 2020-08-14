@@ -215,6 +215,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                     continue;
                 }
                 lk.lock();
+                ackLookup.erase(tempEID);
                 rLookup.erase(tempEID);
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
@@ -318,6 +319,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                     continue;
                 }
                 lk.lock();
+                ackLookup.erase(tempEID);
                 rLookup.erase(tempEID);
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
