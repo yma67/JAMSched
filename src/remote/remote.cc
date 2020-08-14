@@ -86,26 +86,22 @@ void JAMScript::Remote::CheckExpire()
 {
     while (scheduler->toContinue)
     {
-        /*{
+        {
             std::unique_lock lkSleep { mLoopSleep };
             if (cvLoopSleep.wait_for(lkSleep, std::chrono::minutes(1), [this] { return !scheduler->toContinue; }))
             {
                 return;
             }
-        }*/
-        
-        std::this_thread::sleep_for(std::chrono::minutes(1));
+        }
         std::lock_guard expLock(mCallback);
         if (mainFogInfo != nullptr && mainFogInfo->isExpired)
         {
-            printf("Connection expired");
             mainFogInfo->Clear();
             Remote::isValidConnection.erase(mainFogInfo.get());
             mainFogInfo = nullptr;
         }
         else if (mainFogInfo != nullptr)
         {
-            printf("Connection not expired");
             mainFogInfo->isExpired = true;
         }
         else
@@ -132,7 +128,6 @@ void JAMScript::Remote::CheckExpire()
             cloudFogInfo.erase(host);
         }
     }
-    
 }
 
 void JAMScript::Remote::CancelAllRExecRequests()
@@ -466,7 +461,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
 
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
-    std::lock_guard lkValidConn(mCallback);
+    //std::lock_guard lkValidConn(mCallback);
     auto *cfINFO = static_cast<CloudFogInfo *>(ctx);
     if (isValidConnection.find(cfINFO) == isValidConnection.end()) 
     {
