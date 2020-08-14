@@ -529,8 +529,9 @@ namespace JAMScript
                             heartBeatFailCallback();
                             throw RExecDetails::HeartbeatFailureException();
                         }
-                        mqtt_publish(mainFogInfo->mqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                        auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
                         lk.unlock();
+                        mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                     }
                     futureAck.GetFor(std::chrono::milliseconds(100));
                     break;

@@ -463,7 +463,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
 
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
-    std::unique_lock lkValidConn(mCallback);
+    std::lock_guard lkValidConn(mCallback);
     auto *cfINFO = static_cast<CloudFogInfo *>(ctx);
     if (isValidConnection.find(cfINFO) == isValidConnection.end()) 
     {
@@ -535,15 +535,12 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 if (remote->ackLookup.find(actId) != remote->ackLookup.end()) 
                 {
                     auto& refRLookup = remote->ackLookup[actId];
-                    lkValidConn.unlock();
                     refRLookup->SetValue();
-                    lkValidConn.lock();
                     remote->ackLookup.erase(actId);
                 }
             }
         });
         RegisterTopic(cfINFO->requestDown, "REXEC-ASY", {
-            lkValidConn.unlock();
             printf("REXEC-ASY recevied \n");
             if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
             {
@@ -553,7 +550,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
                 }   
             }
-            lkValidConn.lock();
         });
         RegisterTopic(cfINFO->requestDown, "REXEC-SYN", {
 
@@ -565,9 +561,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 if (remote->rLookup.find(actId) != remote->rLookup.end()) 
                 {
                     auto& refRLookup = remote->rLookup[actId];
-                    lkValidConn.unlock();
                     refRLookup->SetValue(rMsg["args"]);
-                    lkValidConn.lock();
                     cfINFO->rExecPending.erase(actId);
                     remote->rLookup.erase(actId);
                 }
