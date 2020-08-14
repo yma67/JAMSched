@@ -470,6 +470,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
         mqtt_free_topic_msg(topicname, &msg);
         return 1;
     }
+    cfINFO->isExpired = false;
     auto *remote = cfINFO->remote;
     printf("RemoteArrivedCallback....\n");
     try {
