@@ -530,8 +530,8 @@ namespace JAMScript
                             throw RExecDetails::HeartbeatFailureException();
                         }
                         auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
-                        lk.unlock();
                         mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                        lk.unlock();
                     }
                     futureAck.GetFor(std::chrono::milliseconds(100));
                     break;
@@ -591,10 +591,10 @@ namespace JAMScript
         std::uint32_t eIdFactory;
         RIBScheduler *scheduler;
         std::unique_ptr<CloudFogInfo> mainFogInfo;
-        std::unordered_map<std::string, std::unique_ptr<CloudFogInfo>> cloudFogInfo;
         std::string devId, appId, hostAddr;
         boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
+        std::unordered_map<std::string, std::unique_ptr<CloudFogInfo>> cloudFogInfo;
         std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
 
     };

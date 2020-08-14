@@ -119,12 +119,13 @@ namespace JAMScript
                         std::unique_lock lk(Remote::mCallback);
                         if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
                         {
-                            lk.unlock();
                             if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
                             {
+                                lk.unlock();
                                 break;
                             }
                         }
+                        lk.unlock();
                     }
                 }).Detach();
                 return true;
