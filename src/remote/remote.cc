@@ -86,23 +86,26 @@ void JAMScript::Remote::CheckExpire()
 {
     while (scheduler->toContinue)
     {
-        {
+        /*{
             std::unique_lock lkSleep { mLoopSleep };
             if (cvLoopSleep.wait_for(lkSleep, std::chrono::minutes(1), [this] { return !scheduler->toContinue; }))
             {
                 return;
             }
-        }
+        }*/
+        
         std::this_thread::sleep_for(std::chrono::minutes(1));
         std::lock_guard expLock(mCallback);
         if (mainFogInfo != nullptr && mainFogInfo->isExpired)
         {
+            printf("Connection expired");
             mainFogInfo->Clear();
             Remote::isValidConnection.erase(mainFogInfo.get());
             mainFogInfo = nullptr;
         }
         else if (mainFogInfo != nullptr)
         {
+            printf("Connection not expired");
             mainFogInfo->isExpired = true;
         }
         else

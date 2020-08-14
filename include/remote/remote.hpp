@@ -555,7 +555,7 @@ namespace JAMScript
             }
             try 
             {
-                return fuExec.GetFor(std::chrono::seconds(5)).template get<T>();
+                return fuExec.GetFor(std::chrono::minutes(5)).template get<T>();
             } 
             catch (const RExecDetails::HeartbeatFailureException& e)
             {
