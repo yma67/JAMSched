@@ -88,7 +88,7 @@ void JAMScript::Remote::CheckExpire()
     {
         {
             std::unique_lock lkSleep { mLoopSleep };
-            if (cvLoopSleep.wait_for(lkSleep, std::chrono::minutes(1), [this] { return !scheduler->toContinue; }))
+            if (cvLoopSleep.wait_for(lkSleep, std::chrono::seconds(1), [this] { return !scheduler->toContinue; }))
             {
                 return;
             }
@@ -96,12 +96,14 @@ void JAMScript::Remote::CheckExpire()
         std::lock_guard expLock(mCallback);
         if (mainFogInfo != nullptr && mainFogInfo->isExpired)
         {
+            printf("refresh expiration checker, expired");
             mainFogInfo->Clear();
             Remote::isValidConnection.erase(mainFogInfo.get());
             mainFogInfo = nullptr;
         }
         else if (mainFogInfo != nullptr)
         {
+            printf("refresh expiration checker, ok");
             mainFogInfo->isExpired = true;
         }
         else
@@ -461,7 +463,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
 
 int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
-    //std::lock_guard lkValidConn(mCallback);
+    std::unique_lock lkValidConn(mCallback);
     auto *cfINFO = static_cast<CloudFogInfo *>(ctx);
     if (isValidConnection.find(cfINFO) == isValidConnection.end()) 
     {
@@ -532,12 +534,16 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 auto actId = rMsg["actid"].get<uint32_t>();
                 if (remote->ackLookup.find(actId) != remote->ackLookup.end()) 
                 {
-                    remote->ackLookup[actId]->SetValue();
+                    auto& refRLookup = remote->ackLookup[actId];
+                    lkValidConn.unlock();
+                    refRLookup->SetValue();
+                    lkValidConn.lock();
                     remote->ackLookup.erase(actId);
                 }
             }
         });
         RegisterTopic(cfINFO->requestDown, "REXEC-ASY", {
+            lkValidConn.unlock();
             printf("REXEC-ASY recevied \n");
             if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
             {
@@ -545,8 +551,9 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 if (remote->cache.contains(actId) || remote->scheduler->toContinue && remote->scheduler->CreateRPBatchCall(cfINFO, std::move(rMsg))) {
                     auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
                     mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
-                }
+                }   
             }
+            lkValidConn.lock();
         });
         RegisterTopic(cfINFO->requestDown, "REXEC-SYN", {
 
@@ -557,7 +564,10 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 auto actId = rMsg["actid"].get<uint32_t>();
                 if (remote->rLookup.find(actId) != remote->rLookup.end()) 
                 {
-                    remote->rLookup[actId]->SetValue(rMsg["args"]);
+                    auto& refRLookup = remote->rLookup[actId];
+                    lkValidConn.unlock();
+                    refRLookup->SetValue(rMsg["args"]);
+                    lkValidConn.lock();
                     cfINFO->rExecPending.erase(actId);
                     remote->rLookup.erase(actId);
                 }
