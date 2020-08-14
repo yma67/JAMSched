@@ -556,8 +556,18 @@ namespace JAMScript
             }
             try 
             {
-                return fuExec.GetFor(std::chrono::minutes(5)).template get<T>();
-            } 
+                return fuExec.GetFor(std::chrono::seconds(5)).template get<T>();
+            }
+            catch (const InvalidArgumentException& eae)
+            {
+                if (!strcmp(eae.what(), "Timeout, but value/error not ready. "))
+                {
+                    lk.lock();
+                    rLookup.erase(tempEID);
+                    lk.unlock();
+                    throw InvalidArgumentException(eae.what());
+                }
+            }
             catch (const RExecDetails::HeartbeatFailureException& e)
             {
                 heartBeatFailCallback();
