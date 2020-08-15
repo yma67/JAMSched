@@ -8,7 +8,7 @@ void JAMScript::ConditionVariableAny::notify_one()
         auto* pFr = &(*waitList.begin());
         waitList.pop_front();
         auto exp = reinterpret_cast<std::intptr_t>(this);
-        if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_acq_rel))
+        if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_seq_cst))
         {
             pFr->Enable();
             return;
@@ -29,7 +29,7 @@ void JAMScript::ConditionVariableAny::notify_all()
         auto* pFr = &(*waitList.begin());
         waitList.pop_front();
         auto exp = reinterpret_cast<std::intptr_t>(this);
-        if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_acq_rel))
+        if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_seq_cst))
         {
             pFr->Enable();
         }

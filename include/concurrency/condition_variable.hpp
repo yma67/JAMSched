@@ -29,7 +29,7 @@ namespace JAMScript
             TaskInterface *taskToSleep = TaskInterface::Active();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
-            taskToSleep->cvStatus.store(static_cast<std::intptr_t>(0), std::memory_order_release);
+            taskToSleep->cvStatus.store(static_cast<std::intptr_t>(0), std::memory_order_seq_cst);
             lkList.unlock();
             li.unlock();
             taskToSleep->SwapOut();
@@ -55,7 +55,7 @@ namespace JAMScript
             TaskInterface *taskToSleep = TaskInterface::Active();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
-            taskToSleep->cvStatus.store(reinterpret_cast<std::intptr_t>(this), std::memory_order_release);
+            taskToSleep->cvStatus.store(reinterpret_cast<std::intptr_t>(this), std::memory_order_seq_cst);
             lt.unlock();
             taskToSleep->SleepUntil(timeoutTime, lk);
             if (timeoutTime <= Clock::now())
