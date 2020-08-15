@@ -123,7 +123,7 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
     {
         lk.unlock();
         iLock.lock();
-        task->Enable();
+        task->wsHook.unlink();
         iLock.unlock();
     }
 }
@@ -147,7 +147,7 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
     {
         lk.unlock();
         iLock.lock();
-        task->Enable();
+        task->wsHook.unlink();
         iLock.unlock();
     }
 }
