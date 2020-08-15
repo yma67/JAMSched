@@ -62,14 +62,8 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
 void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
 {
     std::unique_lock lk(qMutex);
-    if (toEnable->wsHook.is_linked())
-    {
-        toEnable->wsHook.unlink();
-    }
-    if (!toEnable->trHook.is_linked())
-    {
-        isReady.push_back(*toEnable);
-    }
+    BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
+    isReady.push_back(*toEnable);
     rCount++;
     toEnable->status = TASK_READY;
     cvQMutex.notify_one();

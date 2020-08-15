@@ -326,6 +326,7 @@ namespace JAMScript
 
         std::atomic<TaskType> taskType;
         std::atomic_bool isStealable;
+        std::atomic_intptr_t cvStatus;
         SchedulerBase *scheduler;
         std::unique_ptr<struct timeout> timeOut;
         JAMScriptUserContext uContext;
