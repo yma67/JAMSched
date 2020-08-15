@@ -9,7 +9,7 @@ int main()
         int rounds = 0;
         while (true)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
+            // JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
             printf("==============================================round no %d\n", rounds++);
             try 
             {
@@ -27,7 +27,7 @@ int main()
         int rounds = 0;
         while (true)
         {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
+            //JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
             printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~round no %d\n", rounds++);
             try 
             {

@@ -114,9 +114,18 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
     lk.unlock();
     iLock.unlock();
     task->SwapOut();
-    iLock.lock();
     lk.lock();
-    if (!timeout_expired(task->timeOut.get())) jamscript_timeout_del(task->timeOut.get());
+    if (!timeout_expired(task->timeOut.get())) 
+    {
+        jamscript_timeout_del(task->timeOut.get());
+    } 
+    else
+    {
+        lk.unlock();
+        iLock.lock();
+        task->Enable();
+        iLock.unlock();
+    }
 }
 
 void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<Mutex> &iLock)
@@ -129,7 +138,16 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
     lk.unlock();
     iLock.unlock();
     task->SwapOut();
-    iLock.lock();
     lk.lock();
-    if (!timeout_expired(task->timeOut.get())) jamscript_timeout_del(task->timeOut.get());
+    if (!timeout_expired(task->timeOut.get())) 
+    {
+        jamscript_timeout_del(task->timeOut.get());
+    } 
+    else
+    {
+        lk.unlock();
+        iLock.lock();
+        task->Enable();
+        iLock.unlock();
+    }
 }

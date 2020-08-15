@@ -34,7 +34,6 @@ namespace JAMScript
             li.unlock();
             taskToSleep->SwapOut();
             li.lock();
-            lkList.lock();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting after?\n");
         }
 
@@ -59,6 +58,7 @@ namespace JAMScript
             taskToSleep->Disable();
             lt.unlock();
             taskToSleep->SleepUntil(timeoutTime, lk);
+            lt.lock();
             BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting after?\n");
             if (Clock::now() >= timeoutTime) isTimeout = std::cv_status::timeout;
             return isTimeout;
