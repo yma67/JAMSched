@@ -210,7 +210,24 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                 mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), 
                              nvoid_new(vReq.data(), vReq.size()));
                 lk.unlock();
-                futureAck.GetFor(std::chrono::milliseconds(100));
+                if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                {
+                    if (retryNum < 3)
+                    {
+                        retryNum++;
+                        continue;
+                    }
+                    lk.lock();
+                    ackLookup.erase(tempEID);
+                    rLookup.erase(tempEID);
+                    lk.unlock();
+                    if (failureCountCommon->fetch_add(1U) == countCommon)
+                    {
+                        heartBeatFailCallback();
+                        prCommon->SetException(std::make_exception_ptr(InvalidArgumentException("Retry Failed")));
+                    }
+                    return;
+                }
                 break;
             } 
             catch (const RExecDetails::HeartbeatFailureException &he)
@@ -222,28 +239,18 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                 }
                 return;
             }
-            catch (const InvalidArgumentException &e)
-            {
-                if (retryNum < 3)
-                {
-                    retryNum++;
-                    continue;
-                }
-                lk.lock();
-                ackLookup.erase(tempEID);
-                rLookup.erase(tempEID);
-                lk.unlock();
-                if (failureCountCommon->fetch_add(1U) == countCommon)
-                {
-                    heartBeatFailCallback();
-                    prCommon->SetException(std::make_exception_ptr(InvalidArgumentException(std::string(e.what()))));
-                }
-                return;
-            }
         }
         try 
         {
-            auto valueResult = fuExec.GetFor(std::chrono::minutes(5));
+            if (!fuExec.WaitFor(std::chrono::minutes(5)))
+            {
+                if (failureCountCommon->fetch_add(1U) == countCommon)
+                {
+                    prCommon->SetException(std::make_exception_ptr(InvalidArgumentException("Get value timeout")));
+                }
+                return;
+            }
+            auto valueResult = fuExec.Get();
             prCommon->SetValue(std::move(valueResult));
         }
         catch (const RExecDetails::HeartbeatFailureException &he)
@@ -320,7 +327,24 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                 mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
                              nvoid_new(vReq.data(), vReq.size()));
                 lk.unlock();
-                futureAck.GetFor(std::chrono::milliseconds(100));
+                if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                {
+                    if (retryNum < 3)
+                    {
+                        retryNum++;
+                        continue;
+                    }
+                    lk.lock();
+                    ackLookup.erase(tempEID);
+                    rLookup.erase(tempEID);
+                    lk.unlock();
+                    if (failureCountCommon->fetch_add(1U) == countCommon)
+                    {
+                        heartBeatFailCallback();
+                        prCommon->SetException(std::make_exception_ptr(InvalidArgumentException(std::string("Retry Timeout"))));
+                    }
+                    return;
+                }
                 break;
             } 
             catch (const RExecDetails::HeartbeatFailureException &he)
@@ -332,28 +356,18 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                 }
                 return;
             }
-            catch (const InvalidArgumentException &e)
-            {
-                if (retryNum < 3)
-                {
-                    retryNum++;
-                    continue;
-                }
-                lk.lock();
-                ackLookup.erase(tempEID);
-                rLookup.erase(tempEID);
-                lk.unlock();
-                if (failureCountCommon->fetch_add(1U) == countCommon)
-                {
-                    heartBeatFailCallback();
-                    prCommon->SetException(std::make_exception_ptr(InvalidArgumentException(std::string(e.what()))));
-                }
-                return;
-            }
         }
         try 
         {
-            auto valueResult = fuExec.GetFor(std::chrono::minutes(5));
+            if (!fuExec.WaitFor(std::chrono::minutes(5)))
+            {
+                if (failureCountCommon->fetch_add(1U) == countCommon)
+                {
+                    prCommon->SetException(std::make_exception_ptr(InvalidArgumentException("Get value timeout")));
+                }
+                return;
+            }
+            auto valueResult = fuExec.Get();
             prCommon->SetValue(std::move(valueResult));
         }
         catch (const RExecDetails::HeartbeatFailureException &he)
@@ -401,25 +415,24 @@ bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
                                  nvoid_new(vReq.data(), vReq.size()));
                     lkPublish.unlock();
                 }
-                futureAck.GetFor(std::chrono::milliseconds(100));
+                if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                {
+                    if (retryNum < 3)
+                    {
+                        retryNum++;
+                        continue;
+                    }
+                    {
+                        std::lock_guard lk(Remote::mCallback);
+                        ackLookup.erase(tempEID);
+                    }
+                    callback();
+                    return;
+                }
                 return;
             }
             catch (const RExecDetails::HeartbeatFailureException& he)
             {
-                callback();
-                return;
-            }
-            catch (const InvalidArgumentException &e)
-            {
-                if (retryNum < 3)
-                {
-                    retryNum++;
-                    continue;
-                }
-                {
-                    std::lock_guard lk(Remote::mCallback);
-                    ackLookup.erase(tempEID);
-                }
                 callback();
                 return;
             }
@@ -455,25 +468,24 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
                                  nvoid_new(vReq.data(), vReq.size()));
                     lkPublish.unlock();
                 }
-                futureAck.GetFor(std::chrono::milliseconds(100));
+                if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                {
+                    if (retryNum < 3)
+                    {
+                        retryNum++;
+                        continue;
+                    }
+                    {
+                        std::lock_guard lk(Remote::mCallback);
+                        ackLookup.erase(tempEID);
+                    }
+                    callback();
+                    return;
+                }
                 return;
             }
             catch (const RExecDetails::HeartbeatFailureException& he)
             {
-                callback();
-                return;
-            }
-            catch (const InvalidArgumentException &e)
-            {
-                if (retryNum < 3)
-                {
-                    retryNum++;
-                    continue;
-                }
-                {
-                    std::lock_guard lk(Remote::mCallback);
-                    ackLookup.erase(tempEID);
-                }
                 callback();
                 return;
             }

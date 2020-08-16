@@ -173,13 +173,13 @@ namespace JAMScript
         T GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_for(timeoutTime_)); }
 
         template <typename _Clock, typename _Dur>
-        void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
+        bool WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { return box->wait_for(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
         T GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_until(timeoutTime_)); }
 
         template <typename _Clock, typename _Dur>
-        void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }
+        bool WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { return box->wait_until(timeoutTime_); }
 
     private:
         std::shared_ptr<detail::future_shared_state_box<T>> box = nullptr;
@@ -342,13 +342,13 @@ namespace JAMScript
         void GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return box->get_for(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
-        void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
+        bool WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { return box->wait_for(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
         void GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return box->get_until(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
-        void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }
+        bool WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { return box->wait_until(timeoutTime_); }
 
     private:
         std::shared_ptr<detail::future_shared_state_box<void>> box = nullptr;
@@ -510,13 +510,13 @@ namespace JAMScript
         R& GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_for(timeoutTime_)); }
 
         template <typename _Clock, typename _Dur>
-        void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
+        bool WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { return box->wait_for(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
         R& GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_until(timeoutTime_)); }
 
         template <typename _Clock, typename _Dur>
-        void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }
+        bool WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { return box->wait_until(timeoutTime_); }
 
     private:
         std::shared_ptr<detail::future_shared_state_box<R &>> box = nullptr;

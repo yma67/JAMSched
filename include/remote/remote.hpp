@@ -547,7 +547,20 @@ namespace JAMScript
                                      nvoid_new(vReq.data(), vReq.size()));
                         lk.unlock();
                     }
-                    futureAck.GetFor(std::chrono::milliseconds(100));
+                    if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                    {
+                        printf("Timed out");
+                        if (retryNum < 3)
+                        {
+                            retryNum++;
+                            continue;
+                        }
+                        lk.lock();
+                        ackLookup.erase(tempEID);
+                        rLookup.erase(tempEID);
+                        lk.unlock();
+                        throw InvalidArgumentException("timed out");
+                    }
                     break;
                 } 
                 catch (const RExecDetails::HeartbeatFailureException &he)
@@ -555,33 +568,10 @@ namespace JAMScript
                     heartBeatFailCallback();
                     throw RExecDetails::HeartbeatFailureException();
                 }
-                catch (const InvalidArgumentException &e)
-                {
-                    if (retryNum < 3)
-                    {
-                        retryNum++;
-                        continue;
-                    }
-                    lk.lock();
-                    ackLookup.erase(tempEID);
-                    rLookup.erase(tempEID);
-                    lk.unlock();
-                    throw InvalidArgumentException("timed out");
-                }
             }
             try 
             {
                 return fuExec.Get().template get<T>();
-            }
-            catch (const InvalidArgumentException& eae)
-            {
-                if (!strcmp(eae.what(), "Timeout, but value/error not ready. "))
-                {
-                    lk.lock();
-                    rLookup.erase(tempEID);
-                    lk.unlock();
-                    throw InvalidArgumentException(eae.what());
-                }
             }
             catch (const RExecDetails::HeartbeatFailureException& e)
             {
