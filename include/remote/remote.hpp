@@ -4,6 +4,7 @@
 #include <remote/mqtt/nvoid.h>
 #include <exception/exception.hpp>
 #include <concurrency/future.hpp>
+#include "remote/threadpool.hpp"
 #include <nlohmann/json.hpp>
 #include <boost/compute/detail/lru_cache.hpp>
 #include <unordered_map>
@@ -597,6 +598,7 @@ namespace JAMScript
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
         static SpinMutex mCallback;
         static std::unordered_set<CloudFogInfo *> isValidConnection;
+        static ThreadPool callbackThreadPool;
         std::mutex mLoopSleep;
         std::condition_variable cvLoopSleep;
         std::uint32_t eIdFactory;

@@ -15,6 +15,7 @@
 const std::string JAMScript::RExecDetails::HeartbeatFailureException::message_ = std::string("Cancelled due to bad remote connection");
 std::unordered_set<JAMScript::CloudFogInfo *> JAMScript::Remote::isValidConnection;
 JAMScript::SpinMutex JAMScript::Remote::mCallback;
+ThreadPool JAMScript::Remote::callbackThreadPool(1);
 
 static void connected(void *a)
 {
@@ -473,7 +474,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
     nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
     std::string topicNameString(topicname);
-    std::thread ([cfINFO, rMsg { std::move(rMsg) }, topicNameString { std::move(topicNameString) }] {
+    Remote::callbackThreadPool.enqueue([cfINFO, rMsg { std::move(rMsg) }, topicNameString { std::move(topicNameString) }] {
         auto *remote = cfINFO->remote;
         std::unique_lock lkValidConn(mCallback);
         if (isValidConnection.find(cfINFO) == isValidConnection.end()) 
@@ -579,7 +580,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             e.what();
             printf("Error... %s\n", e.what());
         }
-    }).detach();
+    });
     mqtt_free_topic_msg(topicname, &msg);
     return 1;
 }
