@@ -9,7 +9,6 @@
 
 #include "time/time.hpp"
 #include "core/task/task.hpp"
-#include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
 
 namespace JAMScript

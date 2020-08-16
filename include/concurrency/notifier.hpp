@@ -3,36 +3,26 @@
 #include <mutex>
 #include <thread>
 #include <atomic>
-#include <condition_variable>
-#include <concurrency/spinlock.hpp>
+#include "concurrency/spinlock.hpp"
+#include "concurrency/condition_variable.hpp"
+
 #include <boost/intrusive/list.hpp>
 
 namespace JAMScript
 {
-
-    class TaskInterface;
-
+    class ConditionVariable;
     class Notifier
     {
     public:
 
-        friend class TaskInterface;
-        friend class TaskHandle;
-
         void Join();
         void Notify();
-        void Join(std::unique_lock<JAMScript::SpinMutex> &iLock);
-        void Notify(std::unique_lock<JAMScript::SpinMutex> &iLock);
-
-        Notifier() : ownerTask(nullptr), lockWord(0) {}
-        Notifier(TaskInterface *ownerTask) : ownerTask(ownerTask), lockWord(0) {}
 
     private:
 
-        TaskInterface *ownerTask;
-        std::atomic<uint32_t> lockWord;
+        bool isFinished = false;
         SpinMutex m;
-        std::condition_variable_any cv;
+        ConditionVariable cv;
         
     };
 
