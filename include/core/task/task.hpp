@@ -20,7 +20,6 @@
 #include <boost/intrusive/unordered_set.hpp>
 
 #include "time/time.hpp"
-#include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
 #include "core/coroutine/context.h"
 
@@ -180,7 +179,7 @@ namespace JAMScript
         void Join();
         void Detach();
         
-        TaskHandle(std::shared_ptr<Notifier> h) : n(std::move(h)) {}
+        TaskHandle(std::shared_ptr<Notifier> h);
 
         TaskHandle(TaskHandle &&other);
         TaskHandle &operator=(TaskHandle &&other);

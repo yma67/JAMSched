@@ -1,4 +1,5 @@
 #include "scheduler/scheduler.hpp"
+#include "concurrency/notifier.hpp"
 #include "core/task/task.hpp"
 #include "remote/data.hpp"
 #include <algorithm>

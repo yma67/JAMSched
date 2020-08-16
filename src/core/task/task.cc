@@ -5,8 +5,8 @@
 #include "concurrency/notifier.hpp"
 
 JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
-    : status(TASK_READY), isStealable(true), scheduler(scheduler), cvStatus(0),
-      notifier(std::make_shared<Notifier>(TaskInterface::Active())), timeOut(std::make_unique<struct timeout>()),
+    : status(TASK_READY), isStealable(true), scheduler(scheduler), 
+      notifier(std::make_shared<Notifier>()), cvStatus(0), timeOut(std::make_unique<struct timeout>()),
       id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
 
@@ -21,6 +21,12 @@ void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
     task->SwapOut();
 }
 
+JAMScript::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
+ : n(std::move(h))
+{
+
+}
+
 void JAMScript::TaskHandle::Join()
 {
     n->Join();
@@ -28,7 +34,7 @@ void JAMScript::TaskHandle::Join()
 
 void JAMScript::TaskHandle::Detach()
 {
-    n->ownerTask = nullptr;
+    
 }
 
 std::unordered_map<JAMScript::JTLSLocation, std::any> *
