@@ -7,8 +7,17 @@ void JAMScript::ConditionVariableAny::notify_one()
     {
         auto* pFr = &(*waitList.begin());
         waitList.pop_front();
-        BOOST_ASSERT(!pFr->wsHook.is_linked());
-        pFr->Enable();
+        auto exp = reinterpret_cast<std::intptr_t>(this);
+        if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_seq_cst))
+        {
+            pFr->Enable();
+            return;
+        }
+        if (exp == static_cast<std::intptr_t>(0))
+        {
+            pFr->Enable();
+            return;
+        }
     }
 }
 
@@ -19,6 +28,14 @@ void JAMScript::ConditionVariableAny::notify_all()
     {
         auto* pFr = &(*waitList.begin());
         waitList.pop_front();
-        pFr->Enable();
+        auto exp = reinterpret_cast<std::intptr_t>(this);
+        if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_seq_cst))
+        {
+            pFr->Enable();
+        }
+        else if (exp == static_cast<std::intptr_t>(0))
+        {
+            pFr->Enable();
+        }
     }
 }

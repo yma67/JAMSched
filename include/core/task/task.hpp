@@ -326,6 +326,7 @@ namespace JAMScript
 
         std::atomic<TaskType> taskType;
         std::atomic_bool isStealable;
+        std::atomic_intptr_t cvStatus;
         SchedulerBase *scheduler;
         std::unique_ptr<struct timeout> timeOut;
         JAMScriptUserContext uContext;
@@ -345,7 +346,7 @@ namespace JAMScript
         {
             auto sleepStartTime = Clock::now();
             TaskInterface::Active()->SleepFor(dt);
-            BOOST_ASSERT_MSG(sleepStartTime + dt < Clock::now(), "Early Wakeup?");
+            BOOST_ASSERT_MSG(sleepStartTime + dt <= Clock::now(), "Early Wakeup?");
         }
 
         template <typename _Clock, typename _Dur>
@@ -353,7 +354,7 @@ namespace JAMScript
         {
             auto sleepStartTime = Clock::now();
             TaskInterface::Active()->SleepUntil(tp);
-            BOOST_ASSERT_MSG(tp < Clock::now(), "Early Wakeup?");
+            BOOST_ASSERT_MSG(tp <= Clock::now(), "Early Wakeup?");
         }
 
     } // namespace ThisTask

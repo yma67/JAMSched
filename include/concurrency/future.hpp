@@ -339,13 +339,13 @@ namespace JAMScript
         void Wait() const { box->wait(); }
 
         template <typename _Clock, typename _Dur>
-        void GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_for(timeoutTime_)); }
+        void GetFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) { return box->get_for(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
         void WaitFor(std::chrono::duration<_Clock, _Dur> const &timeoutTime_) const { box->wait_for(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
-        void GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return std::move(box->get_until(timeoutTime_)); }
+        void GetUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) { return box->get_until(timeoutTime_); }
 
         template <typename _Clock, typename _Dur>
         void WaitUntil(std::chrono::time_point<_Clock, _Dur> const &timeoutTime_) const { box->wait_until(timeoutTime_); }

@@ -51,7 +51,7 @@ namespace JAMScript
         
         struct timeouts *timingWheelPtr;
         RIBScheduler *scheduler;
-        std::mutex sl;
+        SpinMutex sl;
 
         Timer(Timer const &) = delete;
         Timer(Timer &&) = delete;

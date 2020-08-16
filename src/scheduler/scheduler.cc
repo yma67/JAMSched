@@ -7,13 +7,13 @@
 #define RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS 10000
 #endif
 
-#ifndef END_OF_RT_SLOT_SPIN_MAX_MS
-#define END_OF_RT_SLOT_SPIN_MAX_MS 200
+#ifndef END_OF_RT_SLOT_SPIN_MAX_US
+#define END_OF_RT_SLOT_SPIN_MAX_US 200
 #endif
 
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs)
     : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
-      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)),
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), logManager(nullptr), broadcastManger(nullptr),
       numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {
     for (uint32_t i = 0; i < nThiefs; i++)
@@ -32,9 +32,18 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
 }
 
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                                      const std::string &appName, const std::string &devName, 
+                                      RedisState redisState, std::vector<JAMDataKeyType> variableInfo)
+    : RIBScheduler(sharedStackSize, hostAddr, appName, devName)
+{
+    logManager = std::make_unique<LogManager>(remote.get(), redisState);
+    broadcastManger = std::make_unique<BroadcastManager>(remote.get(), std::move(redisState), std::move(variableInfo));
+}
+
 JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs)
-    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
-      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::move(thiefs)),
+    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)), logManager(nullptr), 
+      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::move(thiefs)), broadcastManger(nullptr),
       numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {}
 
@@ -42,6 +51,16 @@ JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::strin
                                       const std::string &appName, const std::string &devName, std::vector<std::unique_ptr<StealScheduler>> thiefs)
     : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
 {
+    remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
+}
+
+JAMScript::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                                      const std::string &appName, const std::string &devName, RedisState redisState,
+                                      std::vector<JAMDataKeyType> variableInfo, std::vector<std::unique_ptr<StealScheduler>> thiefs)
+    : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
+{
+    logManager = std::make_unique<LogManager>(remote.get(), redisState);
+    broadcastManger = std::make_unique<BroadcastManager>(remote.get(), std::move(redisState), std::move(variableInfo));
     remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
 }
 
@@ -103,7 +122,7 @@ void JAMScript::RIBScheduler::SleepUntil(TaskInterface* task, const TimePoint &t
     timer.SetTimeoutUntil(task, tp, lk);
 }
 
-void JAMScript::RIBScheduler::ShutDown()
+void JAMScript::RIBScheduler::ShutDownRunOnce()
 {
     if (remote != nullptr)
     {
@@ -116,6 +135,11 @@ void JAMScript::RIBScheduler::ShutDown()
     cvQMutex.notify_all();
 }
 
+void JAMScript::RIBScheduler::ShutDown()
+{
+    std::call_once(ribSchedulerShutdownFlag, [this] { this->ShutDownRunOnce(); });
+}
+
 void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
 {
     toDisable->status = TASK_PENDING;
@@ -124,37 +148,24 @@ void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
 {
     std::lock_guard lock(qMutex);
+    
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
-        if (toEnable->wsHook.is_linked())
-        {
-            toEnable->wsHook.unlink();
-        }
         if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
         {
-            if (!toEnable->riEdfHook.is_linked() && !toEnable->riStackHook.is_linked())
-            {
-                iCancelStack.push_front(*toEnable);
-            }
+            BOOST_ASSERT_MSG(!toEnable->riStackHook.is_linked(), "Should not duplicate ready stack");
+            iCancelStack.push_front(*toEnable);
         }
         else
         {
-            if (!toEnable->riEdfHook.is_linked() && !toEnable->riStackHook.is_linked())
-            {
-                iEDFPriorityQueue.insert(*toEnable);
-            }
+            BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
+            iEDFPriorityQueue.insert(*toEnable);
         }
     }
     if (toEnable->taskType == BATCH_TASK_T)
     {
-        if (toEnable->wsHook.is_linked())
-        {
-            toEnable->wsHook.unlink();
-        }
-        if (!toEnable->rbQueueHook.is_linked())
-        {
-            bQueue.push_back(*toEnable);
-        }
+        BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
+        bQueue.push_back(*toEnable);
     }
     cvQMutex.notify_one();
     toEnable->status = TASK_READY;
@@ -296,12 +307,20 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
     std::thread tTimer{ [this] { timer.RunTimerLoop(); } };
-#if 0 // Sample Usage BroadCast
-    BroadcastManager bCastManager(remote.get(), {"192.168.1.1", 8888}, {{"JAMScript", "duplicatedString"}, {"JAMScript", "memoryLeak"}});
-    std::thread tBCastManager([&bCastManager] {
-        bCastManager.RunBroadcastMainLoop();
-    });
-#endif
+    std::vector<std::thread> remoteCheckers;
+    if (remote != nullptr)
+    {
+        remoteCheckers.push_back(std::thread { [this] { remote->CheckExpire(); }});
+    }
+    if (broadcastManger != nullptr && logManager != nullptr)
+    {
+        tBroadcastManager = std::thread([this] {
+            broadcastManger->RunBroadcastMainLoop();
+        });
+        tLogManger = std::thread([this] {
+            logManager->RunLoggerMainLoop();
+        });
+    }
     std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
@@ -365,12 +384,12 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                     lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS))
+                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                     {
                         cvQMutex.wait_until(
                             lockRT,
                             GetCycleStartTime() + 
-                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_MS)), 
+                            (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)), 
                             [this] () -> bool {
                                 return !(rtScheduleGreedy.empty() && rtScheduleNormal.empty() && toContinue);
                             }
@@ -425,9 +444,16 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
         thiefs[i]->StopSchedulerMainLoop();
         tThiefs[i].join();
     }
-#if 0 // Sample Usage BroadCast
-    bCastManager.StopBroadcastMainLoop();
-    tBCastManager.join();
-#endif
+    if (broadcastManger != nullptr && logManager != nullptr)
+    {
+        tLogManger.join();
+        broadcastManger->StopBroadcastMainLoop();
+        tBroadcastManager.join();
+    }
+    if (remote != nullptr)
+    {
+        remote->cvLoopSleep.notify_one();
+        remoteCheckers[0].join();
+    }
     tTimer.join();
 }

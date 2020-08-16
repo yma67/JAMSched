@@ -10,6 +10,10 @@ void JAMScript::SpinMutex::lock()
         {
             ThisTask::Yield();
         }
+        else if ((cnt) % 2000 == 0)
+        {
+            std::this_thread::yield();
+        }
         cnt = (cnt + 1) % 2000;
     }
 }

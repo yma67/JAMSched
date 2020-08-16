@@ -34,14 +34,18 @@ namespace JAMScript
 
     struct StackTraits
     {
-        bool useSharedStack;
+        bool useSharedStack, canSteal;
         uint32_t stackSize;
-        bool canSteal;
         int pinCore;
         StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1) {}
         StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1) {}
         StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
     };
+
+    class LogManager;
+    struct RedisState;
+    class JAMDataKey;
+    class BroadcastManager;
 
     class RIBScheduler : public SchedulerBase
     {
@@ -53,6 +57,7 @@ namespace JAMScript
         friend class LogManager;
         friend class Decider;
         friend class Remote;
+        friend class Time;
 
         friend void ThisTask::Yield();
 
@@ -97,25 +102,30 @@ namespace JAMScript
             return {};
         }
 
-        // Not using const ref for memory safety
-        bool CreateRPBatchCall(nlohmann::json rpcAttr) 
+        bool CreateRPBatchCall(CloudFogInfo *execRemote, nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end() &&
-                remote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
+                execRemote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, rpcAttr(std::move(rpcAttr))]() 
+                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, execRemote, rpcAttr(std::move(rpcAttr))]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
-                    jResult["actid"] = rpcAttr["actid"].get<std::string>();
+                    jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
                     for (int i = 0; i < 3; i++)
                     {
-                        if (mqtt_publish(remote->mq, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                        std::unique_lock lk(Remote::mCallback);
+                        if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
                         {
-                            break;
+                            if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                            {
+                                lk.unlock();
+                                break;
+                            }
                         }
+                        lk.unlock();
                     }
                 }).Detach();
                 return true;
@@ -274,9 +284,27 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        Future<nlohmann::json> CreateRemoteExecution(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        void CreateRemoteExecAsyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
-            return remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+        }
+
+        template <typename... Args>
+        void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
+        {
+            remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+        }
+
+        template <typename T, typename... Args>
+        T CreateRemoteExecSyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        {
+            return remote->CreateRExecSyncWithCallbackToEachConnection<T>(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+        }
+
+        template <typename T, typename... Args>
+        T CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        {
+            return remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
         template <typename T>
@@ -285,13 +313,23 @@ namespace JAMScript
             return future.Get().get<T>();
         }
 
+        using JAMDataKeyType = std::pair<std::string, std::string>;
+
         RIBScheduler(uint32_t sharedStackSize);
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName);
-        RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName, 
+                     RedisState redisState, std::vector<JAMDataKeyType> variableInfo);
+        RIBScheduler(uint32_t sharedStackSize, 
+                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName, 
+                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
+        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
+                     const std::string &appName, const std::string &devName, 
+                     RedisState redisState, std::vector<JAMDataKeyType> variableInfo, 
                      std::vector<std::unique_ptr<StealScheduler>> thiefs);
         ~RIBScheduler() override;
 
@@ -310,14 +348,21 @@ namespace JAMScript
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
-        std::mutex sReadyRTSchedule;
+        std::once_flag ribSchedulerShutdownFlag;
+
         std::unique_ptr<Remote> remote;
+        std::unique_ptr<LogManager> logManager;
+        std::unique_ptr<BroadcastManager> broadcastManger;
+
+        std::mutex sReadyRTSchedule;
+        std::thread tLogManger, tBroadcastManager;
         std::condition_variable cvReadyRTSchedule;
+
         TimePoint currentTime, schedulerStartTime, cycleStartTime;
 
         std::vector<std::unique_ptr<StealScheduler>> thiefs;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
-        
+                
         std::unordered_map<std::string, std::any> lexecFuncMap;
         std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
 
@@ -329,6 +374,7 @@ namespace JAMScript
 
     private:
 
+        void ShutDownRunOnce();
         uint32_t GetThiefSizes();
         StealScheduler* GetMinThief();
         bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);

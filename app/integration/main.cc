@@ -80,12 +80,12 @@ int main()
             JAMScript::ThisTask::SleepFor(tuSleepTime);
             printf(">>...........\n");
             JAMScript::ThisTask::Exit();
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+/*            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
             try {
                 auto q = ribScheduler.ExtractRemote<int>(jf);
             } catch (std::exception e) {
                 e.what();
-            }
+            } */
             // std::cout << jf << std::endl;
             JAMScript::ThisTask::Yield();
         }
