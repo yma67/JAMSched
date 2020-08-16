@@ -24,11 +24,16 @@ static void connected(void *a)
 }
 
 JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::string appId, std::string hostAddr)
-    :   devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr)), isRegistered(false), remote(remote),
-        requestUp(std::string("/") + this->appId + "/requests/up"), requestDown(std::string("/") + this->appId + "/requests/down/c"),
-        replyUp(std::string("/") + this->appId + "/replies/up"), replyDown(std::string("/") + this->appId + "/replies/down"), isExpired(false),
-        announceDown(std::string("/") + this->appId + "/announce/down"), pongCounter(0U), cloudFogInfoCounter(0U), prevHearbeat(Clock::now()),
-        mqttAdapter(mqtt_createserver(const_cast<char *>(this->hostAddr.c_str()), 1, const_cast<char *>(this->devId.c_str()), connected))
+    :   devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr)), 
+        isRegistered(false), remote(remote),
+        requestUp(std::string("/") + this->appId + "/requests/up"), 
+        requestDown(std::string("/") + this->appId + "/requests/down/c"),
+        replyUp(std::string("/") + this->appId + "/replies/up"), 
+        replyDown(std::string("/") + this->appId + "/replies/down"), isExpired(false),
+        announceDown(std::string("/") + this->appId + "/announce/down"), 
+        pongCounter(0U), cloudFogInfoCounter(0U), prevHearbeat(Clock::now()),
+        mqttAdapter(mqtt_createserver(const_cast<char *>(this->hostAddr.c_str()), 1, 
+                    const_cast<char *>(this->devId.c_str()), connected))
 {
     MQTTAsync_setMessageArrivedCallback(mqttAdapter->mqttserv, this, JAMScript::Remote::RemoteArrivedCallback);
     mqtt_set_subscription(mqttAdapter, const_cast<char *>(requestUp.c_str()));
@@ -41,12 +46,14 @@ JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::st
 
 bool JAMScript::CloudFogInfo::SendBuffer(const std::vector<uint8_t> &buffer)
 {
-    return mqtt_publish(mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(const_cast<uint8_t *>(buffer.data()), buffer.size()));
+    return mqtt_publish(mqttAdapter, const_cast<char *>("/replies/up"), 
+                        nvoid_new(const_cast<uint8_t *>(buffer.data()), buffer.size()));
 }
 
 bool JAMScript::CloudFogInfo::SendBuffer(const std::vector<char> &buffer)
 {
-    return mqtt_publish(mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(const_cast<char *>(buffer.data()), buffer.size()));
+    return mqtt_publish(mqttAdapter, const_cast<char *>("/replies/up"), 
+                        nvoid_new(const_cast<char *>(buffer.data()), buffer.size()));
 }
 
 void JAMScript::CloudFogInfo::Clear() 
@@ -89,7 +96,8 @@ void JAMScript::Remote::CheckExpire()
     {
         {
             std::unique_lock lkSleep { mLoopSleep };
-            if (cvLoopSleep.wait_for(lkSleep, std::chrono::seconds(10), [this] { return !scheduler->toContinue; }))
+            if (cvLoopSleep.wait_for(lkSleep, std::chrono::seconds(10), 
+                                     [this] { return !scheduler->toContinue; }))
             {
                 return;
             }
@@ -147,13 +155,18 @@ void JAMScript::Remote::CancelAllRExecRequests()
     Remote::isValidConnection.clear();
 }
 
-bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, std::shared_ptr<Promise<nlohmann::json>> prCommon, std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon)
+bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, 
+                                            nlohmann::json rexRequest, 
+                                            std::shared_ptr<Promise<nlohmann::json>> prCommon, 
+                                            std::size_t countCommon, 
+                                            std::shared_ptr<std::atomic_size_t> failureCountCommon)
 {
-    scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [this, hostName { std::move(hostName) }, 
-                                                                  heartBeatFailCallback { std::move(heartBeatFailCallback) }, 
-                                                                  rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
-                                                                  countCommon { std::move(countCommon) }, 
-                                                                  failureCountCommon { std::move(failureCountCommon) }] () mutable {
+    scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
+        this, hostName { std::move(hostName) }, 
+        heartBeatFailCallback { std::move(heartBeatFailCallback) }, 
+        rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
+        countCommon { std::move(countCommon) }, 
+        failureCountCommon { std::move(failureCountCommon) }] () mutable {
         std::unique_lock lk(Remote::mCallback);
         if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
         {
@@ -194,7 +207,8 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                 }
                 auto& refCFINFO = cloudFogInfo[hostName];
                 auto* ptrMQTTAdapter = refCFINFO->mqttAdapter;
-                mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), 
+                             nvoid_new(vReq.data(), vReq.size()));
                 lk.unlock();
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
@@ -253,12 +267,17 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, std::shared_ptr<Promise<nlohmann::json>> prCommon, std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon)
+bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, 
+                                            nlohmann::json rexRequest, 
+                                            std::shared_ptr<Promise<nlohmann::json>> prCommon, 
+                                            std::size_t countCommon, 
+                                            std::shared_ptr<std::atomic_size_t> failureCountCommon)
 {
-    scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [this, heartBeatFailCallback { std::move(heartBeatFailCallback) }, 
-                                                                  rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
-                                                                  countCommon { std::move(countCommon) }, 
-                                                                  failureCountCommon { std::move(failureCountCommon) }] () mutable {
+    scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
+        this, heartBeatFailCallback { std::move(heartBeatFailCallback) }, 
+        rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
+        countCommon { std::move(countCommon) }, 
+        failureCountCommon { std::move(failureCountCommon) }] () mutable {
         std::unique_lock lk(Remote::mCallback);
         if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
         {
@@ -298,7 +317,8 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                     return;
                 }
                 auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
-                mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
+                             nvoid_new(vReq.data(), vReq.size()));
                 lk.unlock();
                 futureAck.GetFor(std::chrono::milliseconds(100));
                 break;
@@ -357,7 +377,8 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback)
+bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+                                        std::function<void()> callback)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
                                [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
@@ -376,7 +397,8 @@ bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
                         return;
                     }
                     auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
-                    mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
+                                 nvoid_new(vReq.data(), vReq.size()));
                     lkPublish.unlock();
                 }
                 futureAck.GetFor(std::chrono::milliseconds(100));
@@ -406,10 +428,13 @@ bool JAMScript::Remote::CreateRetryTask(Future<void> &futureAck, std::vector<uns
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback)
+bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futureAck, 
+                                        std::vector<unsigned char> &vReq, 
+                                        uint32_t tempEID, std::function<void()> callback)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
-                               [this, hostName{ std::move(hostName) }, callback { std::move(callback) }, vReq { std::move(vReq) }, 
+                               [this, hostName{ std::move(hostName) }, callback { std::move(callback) }, 
+                                vReq { std::move(vReq) }, 
                                 futureAck { std::move(futureAck) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
@@ -426,7 +451,8 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<void> &futu
                     }
                     auto& refCFINFO = cloudFogInfo[hostName];
                     auto* ptrMQTTAdapter = refCFINFO->mqttAdapter;
-                    mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), 
+                                 nvoid_new(vReq.data(), vReq.size()));
                     lkPublish.unlock();
                 }
                 futureAck.GetFor(std::chrono::milliseconds(100));
@@ -474,7 +500,8 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
     nlohmann::json rMsg = nlohmann::json::parse(nlohmann::json::from_cbor(cbor_).get<std::string>());
     std::string topicNameString(topicname);
-    Remote::callbackThreadPool.enqueue([cfINFO, rMsg { std::move(rMsg) }, topicNameString { std::move(topicNameString) }] {
+    Remote::callbackThreadPool.enqueue(
+    [cfINFO, rMsg { std::move(rMsg) }, topicNameString { std::move(topicNameString) }] {
         auto *remote = cfINFO->remote;
         std::unique_lock lkValidConn(mCallback);
         if (isValidConnection.find(cfINFO) == isValidConnection.end()) 
@@ -485,19 +512,26 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             RegisterTopic(cfINFO->announceDown, "PING", {
                 if (!cfINFO->isRegistered)
                 {
-                    auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "REGISTER"}, {"opt", "DEVICE"}}).dump());
-                    mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    auto vReq = nlohmann::json::to_cbor(nlohmann::json({
+                        {"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "REGISTER"}, {"opt", "DEVICE"}}).dump());
+                    mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), 
+                                 nvoid_new(vReq.data(), vReq.size()));
                 }
-                if (cfINFO == remote->mainFogInfo.get() && remote->cloudFogInfo.empty() && (cfINFO->cloudFogInfoCounter % CLOUD_FOG_COUNT_STEP) == 0)
+                if (cfINFO == remote->mainFogInfo.get() && remote->cloudFogInfo.empty() && 
+                    (cfINFO->cloudFogInfoCounter % CLOUD_FOG_COUNT_STEP) == 0)
                 {
-                    auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "GET-CF-INFO"}, {"opt", "DEVICE"}}).dump());
-                    mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    auto vReq = nlohmann::json::to_cbor(nlohmann::json({
+                        {"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "GET-CF-INFO"}, {"opt", "DEVICE"}}).dump());
+                    mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), 
+                                 nvoid_new(vReq.data(), vReq.size()));
                     cfINFO->cloudFogInfoCounter = cfINFO->cloudFogInfoCounter + 1;
                 }
                 if (cfINFO->pongCounter == 0)
                 {
-                    auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "PONG"}, {"opt", "DEVICE"}}).dump());
-                    mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    auto vReq = nlohmann::json::to_cbor(nlohmann::json({
+                        {"actid", 0}, {"actarg", cfINFO->devId}, {"cmd", "PONG"}, {"opt", "DEVICE"}}).dump());
+                    mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->requestUp.c_str()), 
+                                 nvoid_new(vReq.data(), vReq.size()));
                     cfINFO->pongCounter = rand() % PONG_COUNTER_MAX;
                 }
                 else
@@ -517,8 +551,10 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 cfINFO->isExpired = false;
             });
             RegisterTopic(cfINFO->announceDown, "PUT-CF-INFO", {
-                if (rMsg.contains("opt") && rMsg["opt"].is_string() && rMsg["opt"].get<std::string>() == "ADD" &&
-                    rMsg.contains("actarg") && rMsg["actarg"].is_string() && rMsg["actarg"].get<std::string>() == "fog" && 
+                if (rMsg.contains("opt") && rMsg["opt"].is_string() && 
+                    rMsg["opt"].get<std::string>() == "ADD" &&
+                    rMsg.contains("actarg") && rMsg["actarg"].is_string() && 
+                    rMsg["actarg"].get<std::string>() == "fog" && 
                     rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string() &&
                     rMsg.contains("appName") && rMsg["appName"].is_string() &&
                     rMsg.contains("devName") && rMsg["devName"].is_string()) 
@@ -526,11 +562,13 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     auto deviceNameStr = rMsg["devName"].get<std::string>();
                     auto appNameStr = rMsg["appName"].get<std::string>();
                     auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
-                    remote->cloudFogInfo.emplace(hostAddrStr, std::make_unique<CloudFogInfo>(remote, deviceNameStr ,appNameStr, hostAddrStr));
+                    remote->cloudFogInfo.emplace(hostAddrStr, 
+                        std::make_unique<CloudFogInfo>(remote, deviceNameStr ,appNameStr, hostAddrStr));
                     Remote::isValidConnection.insert(remote->cloudFogInfo[hostAddrStr].get());
                 }
-                else if (rMsg.contains("opt")  && rMsg["opt"].is_string() && rMsg["opt"].get<std::string>() == "DEL" &&
-                        rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string())
+                else if (rMsg.contains("opt")  && rMsg["opt"].is_string() && 
+                         rMsg["opt"].get<std::string>() == "DEL" &&
+                         rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string())
                 {
                     auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
                     Remote::isValidConnection.erase(remote->cloudFogInfo[hostAddrStr].get());
@@ -554,9 +592,12 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
                 {
                     auto actId = rMsg["actid"].get<uint32_t>();
-                    if (remote->cache.contains(actId) || remote->scheduler->toContinue && remote->scheduler->CreateRPBatchCall(cfINFO, std::move(rMsg))) {
-                        auto vReq = nlohmann::json::to_cbor(nlohmann::json({{"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
-                        mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->replyUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                    if (remote->cache.contains(actId) || remote->scheduler->toContinue && 
+                        remote->scheduler->CreateRPBatchCall(cfINFO, std::move(rMsg))) {
+                        auto vReq = nlohmann::json::to_cbor(nlohmann::json({
+                            {"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
+                        mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->replyUp.c_str()), 
+                                     nvoid_new(vReq.data(), vReq.size()));
                     }   
                 }
             });
@@ -564,7 +605,8 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
 
             });
             RegisterTopic(cfINFO->replyDown, "REXEC-RES", {
-                if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned() && rMsg.contains("args")) 
+                if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned() && 
+                    rMsg.contains("args")) 
                 {
                     auto actId = rMsg["actid"].get<uint32_t>();
                     if (remote->rLookup.find(actId) != remote->rLookup.end()) 

@@ -53,7 +53,8 @@ struct nlohmann::adl_serializer<nvoid_t *>
 {
     static void to_json(json &j, const nvoid_t *&value)
     {
-        std::vector<char> bArray(reinterpret_cast<char *>(value->data), reinterpret_cast<char *>(value->data) + value->len);
+        std::vector<char> bArray(reinterpret_cast<char *>(value->data), 
+                                 reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
     }
     static void from_json(const json &j, nvoid_t *&value)
@@ -68,7 +69,8 @@ struct nlohmann::adl_serializer<const nvoid_t *>
 {
     static void to_json(json &j, const nvoid_t *&value)
     {
-        std::vector<char> bArray(reinterpret_cast<char *>(value->data), reinterpret_cast<char *>(value->data) + value->len);
+        std::vector<char> bArray(reinterpret_cast<char *>(value->data), 
+                                 reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
     }
     static void from_json(const json &j, const nvoid_t *&value)
@@ -270,7 +272,8 @@ namespace JAMScript
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     nvoid_t* nVoid = std::apply(fn, vaTuple);
-                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), reinterpret_cast<char *>(nVoid->data) + nVoid->len);
+                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), 
+                                             reinterpret_cast<char *>(nVoid->data) + nVoid->len);
                     nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(nVoid);
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
@@ -295,7 +298,8 @@ namespace JAMScript
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     const nvoid_t* nVoid = std::apply(fn, vaTuple);
-                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), reinterpret_cast<char *>(nVoid->data) + nVoid->len);
+                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), 
+                                             reinterpret_cast<char *>(nVoid->data) + nVoid->len);
                     nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(const_cast<nvoid_t*>(nVoid));
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
@@ -354,7 +358,8 @@ namespace JAMScript
         friend class Time;
         void CancelAllRExecRequests();
 
-        bool CreateRExecAsyncWithCallbackNT(std::string hostName, const std::string &eName, const std::string &condstr, uint32_t condvec, 
+        bool CreateRExecAsyncWithCallbackNT(std::string hostName, const std::string &eName, 
+                                            const std::string &condstr, uint32_t condvec, 
                                             std::function<void()> failureCallback, nlohmann::json rexRequest)
         {
             std::unique_lock lk(Remote::mCallback);
@@ -427,8 +432,9 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        bool CreateRExecAsyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                               std::function<void()> failureCallback, Args &&... eArgs)
+        bool CreateRExecAsyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, 
+                                                          uint32_t condvec, std::function<void()> failureCallback, 
+                                                          Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
@@ -448,7 +454,8 @@ namespace JAMScript
             {
                 CreateRExecAsyncWithCallbackNT(hostName, eName, condstr, condvec, failureCallback, rexRequest);
             }
-            return CreateRExecAsyncWithCallbackNT(eName, condstr, condvec, std::move(failureCallback), std::move(rexRequest));
+            return CreateRExecAsyncWithCallbackNT(eName, condstr, condvec, 
+                                                  std::move(failureCallback), std::move(rexRequest));
         }
 
         template <typename... Args>
@@ -458,14 +465,17 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        bool CreateRExecAsync(std::string hostName, const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        bool CreateRExecAsync(std::string hostName, const std::string &eName, 
+                              const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
-            return CreateRExecAsyncWithCallback(hostName, eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            return CreateRExecAsyncWithCallback(hostName, eName, condstr, condvec, []{}, 
+                                                std::forward<Args>(eArgs)...);
         }
 
         template <typename T, typename... Args>
-        T CreateRExecSyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                                      std::function<void()> heartBeatFailCallback, Args &&... eArgs)
+        T CreateRExecSyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, 
+                                                      uint32_t condvec, std::function<void()> heartBeatFailCallback, 
+                                                      Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
@@ -480,10 +490,12 @@ namespace JAMScript
             {
                 std::lock_guard lock(Remote::mCallback);
                 auto countCommon = cloudFogInfo.size();
-                CreateRetryTaskSync(heartBeatFailCallback, rexRequest, prCommon, countCommon, failureCountCommon);
+                CreateRetryTaskSync(heartBeatFailCallback, rexRequest, prCommon, countCommon, 
+                                    failureCountCommon);
                 for (auto& [hostName, cfInfo]: cloudFogInfo)
                 {
-                    CreateRetryTaskSync(hostName, heartBeatFailCallback, rexRequest, prCommon, countCommon, failureCountCommon);
+                    CreateRetryTaskSync(hostName, heartBeatFailCallback, rexRequest, prCommon, 
+                                        countCommon, failureCountCommon);
                 }
             }
             return fuCommon.Get().template get<T>();
@@ -531,7 +543,8 @@ namespace JAMScript
                             throw RExecDetails::HeartbeatFailureException();
                         }
                         auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
-                        mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), nvoid_new(vReq.data(), vReq.size()));
+                        mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
+                                     nvoid_new(vReq.data(), vReq.size()));
                         lk.unlock();
                     }
                     futureAck.GetFor(std::chrono::milliseconds(100));
@@ -579,7 +592,8 @@ namespace JAMScript
         }
 
         template <typename T, typename... Args>
-        T CreateRExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        T CreateRExecSync(const std::string &eName, const std::string &condstr, 
+                          uint32_t condvec, Args &&... eArgs)
         {
             return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
@@ -591,10 +605,16 @@ namespace JAMScript
 
     private:
 
-        bool CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, std::shared_ptr<Promise<nlohmann::json>> prCommon, std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon);
-        bool CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, std::shared_ptr<Promise<nlohmann::json>> prCommon, std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon);
-        bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
-        bool CreateRetryTask(std::string hostName, Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback);
+        bool CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, 
+                                 std::shared_ptr<Promise<nlohmann::json>> prCommon, std::size_t countCommon, 
+                                 std::shared_ptr<std::atomic_size_t> failureCountCommon);
+        bool CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, 
+                                 nlohmann::json rexRequest, std::shared_ptr<Promise<nlohmann::json>> prCommon, 
+                                 std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon);
+        bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+                             std::function<void()> callback);
+        bool CreateRetryTask(std::string hostName, Future<void> &futureAck, std::vector<unsigned char> &vReq, 
+                             uint32_t tempEID, std::function<void()> callback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
         static SpinMutex mCallback;
         static std::unordered_set<CloudFogInfo *> isValidConnection;
