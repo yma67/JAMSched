@@ -549,7 +549,6 @@ namespace JAMScript
                     }
                     if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
                     {
-                        printf("Timed out");
                         if (retryNum < 3)
                         {
                             retryNum++;
