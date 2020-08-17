@@ -9,7 +9,7 @@
 - Capable of supporting shared-stack coroutines and stand-alone stack coroutines, scheduled with no difference
 - Automatic type deduction of C++ functions
 - Each task is allocated to as a coroutine, mapped to 1 kernel level thread
-- More than 1.5M tasks in 2GB
+- More than 1M tasks per GB
 - Switching time: ~30ns on Intel Core i7 10710U
 ### Real Time Tasks
 #### Description
