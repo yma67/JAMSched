@@ -13,7 +13,7 @@ int main()
             printf("==============================================round no %d\n", rounds++);
             try 
             {
-                auto res = ribScheduler.CreateRemoteExecSync<std::string>(std::string("gethello"), std::string(""), 0, std::string("david"));
+                auto res = ribScheduler.CreateRemoteExecSync(std::string("gethello"), std::string(""), 0, std::chrono::minutes(5), std::string("david"));
                 std::cout << "Results .... " << res << std::endl;
                 continue;
             } 
@@ -31,7 +31,7 @@ int main()
             printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~round no %d\n", rounds++);
             try 
             {
-                auto res = ribScheduler.CreateRemoteExecSync<int>(std::string("addNumbers"), std::string(""), 0, 45, 67);
+                auto res = ribScheduler.CreateRemoteExecSync(std::string("addNumbers"), std::string(""), 0, std::chrono::minutes(5), 45, 67);
                 std::cout << "Results .... " << res << std::endl;
                 continue;
             } 

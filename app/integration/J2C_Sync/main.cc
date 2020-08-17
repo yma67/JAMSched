@@ -21,7 +21,7 @@ int main()
             // this statement should prevent if the coroutines are not scheduled in the same pthread
             printf("==============================================\n");
             // this statement generates execption and program will crash very soon
-            auto jf = ribScheduler.CreateRemoteExecSync<int>(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            auto jf = ribScheduler.CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, std::chrono::minutes(5), 9, std::string("hello"), 0.4566, 1);
         }
     });
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
@@ -30,7 +30,7 @@ int main()
             printf(">>...........\n");
             try
             {
-                auto jf = ribScheduler.CreateRemoteExecSync<int>(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+                auto jf = ribScheduler.CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, std::chrono::minutes(5), 9, std::string("hello"), 0.4566, 1);
             }
             catch (const JAMScript::RExecDetails::HeartbeatFailureException &he)
             {

@@ -155,25 +155,20 @@ void JAMScript::Remote::CancelAllRExecRequests()
     Remote::isValidConnection.clear();
 }
 
-bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, 
-                                            nlohmann::json rexRequest, 
+bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
                                             std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
-                                            std::size_t countCommon, 
-                                            std::shared_ptr<std::atomic_size_t> failureCountCommon)
+                                            std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
-        this, hostName { std::move(hostName) }, 
-        heartBeatFailCallback { std::move(heartBeatFailCallback) }, 
-        rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
-        countCommon { std::move(countCommon) }, 
-        failureCountCommon { std::move(failureCountCommon) }] () mutable {
+        this, hostName { std::move(hostName) }, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
+        countCommon { std::move(countCommon) }, failureCountCommon { std::move(failureCountCommon) }, 
+        timeOut { std::move(timeOut) }] () mutable {
         std::unique_lock lk(Remote::mCallback);
         if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
         {
             lk.unlock();
             if (failureCountCommon->fetch_add(1U) == countCommon)
             {
-                heartBeatFailCallback();
                 prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
             }
             return;
@@ -198,7 +193,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
@@ -221,21 +215,19 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("retry failed")})));
                 }
                 return;
             }
             if (!futureAck.Get() && failureCountCommon->fetch_add(1U) == countCommon)
             {
-                heartBeatFailCallback();
                 prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
             }
             break;
         }
         try 
         {
-            if (!fuExec.WaitFor(std::chrono::minutes(5)))
+            if (!fuExec.WaitFor(timeOut))
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
@@ -248,7 +240,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
@@ -267,16 +258,13 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, std::function<
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, 
-                                            nlohmann::json rexRequest, 
+bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
                                             std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
-                                            std::size_t countCommon, 
-                                            std::shared_ptr<std::atomic_size_t> failureCountCommon)
+                                            std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
-        this, heartBeatFailCallback { std::move(heartBeatFailCallback) }, 
-        rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
-        countCommon { std::move(countCommon) }, 
+        this, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
+        countCommon { std::move(countCommon) }, timeOut { std::move(timeOut) },
         failureCountCommon { std::move(failureCountCommon) }] () mutable {
         std::unique_lock lk(Remote::mCallback);
         if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
@@ -284,7 +272,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
             lk.unlock();
             if (failureCountCommon->fetch_add(1U) == countCommon)
             {
-                heartBeatFailCallback();
                 prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
             }
             return;
@@ -309,7 +296,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
@@ -331,7 +317,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("retry failed")})));
                 }
                 return;
@@ -340,7 +325,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
@@ -349,7 +333,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
         }
         try 
         {
-            if (!fuExec.WaitFor(std::chrono::minutes(5)))
+            if (!fuExec.WaitFor(timeOut))
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
@@ -362,7 +346,6 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::function<void()> heartBeatFailC
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    heartBeatFailCallback();
                     prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;

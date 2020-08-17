@@ -474,8 +474,7 @@ namespace JAMScript
 
         template <typename... Args>
         nlohmann::json CreateRExecSyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, 
-                                                      uint32_t condvec, std::function<void()> heartBeatFailCallback, 
-                                                      Args &&... eArgs)
+                                                                   uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
@@ -490,11 +489,11 @@ namespace JAMScript
             {
                 std::lock_guard lock(Remote::mCallback);
                 auto countCommon = cloudFogInfo.size();
-                CreateRetryTaskSync(heartBeatFailCallback, rexRequest, prCommon, countCommon, 
+                CreateRetryTaskSync(timeOut, rexRequest, prCommon, countCommon, 
                                     failureCountCommon);
                 for (auto& [hostName, cfInfo]: cloudFogInfo)
                 {
-                    CreateRetryTaskSync(hostName, heartBeatFailCallback, rexRequest, prCommon, 
+                    CreateRetryTaskSync(hostName, timeOut, rexRequest, prCommon, 
                                         countCommon, failureCountCommon);
                 }
             }
@@ -502,8 +501,8 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        nlohmann::json CreateRExecSyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                      std::function<void()> heartBeatFailCallback, Args &&... eArgs)
+        nlohmann::json CreateRExecSyncWithTimeout(const std::string &eName, const std::string &condstr, 
+                                                  uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
@@ -515,7 +514,6 @@ namespace JAMScript
             std::unique_lock lk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
             {
-                heartBeatFailCallback();
                 return {"exception", std::string("heartbeat failed")};
             }
             rexRequest.push_back({"opt", mainFogInfo->devId});
@@ -537,7 +535,6 @@ namespace JAMScript
                     if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                     {
                         lk.unlock();
-                        heartBeatFailCallback();
                         return {"exception", std::string("heartbeat failed")};
                     }
                     auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
@@ -564,14 +561,18 @@ namespace JAMScript
                 }
                 break;
             }
+            if (!fuExec.WaitFor(timeOut))
+            {
+                return {"exception", std::string("value timeout")};
+            }
             return fuExec.Get().second;
         }
 
         template <typename... Args>
         nlohmann::json CreateRExecSync(const std::string &eName, const std::string &condstr, 
-                          uint32_t condvec, Args &&... eArgs)
+                                       uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
-            return CreateRExecSyncWithCallback(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            return CreateRExecSyncWithTimeout(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
         }
 
         void CheckExpire();
@@ -581,10 +582,10 @@ namespace JAMScript
 
     private:
 
-        bool CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, 
+        bool CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
                                  std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, std::size_t countCommon, 
                                  std::shared_ptr<std::atomic_size_t> failureCountCommon);
-        bool CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, 
+        bool CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
                                  std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                  std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon);
         bool CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
