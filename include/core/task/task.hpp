@@ -127,7 +127,7 @@ namespace JAMScript
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
-        std::mutex qMutex;
+        mutable std::mutex qMutex;
         std::condition_variable cvQMutex;
         std::atomic<bool> toContinue;
         std::atomic<TaskInterface *> taskRunning;
@@ -298,7 +298,7 @@ namespace JAMScript
         virtual void Execute() = 0;
         virtual bool Steal(SchedulerBase *scheduler) = 0;
         
-        bool CanSteal() { return isStealable; }
+        virtual const bool CanSteal() const { return false; }
         void Disable() { scheduler->Disable(this); }
         void Enable() { scheduler->Enable(this); }
 
@@ -324,6 +324,7 @@ namespace JAMScript
         static thread_local TaskInterface *thisTask;
 
         std::atomic<TaskType> taskType;
+        std::atomic<TaskStatus> status;
         std::atomic_bool isStealable;
         std::atomic_intptr_t cvStatus;
         SchedulerBase *scheduler;
@@ -332,7 +333,6 @@ namespace JAMScript
         long references;
         Duration deadline, burst;
         uint32_t id;
-        TaskStatus status;
         std::shared_ptr<Notifier> notifier;
         std::function<void()> onCancel;
 
@@ -410,6 +410,8 @@ namespace JAMScript
     {
     public:
 
+        const bool CanSteal() const override { return false; }
+
         void SwapOut() override
         {
             void *tos = nullptr;
@@ -448,6 +450,7 @@ namespace JAMScript
                 }
                 memcpy(privateStack, tos, privateStackSize);
                 TaskInterface::thisTask = nullptr;
+                scheduler->taskRunning = nullptr;
                 SwapToContext(&uContext, &scheduler->schedulerContext);
                 return;
             }
@@ -457,8 +460,7 @@ namespace JAMScript
         {
             memcpy(scheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
             TaskInterface::thisTask = this;
-            isStealable = false;
-            this->status = TASK_RUNNING;
+            scheduler->taskRunning = this;
             SwapToContext(&scheduler->schedulerContext, &uContext);
         }
 
@@ -517,20 +519,19 @@ namespace JAMScript
     {
     public:
 
+        const bool CanSteal() const override { return true; }
+
         void SwapOut() override
         {
             TaskInterface::thisTask = nullptr;
-            auto *prev_scheduler = scheduler;
             scheduler->taskRunning = nullptr;
-            SwapToContext(&uContext, &prev_scheduler->schedulerContext);
+            SwapToContext(&uContext, &scheduler->schedulerContext);
         }
 
         void SwapIn() override
         {
             TaskInterface::thisTask = this;
-            isStealable = false;
             scheduler->taskRunning = this;
-            this->status = TASK_RUNNING;
             SwapToContext(&scheduler->schedulerContext, &uContext);
         }
 

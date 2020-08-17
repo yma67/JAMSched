@@ -37,6 +37,7 @@ namespace JAMScript
         bool useSharedStack, canSteal;
         uint32_t stackSize;
         int pinCore;
+        StackTraits() : useSharedStack(false), stackSize(4096U), canSteal(true), pinCore(-1) {}
         StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1) {}
         StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1) {}
         StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
@@ -79,12 +80,19 @@ namespace JAMScript
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
 
         template <typename Fn>
+        void RegisterRPCall(const std::string &fName, StackTraits stackTrait, Fn && fn) 
+        {
+            localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
+            localFuncStackTraitsMap[fName] = std::move(stackTrait);
+        }
+
+        template <typename Fn>
         void RegisterRPCall(const std::string &fName, Fn && fn) 
         {
             localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
+            localFuncStackTraitsMap[fName] = StackTraits();
         }
 
-        // Not using const ref for memory safety
         nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
@@ -92,9 +100,15 @@ namespace JAMScript
             {
                 auto fu = std::make_unique<Promise<nlohmann::json>>();
                 auto fut = fu->GetFuture();
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, fu { std::move(fu) }, rpcAttr(std::move(rpcAttr))]() 
+                auto fName = rpcAttr["actname"].get<std::string>();
+                if (localFuncStackTraitsMap.find(fName) == localFuncStackTraitsMap.end())
                 {
-                    nlohmann::json jxe(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(std::move(rpcAttr["args"])));
+                    return false;
+                }
+                CreateBatchTask({ localFuncStackTraitsMap[fName] }, Clock::duration::max(), 
+                [this, fu { std::move(fu) }, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))] () 
+                {
+                    nlohmann::json jxe(localFuncMap[fName]->Invoke(std::move(rpcAttr["args"])));
                     fu->SetValue(std::move(jxe));
                 }).Detach();
                 return fut.Get();
@@ -108,7 +122,13 @@ namespace JAMScript
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end() &&
                 execRemote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
-                CreateBatchTask({true, 0, true}, Clock::duration::max(), [this, execRemote, rpcAttr(std::move(rpcAttr))]() 
+                auto fName = rpcAttr["actname"].get<std::string>();
+                if (localFuncStackTraitsMap.find(fName) == localFuncStackTraitsMap.end())
+                {
+                    return false;
+                }
+                CreateBatchTask({ localFuncStackTraitsMap[fName] }, Clock::duration::max(), 
+                [this, execRemote, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<int>();
@@ -222,7 +242,7 @@ namespace JAMScript
             }
             fn->taskType = REAL_TIME_TASK_T;
             fn->id = id;
-            fn->isStealable = stackTraits.canSteal;
+            fn->isStealable = false;
             std::lock_guard lock(qMutex);
             rtRegisterTable.insert(*fn);
             cvQMutex.notify_one();
@@ -364,9 +384,10 @@ namespace JAMScript
 
         std::vector<std::unique_ptr<StealScheduler>> thiefs;
         std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
-                
+
         std::unordered_map<std::string, std::any> lexecFuncMap;
         std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
+        std::unordered_map<std::string, StackTraits> localFuncStackTraitsMap;
 
         JAMStorageTypes::BatchQueueType bQueue;
         JAMStorageTypes::InteractiveReadyStackType iCancelStack;

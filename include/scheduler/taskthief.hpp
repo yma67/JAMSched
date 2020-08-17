@@ -42,7 +42,6 @@ namespace JAMScript
 
     private:
 
-        std::atomic<unsigned int> rCount = 0, iCount = 0;
         bool isRunning;
         RIBScheduler *victim;
         JAMStorageTypes::ThiefQueueType isReady;
