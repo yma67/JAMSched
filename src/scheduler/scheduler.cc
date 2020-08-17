@@ -409,7 +409,10 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         if (!TryExecuteAnInteractiveBatchTask(lockIBTask)) 
                         {
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                            cvQMutex.wait_until(lockIBTask, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
+                            cvQMutex.wait_until(lockIBTask, 
+                                                (cycleStartTime + rtItem.eTime - 
+                                                 std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)), 
+                            [this]() -> bool { 
                                 return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty() && toContinue); 
                             });
 #endif

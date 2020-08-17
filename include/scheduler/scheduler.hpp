@@ -295,16 +295,16 @@ namespace JAMScript
             remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
-        template <typename T, typename... Args>
-        T CreateRemoteExecSyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        template <typename... Args>
+        nlohmann::json CreateRemoteExecSyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
-            return remote->CreateRExecSyncWithCallbackToEachConnection<T>(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            return remote->CreateRExecSyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
 
-        template <typename T, typename... Args>
-        T CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
+        template <typename... Args>
+        nlohmann::json CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs)
         {
-            return remote->CreateRExecSync<T>(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            return remote->CreateRExecSync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
         }
 
         template <typename T>

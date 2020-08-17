@@ -125,6 +125,7 @@ int main(int argc, char *argv[])
                                     std::cout << "Interac Exec" << std::endl;
                                     interactive_count++;
                                     std::cout << "JSleep Start" << std::endl;
+#ifndef JAMSCRIPT_SCHED_AI_EXP
                                     auto ct = std::chrono::steady_clock::now();
                                     auto delta = 1000;
                                     JAMScript::ThisTask::SleepFor(std::chrono::microseconds(delta));
@@ -134,13 +135,14 @@ int main(int argc, char *argv[])
                                                          .count() -
                                                      delta
                                               << "us" << std::endl;
+#endif
                                     auto tStart = std::chrono::steady_clock::now();
                                     while (std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                std::chrono::steady_clock::now() - tStart)
                                                .count() <=
                                            std::chrono::duration_cast<std::chrono::nanoseconds>(cBurst).count())
                                     {
-                                        std::this_thread::sleep_for(std::chrono::microseconds(50));
+                                        std::this_thread::sleep_for(std::chrono::nanoseconds(preempt_tslice));
                                         JAMScript::ThisTask::Yield();
                                     }
                                     return 8;
@@ -171,7 +173,7 @@ int main(int argc, char *argv[])
                                                500000 <=
                                            std::chrono::duration_cast<std::chrono::nanoseconds>(cBurst).count())
                                     {
-                                        std::this_thread::sleep_for(std::chrono::microseconds(50));
+                                        std::this_thread::sleep_for(std::chrono::nanoseconds(preempt_tslice));
                                         JAMScript::ThisTask::Yield();
                                     }
                                     return 8;
@@ -180,13 +182,14 @@ int main(int argc, char *argv[])
                         arrival = std::chrono::steady_clock::duration::max();
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::microseconds(25));
+                // std::this_thread::sleep_for(std::chrono::nanoseconds(250));
                 JAMScript::ThisTask::Yield();
             }
             while (std::chrono::steady_clock::now() < jRIBScheduler.GetSchedulerStartTime() + nrounds * tuPeriod) {
-                std::this_thread::sleep_for(std::chrono::microseconds(25));
+                // std::this_thread::sleep_for(std::chrono::nanoseconds(250));
                 JAMScript::ThisTask::Yield();
             }
+#ifndef JAMSCRIPT_SCHED_AI_EXP
             auto sec3 = std::make_shared<std::string>();
             auto p = std::make_shared<JAMScript::Promise<std::string>>();
             auto ep = std::make_shared<JAMScript::Promise<void>>();
@@ -235,6 +238,7 @@ int main(int argc, char *argv[])
             } catch (const std::exception& e) {
                 std::cout << e.what() << std::endl;
             }
+#endif
             jRIBScheduler.ShutDown();
             return 3;
         });
