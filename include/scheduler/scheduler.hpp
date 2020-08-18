@@ -195,6 +195,7 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
+            auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
                 StealScheduler *pNextThief = nullptr;
@@ -225,7 +226,7 @@ namespace JAMScript
                 bQueue.push_back(*fn);
                 cvQMutex.notify_one();
             }
-            return { fn->notifier };
+            return { ptrTaskHandle };
         }
 
         template <typename Fn, typename... Args>
