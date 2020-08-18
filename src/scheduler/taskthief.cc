@@ -28,20 +28,26 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
     toSteal->Steal(this);
     isReady.push_back(*toSteal);
     cvQMutex.notify_one();
-    rCount++;
-    iCount++;
 }
 
 size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
 {
     std::scoped_lock sLock(qMutex, toSteal->qMutex);
-    if (toSteal->iCount > 1) {
-        auto toStealCount = toSteal->iCount / 2;
+    int stealableCount = 0;
+    for (auto& task: toSteal->isReady)
+    {
+        if (task.CanSteal())
+        {
+            stealableCount++;
+        }
+    }
+    if (stealableCount > 1) {
+        auto toStealCount = stealableCount / 2;
         auto supposeTo = toStealCount;
         auto itBatch = toSteal->isReady.begin();
         while (itBatch != toSteal->isReady.end() && toStealCount > 0)
         {
-            if (itBatch->CanSteal())
+            if (itBatch->isStealable)
             {
                 auto *pNextSteal = &(*itBatch);
                 pNextSteal->Steal(this);
@@ -64,20 +70,24 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
     std::unique_lock lk(qMutex);
     BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
     isReady.push_back(*toEnable);
-    rCount++;
+    if (toEnable->CanSteal())
+    {
+        toEnable->isStealable = true;
+    }
     toEnable->status = TASK_READY;
     cvQMutex.notify_one();
 }
 
 void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)
 {
-    rCount--;
+    std::unique_lock lk(qMutex);
     toDisable->status = TASK_PENDING;
 }
 
 const uint32_t JAMScript::StealScheduler::Size() const
 {
-    return rCount;
+    std::unique_lock lk(qMutex);
+    return isReady.size();
 }
 
 void JAMScript::StealScheduler::ShutDown()
@@ -138,9 +148,13 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
             {
                 auto* pVictim = victim->thiefs[(rStart + T_T) % victim->thiefs.size()].get();
-                if ((pVictim != this && StealFrom(pVictim)) || !isReady.empty())
+                if (pVictim != this)
                 {
-                    break;
+                    auto numStolen = StealFrom(pVictim);
+                    if ((numStolen > 0) || !isReady.empty())
+                    {
+                        break;
+                    }
                 }
             }
             lock.lock();
@@ -156,12 +170,8 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
         auto iterNext = isReady.begin();
         auto *pNext = &(*iterNext);
         isReady.pop_front();
-        if (pNext->CanSteal()) 
-        {
-            pNext->isStealable = false;
-            iCount--;
-        }
-        rCount--;
+        pNext->isStealable = false;
+        pNext->status = TASK_RUNNING;
         lock.unlock();
         pNext->SwapIn();
         lock.lock();

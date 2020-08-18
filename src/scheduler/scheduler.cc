@@ -149,7 +149,6 @@ void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
 {
     std::lock_guard lock(qMutex);
-    
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
         if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
@@ -168,8 +167,8 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
         BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
         bQueue.push_back(*toEnable);
     }
-    cvQMutex.notify_one();
     toEnable->status = TASK_READY;
+    cvQMutex.notify_one();
 }
 
 uint32_t JAMScript::RIBScheduler::GetThiefSizes()
@@ -244,7 +243,7 @@ bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<
         {
             auto *pTop = &(*iEDFPriorityQueue.top());
             iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
-            if (!thiefs.empty() && pTop->CanSteal())
+            if (!thiefs.empty() && pTop->isStealable)
             {
                 auto *pNextThief = GetMinThief();
                 if (pNextThief != nullptr)
@@ -409,7 +408,10 @@ void JAMScript::RIBScheduler::RunSchedulerMainLoop()
                         if (!TryExecuteAnInteractiveBatchTask(lockIBTask)) 
                         {
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                            cvQMutex.wait_until(lockIBTask, (cycleStartTime + rtItem.eTime), [this]() -> bool { 
+                            cvQMutex.wait_until(lockIBTask, 
+                                                (cycleStartTime + rtItem.eTime - 
+                                                 std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)), 
+                            [this]() -> bool { 
                                 return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty() && toContinue); 
                             });
 #endif

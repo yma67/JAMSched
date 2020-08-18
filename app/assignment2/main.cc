@@ -133,17 +133,17 @@ int main()
     std::atomic_int32_t syncVar = 0, rTotal = 0;
     int var = 0;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
-    auto taskCanSteal = false;
+    auto taskStackTrait = {false, 1024 * 2, false};
 #else
-    auto taskCanSteal = true;
+    JAMScript::StackTraits taskStackTrait = {false, 1024 * 2, true};
 #endif
-    ribScheduler.CreateBatchTask({false, 1024 * 256, taskCanSteal}, std::chrono::steady_clock::duration::max(), [&]() {
+    ribScheduler.CreateBatchTask({false, 1024 * 256, taskStackTrait.canSteal}, std::chrono::steady_clock::duration::max(), [&]() {
         ReadWriteLock rw;
         std::vector<JAMScript::TaskHandle> rpool, wpool;
         for (int i = 0; i < 500; i++)
         {
             rpool.push_back(ribScheduler.CreateBatchTask(
-                {true, 0, taskCanSteal}, std::chrono::steady_clock::duration::max(), [&](int ntry) {
+                taskStackTrait, std::chrono::steady_clock::duration::max(), [&](int ntry) {
                     for (int i = 0; i < ntry; i++)
                     {
                         rw.ReadLock();
@@ -159,7 +159,7 @@ int main()
         for (int i = 0; i < 10; i++)
         {
             wpool.push_back(ribScheduler.CreateBatchTask(
-                {true, 0, taskCanSteal}, std::chrono::steady_clock::duration::min(), [&](int ntry) {
+                taskStackTrait, std::chrono::steady_clock::duration::min(), [&](int ntry) {
                     for (int i = 0; i < ntry; i++)
                     {
                         rw.WriteLock();

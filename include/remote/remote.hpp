@@ -373,7 +373,7 @@ namespace JAMScript
             printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
             auto futureAck = pr->GetFuture();
             cloudFogInfo[hostName]->rExecPending.insert(tempEID);
             lk.unlock();
@@ -395,7 +395,7 @@ namespace JAMScript
             printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
             auto futureAck = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
@@ -424,7 +424,7 @@ namespace JAMScript
             printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
             auto futureAck = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
@@ -472,10 +472,9 @@ namespace JAMScript
                                                 std::forward<Args>(eArgs)...);
         }
 
-        template <typename T, typename... Args>
-        T CreateRExecSyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, 
-                                                      uint32_t condvec, std::function<void()> heartBeatFailCallback, 
-                                                      Args &&... eArgs)
+        template <typename... Args>
+        nlohmann::json CreateRExecSyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, 
+                                                                   uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
@@ -484,26 +483,26 @@ namespace JAMScript
                 {"cond", condstr},
                 {"condvec", condvec},
                 {"actarg", "-"}};
-            auto prCommon = std::make_shared<Promise<nlohmann::json>>();
+            auto prCommon = std::make_shared<Promise<std::pair<bool, nlohmann::json>>>();
             auto failureCountCommon = std::make_shared<std::atomic_size_t>(0U);
             auto fuCommon = prCommon->GetFuture();
             {
                 std::lock_guard lock(Remote::mCallback);
                 auto countCommon = cloudFogInfo.size();
-                CreateRetryTaskSync(heartBeatFailCallback, rexRequest, prCommon, countCommon, 
+                CreateRetryTaskSync(timeOut, rexRequest, prCommon, countCommon, 
                                     failureCountCommon);
                 for (auto& [hostName, cfInfo]: cloudFogInfo)
                 {
-                    CreateRetryTaskSync(hostName, heartBeatFailCallback, rexRequest, prCommon, 
+                    CreateRetryTaskSync(hostName, timeOut, rexRequest, prCommon, 
                                         countCommon, failureCountCommon);
                 }
             }
-            return fuCommon.Get().template get<T>();
+            return fuCommon.Get().second;
         }
 
-        template <typename T, typename... Args>
-        T CreateRExecSyncWithCallback(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                      std::function<void()> heartBeatFailCallback, Args &&... eArgs)
+        template <typename... Args>
+        nlohmann::json CreateRExecSyncWithTimeout(const std::string &eName, const std::string &condstr, 
+                                                  uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
@@ -515,76 +514,65 @@ namespace JAMScript
             std::unique_lock lk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
             {
-                heartBeatFailCallback();
-                throw RExecDetails::HeartbeatFailureException();
+                return {"exception", std::string("heartbeat failed")};
             }
             rexRequest.push_back({"opt", mainFogInfo->devId});
             rexRequest.push_back({"actid", eIdFactory});
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<void>>();
+            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
             auto futureAck = prAck->GetFuture();
-            auto& pr = rLookup[tempEID] = std::make_unique<Promise<nlohmann::json>>();
+            auto& pr = rLookup[tempEID] = std::make_unique<Promise<std::pair<bool, nlohmann::json>>>();
             auto fuExec = pr->GetFuture();
             mainFogInfo->rExecPending.insert(tempEID);
             lk.unlock();
             int retryNum = 0;
             while (retryNum < 3)
             {
-                try 
                 {
+                    lk.lock();
+                    if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                     {
-                        lk.lock();
-                        if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
-                        {
-                            lk.unlock();
-                            heartBeatFailCallback();
-                            throw RExecDetails::HeartbeatFailureException();
-                        }
-                        auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
-                        mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
-                                     nvoid_new(vReq.data(), vReq.size()));
                         lk.unlock();
+                        return {"exception", std::string("heartbeat failed")};
                     }
-                    if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
-                    {
-                        if (retryNum < 3)
-                        {
-                            retryNum++;
-                            continue;
-                        }
-                        lk.lock();
-                        ackLookup.erase(tempEID);
-                        rLookup.erase(tempEID);
-                        lk.unlock();
-                        throw InvalidArgumentException("timed out");
-                    }
-                    break;
-                } 
-                catch (const RExecDetails::HeartbeatFailureException &he)
-                {
-                    heartBeatFailCallback();
-                    throw RExecDetails::HeartbeatFailureException();
+                    auto* ptrMqttAdapter = mainFogInfo->mqttAdapter;
+                    mqtt_publish(ptrMqttAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
+                                    nvoid_new(vReq.data(), vReq.size()));
+                    lk.unlock();
                 }
+                if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                {
+                    if (retryNum < 3)
+                    {
+                        retryNum++;
+                        continue;
+                    }
+                    lk.lock();
+                    ackLookup.erase(tempEID);
+                    rLookup.erase(tempEID);
+                    lk.unlock();
+                    return {"exception", std::string("retry failed")};
+                }
+                if (!futureAck.Get())
+                {
+                    return {"exception", std::string("heartbeat failed")};
+                }
+                break;
             }
-            try 
+            if (!fuExec.WaitFor(timeOut))
             {
-                return fuExec.Get().template get<T>();
+                return {"exception", std::string("value timeout")};
             }
-            catch (const RExecDetails::HeartbeatFailureException& e)
-            {
-                heartBeatFailCallback();
-                throw RExecDetails::HeartbeatFailureException();
-            }
-            throw InvalidArgumentException("false wakeup");
+            return fuExec.Get().second;
         }
 
-        template <typename T, typename... Args>
-        T CreateRExecSync(const std::string &eName, const std::string &condstr, 
-                          uint32_t condvec, Args &&... eArgs)
+        template <typename... Args>
+        nlohmann::json CreateRExecSync(const std::string &eName, const std::string &condstr, 
+                                       uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
-            return CreateRExecSyncWithCallback<T>(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            return CreateRExecSyncWithTimeout(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
         }
 
         void CheckExpire();
@@ -594,15 +582,15 @@ namespace JAMScript
 
     private:
 
-        bool CreateRetryTaskSync(std::function<void()> heartBeatFailCallback, nlohmann::json rexRequest, 
-                                 std::shared_ptr<Promise<nlohmann::json>> prCommon, std::size_t countCommon, 
+        bool CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
+                                 std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, std::size_t countCommon, 
                                  std::shared_ptr<std::atomic_size_t> failureCountCommon);
-        bool CreateRetryTaskSync(std::string hostName, std::function<void()> heartBeatFailCallback, 
-                                 nlohmann::json rexRequest, std::shared_ptr<Promise<nlohmann::json>> prCommon, 
+        bool CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
+                                 std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                  std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon);
-        bool CreateRetryTask(Future<void> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+        bool CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                              std::function<void()> callback);
-        bool CreateRetryTask(std::string hostName, Future<void> &futureAck, std::vector<unsigned char> &vReq, 
+        bool CreateRetryTask(std::string hostName, Future<bool> &futureAck, std::vector<unsigned char> &vReq, 
                              uint32_t tempEID, std::function<void()> callback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
         static SpinMutex mCallback;
@@ -615,9 +603,9 @@ namespace JAMScript
         std::unique_ptr<CloudFogInfo> mainFogInfo;
         std::string devId, appId, hostAddr;
         boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<void>>> ackLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<Promise<bool>>> ackLookup;
         std::unordered_map<std::string, std::unique_ptr<CloudFogInfo>> cloudFogInfo;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<nlohmann::json>>> rLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<Promise<std::pair<bool, nlohmann::json>>>> rLookup;
 
     };
 
