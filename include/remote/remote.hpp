@@ -358,9 +358,8 @@ namespace JAMScript
         friend class Time;
         void CancelAllRExecRequests();
 
-        bool CreateRExecAsyncWithCallbackNT(std::string hostName, const std::string &eName, 
-                                            const std::string &condstr, uint32_t condvec, 
-                                            std::function<void()> failureCallback, nlohmann::json rexRequest)
+        bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> failureCallback, 
+                                            nlohmann::json rexRequest)
         {
             std::unique_lock lk(Remote::mCallback);
             if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
@@ -381,8 +380,7 @@ namespace JAMScript
             return CreateRetryTask(hostName, futureAck, vReq, tempEID, std::move(failureCallback));
         }
 
-        bool CreateRExecAsyncWithCallbackNT(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                            std::function<void()> failureCallback, nlohmann::json rexRequest)
+        bool CreateRExecAsyncWithCallbackNT(std::function<void()> failureCallback, nlohmann::json rexRequest)
         {
             std::unique_lock lk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
@@ -455,10 +453,9 @@ namespace JAMScript
             printf("For all hosts Available\n");
             for (auto& hostName: hostsAvailable)
             {
-                CreateRExecAsyncWithCallbackNT(hostName, eName, condstr, condvec, failureCallback, rexRequest);
+                CreateRExecAsyncWithCallbackNT(hostName, failureCallback, rexRequest);
             }
-            return CreateRExecAsyncWithCallbackNT(eName, condstr, condvec, 
-                                                  std::move(failureCallback), std::move(rexRequest));
+            return CreateRExecAsyncWithCallbackNT(std::move(failureCallback), std::move(rexRequest));
         }
 
         template <typename... Args>

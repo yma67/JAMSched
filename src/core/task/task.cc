@@ -29,12 +29,15 @@ JAMScript::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
 
 void JAMScript::TaskHandle::Join()
 {
-    n->Join();
+    if (n != nullptr)
+    {
+        n->Join();
+    }
 }
 
 void JAMScript::TaskHandle::Detach()
 {
-    
+    n = nullptr;
 }
 
 std::unordered_map<JAMScript::JTLSLocation, std::any> *

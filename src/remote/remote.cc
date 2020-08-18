@@ -413,8 +413,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
     printf("Retry task called for  hostname %s \n", hostName.c_str());
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
                                [this, hostName{ std::move(hostName) }, callback { std::move(callback) }, 
-                                vReq { std::move(vReq) }, 
-                                futureAck { std::move(futureAck) }, tempEID]() mutable {
+                                vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
         {
