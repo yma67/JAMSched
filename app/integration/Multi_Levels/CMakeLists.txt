@@ -1,0 +1,7 @@
+add_executable(mlevelC2JASync  c2j_a.cc)
+add_executable(mlevelC2JSync  c2j_s.cc)
+add_executable(mlevelJ2CASync  j2c_a.cc)
+target_link_libraries(mlevelC2JASync PRIVATE jamsched)
+target_link_libraries(mlevelC2JSync PRIVATE jamsched)
+target_link_libraries(mlevelJ2CASync PRIVATE jamsched)
+target_include_directories(jamsched PRIVATE "${PROJECT_SOURCE_DIR}/include/")

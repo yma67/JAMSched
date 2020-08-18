@@ -68,7 +68,9 @@
         "complex": "cpp",
         "list": "cpp",
         "typeindex": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "strstream": "cpp",
+        "cfenv": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled",
     
