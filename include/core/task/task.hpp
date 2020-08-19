@@ -314,26 +314,58 @@ namespace JAMScript
         template <typename ...Args>
         TaskHandle CreateLocalNamedBatchExecution(Args&&... args);
 
+        /**
+         * Create Local Exec Batch Task
+         * @ref RIBScheduler::CreateLocalNamedBatchExecution
+         */
         template <typename ...Args>
         auto CreateRemoteExecAsyncMultiLevelAvecRappeler(Args&&... args);
 
+        /**
+         * Create Async Remote Execution to Multiple Levels
+         * @ref RIBScheduler::CreateRemoteExecAsyncMultiLevel
+         */
         template <typename ...Args>
         auto CreateRemoteExecAsyncMultiLevel(Args&&... args);
 
+        /**
+         * Create Async Remote Execution to Mutiple Levels with Callback
+         * @ref RIBScheduler::CreateRemoteExecAsyncAvecRappeler
+         */
         template <typename ...Args>
         auto CreateRemoteExecAsyncAvecRappeler(Args&&... args);
 
+        /**
+         * Create Async Remote Execution
+         * @ref RIBScheduler::CreateRemoteExecAsync
+         */
         template <typename ...Args>
         auto CreateRemoteExecAsync(Args&&... args);
 
+        /**
+         * Create Sync Remote Execution to Multiple Levels
+         * @ref RIBScheduler::CreateRemoteExecSyncMultiLevel
+         */
         template <typename ...Args>
         auto CreateRemoteExecSyncMultiLevel(Args&&... args);
 
+        /**
+         * Create Sync Remote Execution
+         * @ref RIBScheduler::CreateRemoteExecSync
+         */
         template <typename ...Args>
         auto CreateRemoteExecSync(Args&&... args);
 
+        /**
+         * Consume One Object from a designated Broadcast Stream
+         * @ref RIBScheduler::ConsumeOneFromBroadcastStream
+         */
         auto ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName);
 
+        /**
+         * Produce One Object to a designated Broadcast Stream
+         * @ref RIBScheduler::ProduceOneToLoggingStream
+         */
         auto ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
 
     }

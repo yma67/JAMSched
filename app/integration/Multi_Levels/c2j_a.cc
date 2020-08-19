@@ -1,14 +1,15 @@
 #include <jamscript.hpp>
 
-int main()
+int main(int argc, char *argv[])
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
-                            {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
+    JAMScript::Node node(argc, argv);
+    JAMScript::RIBScheduler ribScheduler(1024 * 256, node.getHostAddr(), node.getAppId(), node.getDevId());
+    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
+                            {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
-        for (int i = 0; i < 1000; i++)
+        while (true)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(30));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
                 printf("==============================================\n");
             try {
                 ribScheduler.CreateRemoteExecAsyncMultiLevel(std::string("helloj"), std::string(""), 0);
@@ -25,7 +26,7 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(30));
+            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(3));
             printf(">>...........\n");
             ribScheduler.CreateRemoteExecAsyncMultiLevel(std::string("xyzfunc"), std::string(""), 0, std::string("mahesh"), 234.56, 78);
         }

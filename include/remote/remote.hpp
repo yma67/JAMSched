@@ -359,17 +359,21 @@ namespace JAMScript
         void CancelAllRExecRequests();
 
         bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> failureCallback, 
-                                            nlohmann::json rexRequest)
+                                            nlohmann::json rexRequest, std::size_t sharedCountReference,
+                                            std::shared_ptr<std::atomic_size_t> sharedFailure)
         {
             std::unique_lock lk(Remote::mCallback);
             if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
             {
-                failureCallback();
+                lk.unlock();
+                if (sharedFailure->fetch_add(1U) == sharedCountReference)
+                {
+                    failureCallback();
+                }
                 return false;
             }
             rexRequest.push_back({"opt", cloudFogInfo[hostName]->devId});
             rexRequest.push_back({"actid", eIdFactory});
-            printf("Hostname... Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
@@ -377,27 +381,34 @@ namespace JAMScript
             cloudFogInfo[hostName]->rExecPending.insert(tempEID);
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
-            return CreateRetryTask(hostName, futureAck, vReq, tempEID, std::move(failureCallback));
+            return CreateRetryTask(hostName, futureAck, vReq, tempEID, std::move(failureCallback), 
+                                   sharedCountReference, std::move(sharedFailure));
         }
 
-        bool CreateRExecAsyncWithCallbackNT(std::function<void()> failureCallback, nlohmann::json rexRequest)
+        bool CreateRExecAsyncWithCallbackNT(std::function<void()> failureCallback, nlohmann::json rexRequest, 
+                                            std::size_t sharedCountReference, 
+                                            std::shared_ptr<std::atomic_size_t> sharedFailure)
         {
             std::unique_lock lk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
             {
-                failureCallback();
+                lk.unlock();
+                if (sharedFailure->fetch_add(1U) == sharedCountReference)
+                {
+                    failureCallback();
+                }
                 return false;
             }
             rexRequest.push_back({"opt", mainFogInfo->devId});
             rexRequest.push_back({"actid", eIdFactory});
-            printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
             auto futureAck = pr->GetFuture();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
-            return CreateRetryTask(futureAck, vReq, tempEID, std::move(failureCallback));
+            return CreateRetryTask(futureAck, vReq, tempEID, std::move(failureCallback), 
+                                   sharedCountReference, std::move(sharedFailure));
         }
 
         template <typename... Args>
@@ -419,7 +430,6 @@ namespace JAMScript
             }
             rexRequest.push_back({"opt", mainFogInfo->devId});
             rexRequest.push_back({"actid", eIdFactory});
-            printf("Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
@@ -434,7 +444,6 @@ namespace JAMScript
                                                           uint32_t condvec, std::function<void()> failureCallback, 
                                                           Args &&... eArgs)
         {
-            printf("Looping... over all connections.......................................\n");
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
                 {"actname", eName},
@@ -446,16 +455,18 @@ namespace JAMScript
             std::vector<std::string> hostsAvailable;
             for (auto& [hostName, conn]: cloudFogInfo)
             {
-                printf(">>>>>>>> Hostname %s\n", hostName.c_str());
                 hostsAvailable.push_back(hostName);
             }
             lockGetAllHostNames.unlock();
-            printf("For all hosts Available\n");
+            auto failCountShared = std::make_shared<std::atomic_size_t>(0U);
+            auto failCountReference = hostsAvailable.size();
             for (auto& hostName: hostsAvailable)
             {
-                CreateRExecAsyncWithCallbackNT(hostName, failureCallback, rexRequest);
+                CreateRExecAsyncWithCallbackNT(hostName, failureCallback, rexRequest, 
+                                               failCountReference, failCountShared);
             }
-            return CreateRExecAsyncWithCallbackNT(std::move(failureCallback), std::move(rexRequest));
+            return CreateRExecAsyncWithCallbackNT(std::move(failureCallback), std::move(rexRequest), 
+                                                  failCountReference, std::move(failCountShared));
         }
 
         template <typename... Args>
@@ -589,8 +600,12 @@ namespace JAMScript
                                  std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                  std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon);
         bool CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
-                             std::function<void()> callback);
+                             std::function<void()> callback, std::size_t countCommon, 
+                             std::shared_ptr<std::atomic_size_t> sharedFailureCount);
         bool CreateRetryTask(std::string hostName, Future<bool> &futureAck, std::vector<unsigned char> &vReq, 
+                             uint32_t tempEID, std::function<void()> callback, std::size_t countCommon, 
+                             std::shared_ptr<std::atomic_size_t> sharedFailureCount);
+        bool CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, 
                              uint32_t tempEID, std::function<void()> callback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
         static SpinMutex mCallback;

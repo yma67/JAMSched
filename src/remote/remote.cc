@@ -365,11 +365,13 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
 }
 
 bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
-                                        std::function<void()> callback)
+                                        std::function<void()> callback, std::size_t countCommon,
+                                        std::shared_ptr<std::atomic_size_t> sharedFailureCount)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
                                [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
-                                futureAck { std::move(futureAck) }, tempEID]() mutable {
+                                futureAck { std::move(futureAck) }, countCommon,
+                                sharedFailureCount { std::move(sharedFailureCount) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
         {
@@ -378,7 +380,10 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                 if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                 {
                     lkPublish.unlock();
-                    callback();
+                    if (sharedFailureCount->fetch_add(1U) == countCommon)
+                    {
+                        callback();
+                    }
                     return;
                 }
                 auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
@@ -397,8 +402,18 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                     std::lock_guard lk(Remote::mCallback);
                     ackLookup.erase(tempEID);
                 }
-                callback();
+                if (sharedFailureCount->fetch_add(1U) == countCommon)
+                {
+                    callback();
+                }
                 return;
+            }
+            if (!futureAck.Get())
+            {
+                if (sharedFailureCount->fetch_add(1U) == countCommon)
+                {
+                    callback();
+                }
             }
             return;
         }
@@ -407,13 +422,13 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
 }
 
 bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futureAck, 
-                                        std::vector<unsigned char> &vReq, 
-                                        uint32_t tempEID, std::function<void()> callback)
+                                        std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback, 
+                                        std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount)
 {
-    printf("Retry task called for  hostname %s \n", hostName.c_str());
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
                                [this, hostName{ std::move(hostName) }, callback { std::move(callback) }, 
-                                vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, tempEID]() mutable {
+                                vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, countCommon,
+                                sharedFailureCount { std::move(sharedFailureCount) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
         {
@@ -422,12 +437,67 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
                 if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
                 {
                     lkPublish.unlock();
-                    callback();
+                    if (sharedFailureCount->fetch_add(1U) == countCommon)
+                    {
+                        callback();
+                    }
                     return;
                 }
                 auto& refCFINFO = cloudFogInfo[hostName];
                 auto* ptrMQTTAdapter = refCFINFO->mqttAdapter;
                 mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), 
+                                nvoid_new(vReq.data(), vReq.size()));
+                lkPublish.unlock();
+            }
+            if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+            {
+                if (retryNum < 3)
+                {
+                    retryNum++;
+                    continue;
+                }
+                {
+                    std::lock_guard lk(Remote::mCallback);
+                    ackLookup.erase(tempEID);
+                }
+                if (sharedFailureCount->fetch_add(1U) == countCommon)
+                {
+                    callback();
+                }
+                return;
+            }
+            if (!futureAck.Get())
+            {
+                if (sharedFailureCount->fetch_add(1U) == countCommon)
+                {
+                    callback();
+                }
+            }
+            return;
+        }
+    }).Detach();
+    return true;
+}
+
+bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, 
+                                        uint32_t tempEID, std::function<void()> callback)
+{
+    scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
+                               [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
+                                futureAck { std::move(futureAck) }, tempEID]() mutable {
+        int retryNum = 0;
+        while (retryNum < 3)
+        {
+            {
+                std::unique_lock lkPublish(Remote::mCallback);
+                if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
+                {
+                    lkPublish.unlock();
+                    callback();
+                    return;
+                }
+                auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
+                mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
                                 nvoid_new(vReq.data(), vReq.size()));
                 lkPublish.unlock();
             }
@@ -508,7 +578,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     cfINFO->pongCounter = cfINFO->pongCounter - 1;
                 }
                 cfINFO->isExpired = false;
-                printf("Ping.. received... \n");
             });
             RegisterTopic(cfINFO->announceDown, "KILL", {
                 lkValidConn.unlock();
@@ -554,7 +623,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 }
             });
             RegisterTopic(cfINFO->requestDown, "REXEC-ASY", {
-                printf("REXEC-ASY recevied \n");
                 if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
                 {
                     auto actId = rMsg["actid"].get<uint32_t>();
@@ -586,7 +654,6 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             });
         } catch (const std::exception& e) {
             e.what();
-            printf("Error... %s\n", e.what());
         }
     });
     mqtt_free_topic_msg(topicname, &msg);

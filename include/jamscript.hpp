@@ -4,4 +4,5 @@
 #include "scheduler/scheduler.hpp"
 #include "scheduler/tasklocal.hpp"
 #include "remote/data.hpp"
+#include "node/node.hpp"
 #endif
