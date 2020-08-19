@@ -257,14 +257,14 @@ namespace JAMScript
 
         /**
          * Sleep current task for a duration
-         * @ref std::this_thread::sleep_for
+         * @remark similar as std::this_thread::sleep_for
          */
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
 
         /**
          * Sleep current task for until a timepoint
-         * @ref std::this_thread::sleep_until
+         * @remark similar as std::this_thread::sleep_until
          */
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);

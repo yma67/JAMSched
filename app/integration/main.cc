@@ -63,10 +63,6 @@ int main()
             auto sleepStart = JAMScript::Clock::now();
             JAMScript::ThisTask::SleepFor(tuSleepTime);
             std::cout << "JSleep Latency: " << std::chrono::duration_cast<std::chrono::microseconds>(JAMScript::Clock::now() - sleepStart - tuSleepTime).count() << " us" << std::endl;
-            // JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
-            // auto q = ribScheduler.ExtractRemote<int>(jf);
-            // jf.Get();
-            // std::cout << jf << std::endl;
             JAMScript::ThisTask::Yield();
             printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
         }
@@ -79,15 +75,6 @@ int main()
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
             JAMScript::ThisTask::SleepFor(tuSleepTime);
             printf(">>...........\n");
-            JAMScript::ThisTask::Exit();
-/*            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
-            try {
-                auto q = ribScheduler.ExtractRemote<int>(jf);
-            } catch (std::exception e) {
-                e.what();
-            } */
-            // std::cout << jf << std::endl;
-            JAMScript::ThisTask::Yield();
         }
     }).Detach();
     ribScheduler.RunSchedulerMainLoop();

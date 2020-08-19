@@ -9,16 +9,11 @@ int main()
         for (int i = 0; i < 1000; i++)
         {
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(5000));
-                printf("==============================================\n");
-            try {
-                ribScheduler.CreateRemoteExecAsync(std::string("helloj"), std::string(""), 0);
-                std::cout << "Lauched the remot exec.." << std::endl;
-                continue;
-            } 
-            catch (const std::exception &e)
-            {
-                printf("Timeout error...\n");
-            }
+            printf("==============================================\n");
+            JAMScript::ThisTask::CreateRemoteExecAsyncAvecRappeler(
+                std::string("helloj"), std::string(""), 0, [] {
+                printf("Timed Out\n");
+            });
         }
     });
                     
@@ -27,7 +22,12 @@ int main()
         {                                        
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
             printf(">>...........\n");
-            ribScheduler.CreateRemoteExecAsync(std::string("xyzfunc"), std::string(""), 0, std::string("mahesh"), 234.56, 78);
+            JAMScript::ThisTask::CreateRemoteExecAsyncAvecRappeler(
+                std::string("xyzfunc"), std::string(""), 0, [] {
+                    printf("Timed Out\n");
+                }, 
+                std::string("mahesh"), 234.56, 78
+            );
         }
     });
 

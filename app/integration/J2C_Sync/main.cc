@@ -28,14 +28,7 @@ int main()
         while (true)
         {
             printf(">>...........\n");
-            try
-            {
-                auto jf = ribScheduler.CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, std::chrono::minutes(5), 9, std::string("hello"), 0.4566, 1);
-            }
-            catch (const JAMScript::RExecDetails::HeartbeatFailureException &he)
-            {
-                std::cout << he.what() << std::endl;
-            }
+            auto jf = ribScheduler.CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, std::chrono::minutes(5), 9, std::string("hello"), 0.4566, 1);
         }
     });
     ribScheduler.RunSchedulerMainLoop();

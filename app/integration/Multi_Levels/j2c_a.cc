@@ -20,8 +20,6 @@ void testloop()
     //std::cout << "Add NSync Add of " << a << " + " << b << std::endl;
 }
 
-
-
 int main()
 {
     JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");

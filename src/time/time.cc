@@ -71,6 +71,7 @@ void JAMScript::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint3
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
+    task->cvStatus.store(0, std::memory_order_seq_cst);
     timeout_init(task->timeOut.get(), mask);
     timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
     timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
