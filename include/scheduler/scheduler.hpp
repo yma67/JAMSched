@@ -395,6 +395,15 @@ namespace JAMScript
             lexecFuncMap[eName] = std::function(std::forward<Fn>(fn));
         }
 
+        /**
+         * Create Asynchronous Remote Execution, with failure Callback
+         * @param eName name of such execution
+         * @param condstr javascript predicate expression in C++ string
+         * @param condvec reference value used to compare with evaluation of condstr in javascript
+         * @param callBack callback invoked after failure
+         * @param eArgs argument of execution
+         * @remark callBack guaranteed to be invoked exactly once if all connections failed
+         */
         template <typename... Args>
         void CreateRemoteExecAsyncMultiLevelAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
                                                          std::function<void()> &&callBack, Args &&... eArgs) 
@@ -404,7 +413,14 @@ namespace JAMScript
                                                                  std::forward<std::function<void()>>(callBack), 
                                                                  std::forward<Args>(eArgs)...);
         }
-
+        
+        /**
+         * Create Asynchronous Remote Execution to multiple connections, without failure Callback
+         * @param eName name of such execution
+         * @param condstr javascript predicate expression in C++ string
+         * @param condvec reference value used to compare with evaluation of condstr in javascript
+         * @param eArgs argument of execution
+         */
         template <typename... Args>
         void CreateRemoteExecAsyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
@@ -412,6 +428,15 @@ namespace JAMScript
             remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
 
+        /**
+         * Create Asynchronous Remote Execution, with callback
+         * @param eName name of such execution
+         * @param condstr javascript predicate expression in C++ string
+         * @param condvec reference value used to compare with evaluation of condstr in javascript
+         * @param callBack callback invoked after failure
+         * @param eArgs argument of execution
+         * @remark callBack guaranteed to be invoked exactly once if connection failed
+         */
         template <typename... Args>
         void CreateRemoteExecAsyncAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
                                                std::function<void()> &&callBack, Args &&... eArgs) 
@@ -422,6 +447,14 @@ namespace JAMScript
                                                  std::forward<Args>(eArgs)...);
         }
 
+        /**
+         * Create Asynchronous Remote Execution
+         * @param eName name of such execution
+         * @param condstr javascript predicate expression in C++ string
+         * @param condvec reference value used to compare with evaluation of condstr in javascript
+         * @param callBack callback invoked after failure
+         * @param eArgs argument of execution
+         */
         template <typename... Args>
         void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
@@ -438,6 +471,7 @@ namespace JAMScript
          * @param eArgs argument of execution
          * @remark an "exception" entry will be set in the json if all connections failed their executions
          * @remark the value will be set after there exist one connection successfully sent its result back
+         * @remark block until result return or timed out
          */
         template <typename... Args>
         nlohmann::json CreateRemoteExecSyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, 
@@ -447,6 +481,17 @@ namespace JAMScript
             return remote->CreateRExecSyncToEachConnection(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
         }
 
+        /**
+         * Send C2J Synchronous Remote Call
+         * @param eName name of execution
+         * @param condstr javascript predicate expression in C++ string
+         * @param condvec reference value used to compare with evaluation of condstr in javascript
+         * @param timeOut an "exception" entry will be set in the json if the current task has been waiting for timeOut amount of time
+         * @param eArgs argument of execution
+         * @remark an "exception" entry will be set in the json if all connections failed their executions
+         * @remark the value will be set after there exist one connection successfully sent its result back
+         * @remark block until result return or timed out
+         */
         template <typename... Args>
         nlohmann::json CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, 
                                             Duration timeOut, Args &&... eArgs)
@@ -455,7 +500,19 @@ namespace JAMScript
             return remote->CreateRExecSync(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
         }
 
+        /**
+         * Consume One Object from a designated Broadcast Stream
+         * @param nameSpace namespace of the designated broadcast stream
+         * @param variableName variable name of the designated broadcast stream
+         * @remark block until one value is available for this invocation
+         */
         nlohmann::json ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName);
+
+        /**
+         * Produce One Object to a designated Broadcast Stream
+         * @param nameSpace namespace of the designated broadcast stream
+         * @param variableName variable name of the designated broadcast stream
+         */
         void ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
 
         template <typename T>
