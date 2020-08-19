@@ -358,9 +358,8 @@ namespace JAMScript
         friend class Time;
         void CancelAllRExecRequests();
 
-        bool CreateRExecAsyncWithCallbackNT(std::string hostName, const std::string &eName, 
-                                            const std::string &condstr, uint32_t condvec, 
-                                            std::function<void()> failureCallback, nlohmann::json rexRequest)
+        bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> failureCallback, 
+                                            nlohmann::json rexRequest)
         {
             std::unique_lock lk(Remote::mCallback);
             if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
@@ -370,7 +369,7 @@ namespace JAMScript
             }
             rexRequest.push_back({"opt", cloudFogInfo[hostName]->devId});
             rexRequest.push_back({"actid", eIdFactory});
-            printf("Pushing... actid %d\n", eIdFactory);
+            printf("Hostname... Pushing... actid %d\n", eIdFactory);
             auto tempEID = eIdFactory;
             eIdFactory++;
             auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
@@ -381,8 +380,7 @@ namespace JAMScript
             return CreateRetryTask(hostName, futureAck, vReq, tempEID, std::move(failureCallback));
         }
 
-        bool CreateRExecAsyncWithCallbackNT(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                            std::function<void()> failureCallback, nlohmann::json rexRequest)
+        bool CreateRExecAsyncWithCallbackNT(std::function<void()> failureCallback, nlohmann::json rexRequest)
         {
             std::unique_lock lk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
@@ -436,6 +434,7 @@ namespace JAMScript
                                                           uint32_t condvec, std::function<void()> failureCallback, 
                                                           Args &&... eArgs)
         {
+            printf("Looping... over all connections.......................................\n");
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
                 {"actname", eName},
@@ -447,15 +446,16 @@ namespace JAMScript
             std::vector<std::string> hostsAvailable;
             for (auto& [hostName, conn]: cloudFogInfo)
             {
+                printf(">>>>>>>> Hostname %s\n", hostName.c_str());
                 hostsAvailable.push_back(hostName);
             }
             lockGetAllHostNames.unlock();
+            printf("For all hosts Available\n");
             for (auto& hostName: hostsAvailable)
             {
-                CreateRExecAsyncWithCallbackNT(hostName, eName, condstr, condvec, failureCallback, rexRequest);
+                CreateRExecAsyncWithCallbackNT(hostName, failureCallback, rexRequest);
             }
-            return CreateRExecAsyncWithCallbackNT(eName, condstr, condvec, 
-                                                  std::move(failureCallback), std::move(rexRequest));
+            return CreateRExecAsyncWithCallbackNT(std::move(failureCallback), std::move(rexRequest));
         }
 
         template <typename... Args>

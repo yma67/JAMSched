@@ -410,10 +410,10 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
                                         std::vector<unsigned char> &vReq, 
                                         uint32_t tempEID, std::function<void()> callback)
 {
+    printf("Retry task called for  hostname %s \n", hostName.c_str());
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
                                [this, hostName{ std::move(hostName) }, callback { std::move(callback) }, 
-                                vReq { std::move(vReq) }, 
-                                futureAck { std::move(futureAck) }, tempEID]() mutable {
+                                vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
         {
@@ -522,24 +522,21 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             RegisterTopic(cfINFO->announceDown, "PUT-CF-INFO", {
                 if (rMsg.contains("opt") && rMsg["opt"].is_string() && 
                     rMsg["opt"].get<std::string>() == "ADD" &&
-                    rMsg.contains("actarg") && rMsg["actarg"].is_string() && 
-                    rMsg["actarg"].get<std::string>() == "fog" && 
-                    rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string() &&
-                    rMsg.contains("appName") && rMsg["appName"].is_string() &&
-                    rMsg.contains("devName") && rMsg["devName"].is_string()) 
+                    rMsg.contains("args") && rMsg["args"].is_array())
                 {
-                    auto deviceNameStr = rMsg["devName"].get<std::string>();
-                    auto appNameStr = rMsg["appName"].get<std::string>();
-                    auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
+                    auto deviceNameStr = std::string("dev-1");
+                    auto appNameStr = std::string("app-1");
+                    auto hostAddrStr = rMsg["args"][0].get<std::string>();
                     remote->cloudFogInfo.emplace(hostAddrStr, 
                         std::make_unique<CloudFogInfo>(remote, deviceNameStr ,appNameStr, hostAddrStr));
+                    remote->cloudFogInfo[hostAddrStr].get()->isRegistered = true;
                     Remote::isValidConnection.insert(remote->cloudFogInfo[hostAddrStr].get());
                 }
                 else if (rMsg.contains("opt")  && rMsg["opt"].is_string() && 
                          rMsg["opt"].get<std::string>() == "DEL" &&
-                         rMsg.contains("hostAddr") && rMsg["hostAddr"].is_string())
+                         rMsg.contains("args") && rMsg["args"].is_array())
                 {
-                    auto hostAddrStr = rMsg["hostAddr"].get<std::string>();
+                    auto hostAddrStr = rMsg["args"][0].get<std::string>();
                     Remote::isValidConnection.erase(remote->cloudFogInfo[hostAddrStr].get());
                     remote->cloudFogInfo.erase(hostAddrStr);
                 }
