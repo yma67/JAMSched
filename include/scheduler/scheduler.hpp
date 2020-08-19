@@ -452,7 +452,6 @@ namespace JAMScript
          * @param eName name of such execution
          * @param condstr javascript predicate expression in C++ string
          * @param condvec reference value used to compare with evaluation of condstr in javascript
-         * @param callBack callback invoked after failure
          * @param eArgs argument of execution
          */
         template <typename... Args>
@@ -512,6 +511,7 @@ namespace JAMScript
          * Produce One Object to a designated Broadcast Stream
          * @param nameSpace namespace of the designated broadcast stream
          * @param variableName variable name of the designated broadcast stream
+         * @param value value to be posted
          */
         void ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
 
