@@ -76,6 +76,10 @@ JAMScript::RIBScheduler::~RIBScheduler()
 
 void JAMScript::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy)
 {
+    if (normal.empty() || greedy.empty() || normal.back().eTime != greedy.back().eTime)
+    {
+        return;
+    }
     std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
     rtScheduleNormal = std::move(normal);
     rtScheduleGreedy = std::move(greedy);
@@ -192,6 +196,23 @@ JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
         }
     }
     return minThief;
+}
+
+nlohmann::json JAMScript::RIBScheduler::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName)
+{
+    if (broadcastManger != nullptr)
+    {
+        return broadcastManger->Get(nameSpace, variableName);
+    }
+    return {};
+}
+
+void JAMScript::RIBScheduler::ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value)
+{
+    if (logManager != nullptr)
+    {
+        logManager->LogRaw(nameSpace, variableName, value);
+    }
 }
 
 bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock) {

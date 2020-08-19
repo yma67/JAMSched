@@ -12,7 +12,7 @@ if(NOT json_POPULATED)
 endif()
 
 # Boost
-find_package(Boost 1.65.0)
+find_package(Boost 1.65.0 COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 # Find C/C++ sources
@@ -30,5 +30,5 @@ endif(JAMSCRIPT_DEBUG_LINEINFO_OPT)
 find_package(Threads)
 add_library(jamsched ${JAMCOMPONENTS_SOURCES_LIST})
 target_compile_features(jamsched PUBLIC cxx_std_17)
-target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json paho-mqtt3a hiredis event ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json paho-mqtt3a hiredis event ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES})
 target_include_directories(jamsched PUBLIC ${PROJECT_SOURCE_DIR}/include)

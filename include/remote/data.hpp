@@ -37,11 +37,11 @@ namespace JAMScript
     {
     public:
         void RunLoggerMainLoop();
-        void Log(std::string nameSpace, std::string varName, nlohmann::json streamObjectRaw);
+        void LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw);
         template <typename... Args>
-        void Log(std::string nameSpace, std::string varName, Args &&... eArgs)
+        void Log(const std::string &nameSpace, const std::string &varName, Args &&... eArgs)
         {
-            return Log(std::move(nameSpace), std::move(varName), nlohmann::json::array({std::forward<Args>(eArgs)...}));
+            return LogRaw(nameSpace, varName, nlohmann::json::array({std::forward<Args>(eArgs)...}));
         }
         LogManager(Remote *remote, RedisState redisState);
         ~LogManager();
@@ -77,6 +77,7 @@ namespace JAMScript
         using JAMDataKeyType = std::pair<std::string, std::string>;
     public:
         void Append(std::string key, char* data);
+        nlohmann::json Get(const std::string &nameSpace, const std::string &variableName);
         void RunBroadcastMainLoop();
         void StopBroadcastMainLoop();
         BroadcastManager(Remote *remote, RedisState redisState, std::vector<JAMDataKeyType> variableInfo);

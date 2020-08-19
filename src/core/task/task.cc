@@ -103,6 +103,18 @@ JAMScript::TimePoint JAMScript::SchedulerBase::GetCycleStartTime() const
     return Clock::now(); 
 }
 
+auto JAMScript::ThisTask::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName)
+{
+    BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+    return TaskInterface::Active()->GetRIBScheduler()->ConsumeOneFromBroadcastStream(nameSpace, variableName);
+}
+
+auto JAMScript::ThisTask::ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value)
+{
+    BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+    return TaskInterface::Active()->GetRIBScheduler()->ProduceOneToLoggingStream(nameSpace, variableName, value);
+}
+
 thread_local JAMScript::TaskInterface *JAMScript::TaskInterface::thisTask = nullptr;
 
 JAMScript::TaskInterface *JAMScript::TaskInterface::Active()

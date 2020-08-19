@@ -77,15 +77,35 @@ namespace JAMScript
         void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) override;
 
+        /**
+         * Set Schedule 
+         * @param normal schedule
+         * @param greedy schedule
+         * @remark normal and greedy should have the same period, i.e. normal.back().eTime == normal.back().eTime
+         */
         void SetSchedule(std::vector<RealTimeSchedule> normal, std::vector<RealTimeSchedule> greedy);
 
+        /**
+         * Register Remote Procedure Call
+         * @param fName function name
+         * @param stackTrait stack configuration to be used when launching the RPC
+         * @param fn function itself, can be lambda, function pointer, ....
+         * @warning thread non-safe, all invocation to this method should before the invocation of RIBScheduler::RunSchedulerMainLoop()
+         */
         template <typename Fn>
         void RegisterRPCall(const std::string &fName, StackTraits stackTrait, Fn && fn) 
         {
             localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
             localFuncStackTraitsMap[fName] = std::move(stackTrait);
         }
-
+        
+        /**
+         * Register Remote Procedure Call With Default stack configuration
+         * @param fName function name
+         * @param fn function itself, can be lambda, function pointer, ....
+         * @remark default stack configuration: standalone fixed-size 4kb stack, can be stolen/migrating
+         * @warning thread non-safe, all invocation to this method should before the invocation of RIBScheduler::RunSchedulerMainLoop()
+         */
         template <typename Fn>
         void RegisterRPCall(const std::string &fName, Fn && fn) 
         {
@@ -93,6 +113,11 @@ namespace JAMScript
             localFuncStackTraitsMap[fName] = StackTraits();
         }
 
+        /**
+         * Execute Function By JSON
+         * @param rpcAttr json containing function name as "actname", arguments (in json list) as "args"
+         * @return json containing result of function execution
+         */
         nlohmann::json CreateJSONBatchCall(nlohmann::json rpcAttr) 
         {
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
@@ -153,6 +178,19 @@ namespace JAMScript
             return false;
         }
 
+        /**
+         * Create Interactive Task
+         * @param stackTraits stack configuration
+         * @param deadline soft relative deadline of the task with respect to start of cycle
+         * @param burst burst duration of the task
+         * @param onCancel callback to invoke if Interactive Task is cancelled
+         * @param tf function of the task
+         * @param args arguments of tf
+         * @return taskhandle that can join or detach such task
+         * @remark interactive task will be executed on main thread if not expired
+         * @remark even if missed deadline, if the task chooses to be stolen, it could be distributed to a executor thread
+         * @remark otherwise, it will be added to a LIFO stack, and it is subject to cancel, or could be executed if main thread has extra sporadic server
+         */
         template <typename Fn, typename... Args>
         TaskHandle CreateInteractiveTask(const StackTraits &stackTraits, Duration deadline, Duration burst,
                                          std::function<void()> onCancel, Fn &&tf, Args &&... args)
@@ -179,7 +217,18 @@ namespace JAMScript
             cvQMutex.notify_one();
             return { fn->notifier };
         }
-
+        
+        /**
+         * Create Batch Task
+         * @param stackTraits stack configuration
+         * @param burst burst duration of the task
+         * @param tf function of the task
+         * @param args arguments of tf
+         * @return taskhandle that can join or detach such task
+         * @remark if task is stealable, it will be distributed to the executor kernel thread with least amout of tasks in its ready queue
+         * @remark if task is not stealable, it will be distributed to the main (real time) thread
+         * @remark if the task choose to pin core and the core is available, the it will be added to the specified executor
+         */
         template <typename Fn, typename... Args>
         TaskHandle CreateBatchTask(const StackTraits &stackTraits, Duration burst, Fn &&tf, Args &&... args)
         {
@@ -229,6 +278,15 @@ namespace JAMScript
             return { ptrTaskHandle };
         }
 
+        /**
+         * Create Real Time Task
+         * @param stackTraits stack configuration
+         * @param id identifier of the real time task to map to a real time slot with id
+         * @param tf function of the task
+         * @param args arguments of tf
+         * @return taskhandle that can join or detach such task
+         * @remark there is no guarantee that the first task added will be the first one to execute in the same slot with same id
+         */
         template <typename Fn, typename... Args>
         TaskHandle CreateRealTimeTask(const StackTraits &stackTraits, uint32_t id, Fn &&tf, Args &&... args)
         {
@@ -250,6 +308,20 @@ namespace JAMScript
             return { fn->notifier };
         }
 
+        /**
+         * Create Interactive Task By String Name
+         * @param stackTraits stack configuration
+         * @param deadline soft relative deadline of the task with respect to start of cycle
+         * @param burst burst duration of the task
+         * @param eName function name of the task
+         * @param eArgs arguments of tf
+         * @return taskhandle that can join or detach such task
+         * @remark interactive task will be executed on main thread if not expired
+         * @remark even if missed deadline, if the task chooses to be stolen, it could be distributed to a executor thread
+         * @remark otherwise, it will be added to a LIFO stack, and it is subject to cancel, or could be executed if main thread has extra sporadic server
+         * @warning future may have exception that causes stack unwinding, so be careful when using this in main thread, this may break RealTime nature of main thread
+         * @warning may throw exception if function is not registered
+         */
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
                                                        const std::string &eName, Args &&... eArgs) 
@@ -276,6 +348,19 @@ namespace JAMScript
             return fu;
         }
 
+        /**
+         * Create Batch Task By String Name
+         * @param stackTraits stack configuration
+         * @param burst burst duration of the task
+         * @param eName function of the task
+         * @param eArgs arguments of tf
+         * @return taskhandle that can join or detach such task
+         * @remark if task is stealable, it will be distributed to the executor kernel thread with least amout of tasks in its ready queue
+         * @remark if task is not stealable, it will be distributed to the main (real time) thread
+         * @remark if the task choose to pin core and the core is available, the it will be added to the specified executor
+         * @warning future may have exception that causes stack unwinding, so be careful when using this in main thread, this may break RealTime nature of main thread
+         * @warning may throw exception if function is not registered
+         */
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
         {
@@ -298,6 +383,12 @@ namespace JAMScript
             return fu;
         }
 
+        /**
+         * Register Local Procedure Call With Name
+         * @param eName function name
+         * @param fn function itself, can be lambda, function pointer, ....
+         * @warning thread non-safe, all invocation to this method should before the invocation of RIBScheduler::RunSchedulerMainLoop()
+         */
         template<typename Fn>
         void RegisterLocalExecution(const std::string &eName, Fn && fn) 
         {
@@ -305,36 +396,75 @@ namespace JAMScript
         }
 
         template <typename... Args>
+        void CreateRemoteExecAsyncMultiLevelAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
+                                                         std::function<void()> &&callBack, Args &&... eArgs) 
+        {
+            BOOST_ASSERT(remote != nullptr);
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, 
+                                                                 std::forward<std::function<void()>>(callBack), 
+                                                                 std::forward<Args>(eArgs)...);
+        }
+
+        template <typename... Args>
         void CreateRemoteExecAsyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
+            BOOST_ASSERT(remote != nullptr);
             remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+        }
+
+        template <typename... Args>
+        void CreateRemoteExecAsyncAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
+                                               std::function<void()> &&callBack, Args &&... eArgs) 
+        {
+            BOOST_ASSERT(remote != nullptr);
+            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, 
+                                                 std::forward<std::function<void()>>(callBack), 
+                                                 std::forward<Args>(eArgs)...);
         }
 
         template <typename... Args>
         void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
-            remote->CreateRExecAsync(eName, condstr, condvec, std::forward<Args>(eArgs)...);
+            BOOST_ASSERT(remote != nullptr);
+            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
         }
 
+        /**
+         * Send C2J Synchronous Remote Call to Every Connections
+         * @param eName name of execution
+         * @param condstr javascript predicate expression in C++ string
+         * @param condvec reference value used to compare with evaluation of condstr in javascript
+         * @param timeOut an "exception" entry will be set in the json if the current task has been waiting for timeOut amount of time
+         * @param eArgs argument of execution
+         * @remark an "exception" entry will be set in the json if all connections failed their executions
+         * @remark the value will be set after there exist one connection successfully sent its result back
+         */
         template <typename... Args>
         nlohmann::json CreateRemoteExecSyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, 
                                                       Duration timeOut, Args &&... eArgs)
         {
-            return remote->CreateRExecSyncWithCallbackToEachConnection(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
+            BOOST_ASSERT(remote != nullptr);
+            return remote->CreateRExecSyncToEachConnection(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
         }
 
         template <typename... Args>
         nlohmann::json CreateRemoteExecSync(const std::string &eName, const std::string &condstr, uint32_t condvec, 
                                             Duration timeOut, Args &&... eArgs)
         {
+            BOOST_ASSERT(remote != nullptr);
             return remote->CreateRExecSync(eName, condstr, condvec, timeOut, std::forward<Args>(eArgs)...);
         }
+
+        nlohmann::json ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName);
+        void ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
 
         template <typename T>
         T ExtractRemote(Future<nlohmann::json>& future) 
         {
             return future.Get().get<T>();
         }
+
+        RIBScheduler *GetRIBScheduler() override { return this; }
 
         using JAMDataKeyType = std::pair<std::string, std::string>;
 
@@ -404,6 +534,87 @@ namespace JAMScript
         bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
         
     };
+
+    namespace ThisTask {
+        
+        template <typename ...Args>
+        TaskHandle CreateBatchTask(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateBatchTask(std::forward<Args>(args)...);
+        }
+        
+        template <typename ...Args>
+        TaskHandle CreateInteractiveTask(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateInteractiveTask(std::forward<Args>(args)...);
+        }
+        
+        template <typename ...Args>
+        TaskHandle CreateRealTimeTask(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRealTimeTask(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        TaskHandle CreateLocalNamedInteractiveExecution(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedInteractiveExecution(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        TaskHandle CreateLocalNamedBatchExecution(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedBatchExecution(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        auto CreateRemoteExecAsyncMultiLevelAvecRappeler(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRemoteExecAsyncMultiLevelAvecRappeler(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        auto CreateRemoteExecAsyncMultiLevel(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRemoteExecAsyncMultiLevel(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        auto CreateRemoteExecAsyncAvecRappeler(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRemoteExecAsyncAvecRappeler(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        auto CreateRemoteExecAsync(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRemoteExecAsync(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        auto CreateRemoteExecSyncMultiLevel(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRemoteExecSyncMultiLevel(std::forward<Args>(args)...);
+        }
+
+        template <typename ...Args>
+        auto CreateRemoteExecSync(Args&&... args)
+        {
+            BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
+            return TaskInterface::Active()->GetRIBScheduler()->CreateRemoteExecSync(std::forward<Args>(args)...);
+        }
+
+    }
 
 } // namespace JAMScript
 

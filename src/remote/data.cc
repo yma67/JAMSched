@@ -36,7 +36,7 @@ JAMScript::LogManager::~LogManager()
     redisAsyncDisconnect(redisContext);
 }
 
-void JAMScript::LogManager::Log(std::string nameSpace, std::string varName, nlohmann::json streamObjectRaw)
+void JAMScript::LogManager::LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -198,6 +198,11 @@ void JAMScript::BroadcastManager::RunBroadcastMainLoop()
 void JAMScript::BroadcastManager::StopBroadcastMainLoop()
 {
     event_base_loopbreak(bCastEventLoop);
+}
+
+nlohmann::json JAMScript::BroadcastManager::Get(const std::string &nameSpace, const std::string &variableName)
+{
+    return bCastVarStores[nameSpace][variableName]->Get();
 }
 
 void JAMScript::BroadcastManager::Append(std::string key, char* data)

@@ -36,6 +36,7 @@ namespace JAMScript
         void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) override;
         void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) override;
+        RIBScheduler *GetRIBScheduler() override { return victim; }
 
         StealScheduler(RIBScheduler *victim, uint32_t ssz);
         virtual ~StealScheduler() override;
