@@ -473,7 +473,7 @@ namespace JAMScript
         }
 
         template <typename... Args>
-        nlohmann::json CreateRExecSyncWithCallbackToEachConnection(const std::string &eName, const std::string &condstr, 
+        nlohmann::json CreateRExecSyncToEachConnection(const std::string &eName, const std::string &condstr, 
                                                                    uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
             nlohmann::json rexRequest = {

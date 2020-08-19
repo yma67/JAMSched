@@ -13,7 +13,7 @@ int main()
             printf("==============================================round no %d\n", rounds++);
             try 
             {
-                auto res = ribScheduler.CreateRemoteExecSync(std::string("gethello"), std::string(""), 0, std::chrono::minutes(5), std::string("david"));
+                auto res = JAMScript::ThisTask::CreateRemoteExecSync(std::string("gethello"), std::string(""), 0, std::chrono::minutes(5), std::string("david"));
                 std::cout << "Results .... " << res << std::endl;
                 continue;
             } 
