@@ -36,7 +36,7 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
     int stealableCount = 0;
     for (auto& task: toSteal->isReady)
     {
-        if (task.CanSteal())
+        if (task.isStealable)
         {
             stealableCount++;
         }
