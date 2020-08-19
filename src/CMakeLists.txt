@@ -12,7 +12,7 @@ if(NOT json_POPULATED)
 endif()
 
 # Boost
-find_package(Boost 1.65.0 COMPONENTS program_options REQUIRED)
+find_package(Boost 1.65.0 COMPONENTS program_options filesystem system REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 # Find C/C++ sources
