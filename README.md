@@ -1,5 +1,5 @@
 # JAMSched [![Build Status](https://travis-ci.com/yma67/JAMSched.svg?token=WDPhpGnigsQCoWp5WMJt&branch=master)](https://travis-ci.com/yma67/JAMSched)
-#### The light weight micro-kernel-like scheduling framework with Remote Procedure Call
+#### Real Time Scheduler + Parallel Coroutine Engine for [JAMScript](https://github.com/citelab/JAMScript) C (Device) Side, with support of Remote Procedure Call and separate data-transfer path on Redis
 ## Scheduling
 ### Resources
 #### Threads
@@ -15,6 +15,7 @@
 #### Description
 - Task with hard start/deadline
 - Scheduled on Real-Time Kernel Level Thread
+- All Real-Time tasks runs in a Single Kernel Thread
 #### Scheduling Strategy
 - A static schedule of Real-Time tasks as a finite list of time intervals are used to schedule Hard Real-Time tasks
 - Each time interval has a RT-Task ID, beginning of an interval defines the start of the task with the ID
@@ -42,6 +43,7 @@
 #### Description
 - Task without deadline
 - Scheduled on Non-Real-Time Kernel Level Thread
+- Capable of Parallel Execution
 #### Scheduling Strategy
 - Only Batch Tasks could be executed in worker threads
 - FIFO with Work Steal (between Non-Real-Time Kernel Level Threads)
