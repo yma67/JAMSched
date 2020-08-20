@@ -115,6 +115,9 @@ int val = fu.Get();
 ```
 ### Note 
 Also available for Batch Tasks
+## Exception
+### InvalidArgumentException
+Although there is std::invalid_argument, to appreciate Prof. Gunter Mussbacher giving me an A- grade in ECSE223 - Model Based Programming, I would like to separately define the class to be InvalidArgumentException, which is the same InvalidArgumentException from ECSE223 course project. 
 ## General Workflow
 ### Create an application
 - goto app folder, and make a folder for your application
