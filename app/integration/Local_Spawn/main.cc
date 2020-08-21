@@ -8,7 +8,7 @@ if(count % 1000000 == 0) printf("-----------------Value of count %d\n", count);
 }
 int incr(int x, float y) {
   execincr(x, y);
-  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(false, 1024*64, false), std::chrono::milliseconds(10), std::string("incr"), int(x), float(y));
+  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(false, 1024*64, false), std::chrono::milliseconds(10), std::string("incr"), x, y);
   int i;
   //rbs->CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(10), std::function(execincr), x, y);
   //  JAMScript::ThisTask::Yield();

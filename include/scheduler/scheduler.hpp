@@ -370,7 +370,7 @@ namespace JAMScript
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
+        Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
@@ -410,7 +410,7 @@ namespace JAMScript
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedRealTimeExecution(const StackTraits &stackTraits, uint32_t id, const std::string &eName, Args &&... eArgs) 
+        Future<T> CreateLocalNamedRealTimeExecution(const StackTraits &stackTraits, uint32_t id, const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
