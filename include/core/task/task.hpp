@@ -304,15 +304,15 @@ namespace JAMScript
          * Create Local Exec Interactive Task
          * @ref RIBScheduler::CreateLocalNamedInteractiveExecution
          */
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedInteractiveExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedInteractiveExecution(Args&&... args);
 
         /**
          * Create Local Exec Batch Task
          * @ref RIBScheduler::CreateLocalNamedBatchExecution
          */
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedBatchExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedBatchExecution(Args&&... args);
 
         /**
          * Create Local Exec Batch Task
@@ -418,11 +418,11 @@ namespace JAMScript
         template <typename ...Args>
         friend TaskHandle ThisTask::CreateRealTimeTask(Args&&... args);
 
-        template <typename ...Args>
-        friend TaskHandle ThisTask::CreateLocalNamedInteractiveExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        friend auto ThisTask::CreateLocalNamedInteractiveExecution(Args&&... args);
 
-        template <typename ...Args>
-        friend TaskHandle ThisTask::CreateLocalNamedBatchExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        friend auto ThisTask::CreateLocalNamedBatchExecution(Args&&... args);
 
         template <typename ...Args>
         friend auto ThisTask::CreateRemoteExecAsyncMultiLevelAvecRappeler(Args&&... args);

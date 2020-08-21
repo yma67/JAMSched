@@ -670,18 +670,18 @@ namespace JAMScript
             return TaskInterface::Active()->GetRIBScheduler()->CreateRealTimeTask(std::forward<Args>(args)...);
         }
 
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedInteractiveExecution(Args&&... args)
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedInteractiveExecution(Args&&... args)
         {
             BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
-            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedInteractiveExecution(std::forward<Args>(args)...);
+            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedInteractiveExecution<T>(std::forward<Args>(args)...);
         }
 
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedBatchExecution(Args&&... args)
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedBatchExecution(Args&&... args)
         {
             BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
-            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedBatchExecution(std::forward<Args>(args)...);
+            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedBatchExecution<T>(std::forward<Args>(args)...);
         }
 
         template <typename ...Args>
