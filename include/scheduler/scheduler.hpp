@@ -315,7 +315,7 @@ namespace JAMScript
          * @param burst burst duration of the task
          * @param eName function name of the task
          * @param eArgs arguments of tf
-         * @return taskhandle that can join or detach such task
+         * @return future of the value
          * @remark interactive task will be executed on main thread if not expired
          * @remark even if missed deadline, if the task chooses to be stolen, it could be distributed to a executor thread
          * @remark otherwise, it will be added to a LIFO stack, and it is subject to cancel, or could be executed if main thread has extra sporadic server
@@ -338,7 +338,15 @@ namespace JAMScript
             {
                 try 
                 {
-                    pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    if constexpr(std::is_same<T, void>::value)
+                    {
+                        std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
+                        pf->SetValue();
+                    }
+                    else
+                    {
+                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    }
                 } 
                 catch (const std::exception& e) 
                 {
@@ -354,7 +362,7 @@ namespace JAMScript
          * @param burst burst duration of the task
          * @param eName function of the task
          * @param eArgs arguments of tf
-         * @return taskhandle that can join or detach such task
+         * @return future of the value
          * @remark if task is stealable, it will be distributed to the executor kernel thread with least amout of tasks in its ready queue
          * @remark if task is not stealable, it will be distributed to the main (real time) thread
          * @remark if the task choose to pin core and the core is available, the it will be added to the specified executor
@@ -373,7 +381,54 @@ namespace JAMScript
             {
                 try 
                 {
-                    pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    if constexpr(std::is_same<T, void>::value)
+                    {
+                        std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
+                        pf->SetValue();
+                    }
+                    else
+                    {
+                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    }
+                } 
+                catch (const std::exception& e) 
+                {
+                    pf->SetException(std::make_exception_ptr(e));
+                }
+            }).Detach();
+            return fu;
+        }
+
+        /**
+         * Create Real-Time Task By String Name
+         * @param stackTraits stack configuration
+         * @param id burst duration of the task
+         * @param eName function of the task
+         * @param eArgs arguments of tf
+         * @return future of the value
+         * @ref JAMScript::RIBScheduler::CreateRealTimeTask
+         * @warning may throw exception if function is not registered
+         */
+        template <typename T, typename... Args>
+        Future<T> CreateLocalNamedRealTimeExecution(const StackTraits &stackTraits, uint32_t id, const std::string &eName, Args &&... eArgs) 
+        {
+            auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
+                std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
+            auto pf = std::make_unique<Promise<T>>();
+            auto fu = pf->GetFuture();
+            CreateRealTimeTask(stackTraits, id, [pf { std::move(pf) }, tAttr { std::move(tAttr) }]() 
+            {
+                try 
+                {
+                    if constexpr(std::is_same<T, void>::value)
+                    {
+                        std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
+                        pf->SetValue();
+                    }
+                    else
+                    {
+                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    }
                 } 
                 catch (const std::exception& e) 
                 {

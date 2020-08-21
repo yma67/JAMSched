@@ -12,9 +12,10 @@ int addNumbers(int a, int b)
     return a + b;
 }
 
-int scaleNumber(int x) 
+void scaleNumber(int x) 
 {
-    return x * 150;
+    printf("x * 150 = %d\n", x * 150); 
+    // return x * 150;
 }
 
 double getTime()
@@ -47,7 +48,7 @@ int main()
                                      
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             printf("==============================================\n");
-            JAMScript::ThisTask::CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            auto pr = ribScheduler.CreateLocalNamedInteractiveExecution<void>({false, 1024 * 4, true}, std::chrono::milliseconds(10), std::chrono::milliseconds(50), std::string("scaleNumber"), 3);
         }
     });
                    
@@ -58,7 +59,6 @@ int main()
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});   
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             printf(">>...........\n");
-            JAMScript::ThisTask::CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
         }
     });
 
