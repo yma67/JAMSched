@@ -46,7 +46,7 @@ public:
             try
             {
                 auto nextTask = NextTask();
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
+#if 1
                 if (nextTask != nullptr)
                 {
                     nextTask->SwapIn();

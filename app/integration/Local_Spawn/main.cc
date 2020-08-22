@@ -1,20 +1,27 @@
 #include <jamscript.hpp>
 
 int count = 0;
-int execincr(int x, float y){
+std::chrono::high_resolution_clock::time_point prevUS;
+[[clang::optnone]] int execincr(int x, float y){
   count++;
-if(count % 1000000 == 0) printf("-----------------Value of count %d\n", count);
- return 0;
+if(count % 1000000 == 0) 
+{
+  printf("-----------------Value of count %d, elapsed %ld us\n", count, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - prevUS).count());
+  prevUS = std::chrono::high_resolution_clock::now();
 }
+  return 0;
+}
+
 int incr(int x, float y) {
-  execincr(x, y);
-  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(false, 1024*64, false), std::chrono::milliseconds(10), std::string("incr"), x, y);
-  int i;
+    auto s = std::chrono::high_resolution_clock::now();
+  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(true, 0, false), std::chrono::milliseconds(10), std::string("incr"), x, y);
+    // printf("Task Creation elapsed %ld ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - s).count());
   //rbs->CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(10), std::function(execincr), x, y);
   //  JAMScript::ThisTask::Yield();
   //  printf("End... of incr...\n");
  return 0;
 }
+
 int execloop(){
   int i;
   //  printf("IN exec loop \n");
@@ -27,7 +34,7 @@ int execloop(){
 }
 int loop() {
   int i;
-  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(false, 1024*64, false), std::chrono::milliseconds(10), std::string("loop"));
+  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(true, 0, false), std::chrono::milliseconds(10), std::string("loop"));
   return 0;
 }
 int user_main(int argc, char **argv) {
@@ -41,12 +48,23 @@ int user_main(int argc, char **argv) {
    ribScheduler.RegisterRPCall("loop", execloop); \
    ribScheduler.RegisterLocalExecution("loop", execloop); \
 }
+
+[[clang::optnone]] void baseline() {
+  // ... code
+  for (int i = 0; i < 13000000; i++)
+  {
+    execincr(i, 4.5);
+  }
+}
+
 int main(int argc, char **argv) {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    JAMScript::RIBScheduler ribScheduler(1024 * 4, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
     user_setup();
-    ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::milliseconds(1000), std::function(user_main), argc, argv);
+    prevUS = std::chrono::high_resolution_clock::now();
+    ribScheduler.CreateBatchTask(JAMScript::StackTraits(true, 0, false), std::chrono::milliseconds(1000), std::function(user_main), argc, argv);
+    baseline();
     ribScheduler.RunSchedulerMainLoop();
     return 0;
 }

@@ -324,7 +324,7 @@ namespace JAMScript
          */
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
-                                                       const std::string &eName, Args &&... eArgs) 
+                                                       const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
