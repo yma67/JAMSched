@@ -593,11 +593,9 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     rMsg["opt"].get<std::string>() == "ADD" &&
                     rMsg.contains("args") && rMsg["args"].is_array())
                 {
-                    auto deviceNameStr = std::string("dev-1");
-                    auto appNameStr = std::string("app-1");
                     auto hostAddrStr = rMsg["args"][0].get<std::string>();
                     remote->cloudFogInfo.emplace(hostAddrStr, 
-                        std::make_unique<CloudFogInfo>(remote, deviceNameStr ,appNameStr, hostAddrStr));
+                        std::make_unique<CloudFogInfo>(remote, remote->devId, remote->appId, hostAddrStr));
                     remote->cloudFogInfo[hostAddrStr].get()->isRegistered = true;
                     Remote::isValidConnection.insert(remote->cloudFogInfo[hostAddrStr].get());
                 }
