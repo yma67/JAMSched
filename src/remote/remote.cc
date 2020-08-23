@@ -618,13 +618,18 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
             RegisterTopic(cfINFO->announceDown, "PUT-CF-INFO", {
                 if (rMsg.contains("opt") && rMsg["opt"].is_string() && 
                     rMsg["opt"].get<std::string>() == "ADD" &&
-                    rMsg.contains("args") && rMsg["args"].is_array())
+                    rMsg.contains("args") && rMsg["args"].is_array() &&
+                    rMsg.contains("actid"))
                 {
-                    auto hostAddrStr = rMsg["args"][0].get<std::string>();
-                    remote->cloudFogInfo.emplace(hostAddrStr, 
-                        std::make_unique<CloudFogInfo>(remote, remote->devId, remote->appId, hostAddrStr));
-                    remote->cloudFogInfo[hostAddrStr].get()->isRegistered = true;
-                    Remote::isValidConnection.insert(remote->cloudFogInfo[hostAddrStr].get());
+                    auto actId = rMsg["actid"].get<uint32_t>();
+                    if (!remote->cache.contains(actId)) {
+                        remote->cache.insert(actId, rMsg);
+                        auto hostAddrStr = rMsg["args"][0].get<std::string>();
+                        remote->cloudFogInfo.emplace(hostAddrStr, 
+                            std::make_unique<CloudFogInfo>(remote, remote->devId, remote->appId, hostAddrStr));
+                        remote->cloudFogInfo[hostAddrStr].get()->isRegistered = true;
+                        Remote::isValidConnection.insert(remote->cloudFogInfo[hostAddrStr].get());
+                    }
                 }
                 else if (rMsg.contains("opt")  && rMsg["opt"].is_string() && 
                          rMsg["opt"].get<std::string>() == "DEL" &&
