@@ -12,10 +12,11 @@ JAMScript::Node::Node(int argc, char *argv[])
     :   desc("C-side command line options")
 {
     desc.add_options()
-        ("help,h", "Display this help message")
+        ("help,l", "Display this help message (h used for height for backward compatibility)")
         ("app,a", boost::program_options::value<std::string>(), "appName specification")
         ("num,n", boost::program_options::value<int>(), "sequence number")
-        ("port,p", boost::program_options::value<int>(), "MQTT port number");
+        ("height,h", boost::program_options::value<int>(), "machine height")        
+        ("port,p", boost::program_options::value<std::string>(), "MQTT port number");
     try {
         boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).run(), vm);
         boost::program_options::notify(vm);
