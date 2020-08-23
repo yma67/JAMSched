@@ -634,10 +634,14 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                          rMsg["opt"].get<std::string>() == "DEL" &&
                          rMsg.contains("args") && rMsg["args"].is_array())
                 {
-                    auto hostAddrStr = rMsg["args"][0].get<std::string>();
-                    remote->cloudFogInfo[hostAddrStr]->Clear();
-                    Remote::isValidConnection.erase(remote->cloudFogInfo[hostAddrStr].get());
-                    remote->cloudFogInfo.erase(hostAddrStr);
+                    auto actId = rMsg["actid"].get<uint32_t>();
+                    if (!remote->cache.contains(actId)) {
+                        remote->cache.insert(actId, rMsg);
+                        auto hostAddrStr = rMsg["args"][0].get<std::string>();
+                        remote->cloudFogInfo[hostAddrStr]->Clear();
+                        Remote::isValidConnection.erase(remote->cloudFogInfo[hostAddrStr].get());
+                        remote->cloudFogInfo.erase(hostAddrStr);
+                    }
                 }
             });
             RegisterTopic(cfINFO->replyDown, "REXEC-ACK", {
@@ -656,8 +660,9 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
                 {
                     auto actId = rMsg["actid"].get<uint32_t>();
-                    if (remote->cache.contains(actId) || remote->scheduler->toContinue && 
+                    if (!remote->cache.contains(actId) || remote->scheduler->toContinue && 
                         remote->scheduler->CreateRPBatchCall(cfINFO, std::move(rMsg))) {
+                        remote->cache.insert(actId, rMsg);
                         auto vReq = nlohmann::json::to_cbor(nlohmann::json({
                             {"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
                         mqtt_publish(cfINFO->mqttAdapter, const_cast<char *>(cfINFO->replyUp.c_str()), 
