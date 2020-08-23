@@ -175,8 +175,8 @@ namespace JAMScript
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
-        mutable std::mutex qMutex;
-        std::condition_variable cvQMutex;
+        mutable SpinMutex qMutex;
+        std::condition_variable_any cvQMutex;
         std::atomic<bool> toContinue;
         std::atomic<TaskInterface *> taskRunning;
         uint8_t *sharedStackBegin, *sharedStackAlignedEnd, *sharedStackAlignedEndAct;

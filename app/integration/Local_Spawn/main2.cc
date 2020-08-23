@@ -17,7 +17,7 @@ int incr(int x, float y) {
   int i;
       auto s = std::chrono::high_resolution_clock::now();
   rbs->CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(10), std::function(execincr), x, y);
-      printf("Task Creation elapsed %ld ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - s).count());
+      // printf("Task Creation elapsed %ld ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - s).count());
   //  JAMScript::ThisTask::Yield();
   //  printf("End... of incr...\n");
  return 0;
