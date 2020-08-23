@@ -20,7 +20,6 @@ ThreadPool JAMScript::Remote::callbackThreadPool(1);
 static void connected(void *a)
 {
     // a is a pointer to a mqtt_adapter_t structure.
-    printf("Connected to ... mqtt... \n");
 }
 
 JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::string appId, std::string hostAddr)
@@ -636,6 +635,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                          rMsg.contains("args") && rMsg["args"].is_array())
                 {
                     auto hostAddrStr = rMsg["args"][0].get<std::string>();
+                    remote->cloudFogInfo[hostAddrStr]->Clear();
                     Remote::isValidConnection.erase(remote->cloudFogInfo[hostAddrStr].get());
                     remote->cloudFogInfo.erase(hostAddrStr);
                 }

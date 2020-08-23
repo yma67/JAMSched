@@ -118,6 +118,7 @@ bool mqtt_disconnect(mqtt_adapter_t *mq, int state)
 {
     int rc;
 
+    printf("------------------ Disconnect Called.............\n");
     if (mq->state != MQTT_CONNECTED) 
         return false;
 
