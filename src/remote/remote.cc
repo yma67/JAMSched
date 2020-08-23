@@ -157,12 +157,13 @@ void JAMScript::Remote::CancelAllRExecRequests()
 
 bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
                                             std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
-                                            std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon)
+                                            std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
+                                            std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
         this, hostName { std::move(hostName) }, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
         countCommon { std::move(countCommon) }, failureCountCommon { std::move(failureCountCommon) }, 
-        timeOut { std::move(timeOut) }] () mutable {
+        timeOut { std::move(timeOut) }, successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
         std::unique_lock lk(Remote::mCallback);
         if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
         {
@@ -244,7 +245,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
                 }
                 return;
             }
-            prCommon->SetValue(std::move(valueResult));
+            std::call_once(*successCallOnceFlag, [&prCommon, &valueResult] { prCommon->SetValue(std::move(valueResult)); });
         }
         catch (const std::exception &e)
         {
@@ -260,12 +261,13 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
 
 bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
                                             std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
-                                            std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon)
+                                            std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
+                                            std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
-        this, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
-        countCommon { std::move(countCommon) }, timeOut { std::move(timeOut) },
-        failureCountCommon { std::move(failureCountCommon) }] () mutable {
+        this, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, countCommon { std::move(countCommon) }, 
+        timeOut { std::move(timeOut) }, failureCountCommon { std::move(failureCountCommon) }, 
+        successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
         std::unique_lock lk(Remote::mCallback);
         if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
         {
@@ -350,7 +352,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
                 }
                 return;
             }
-            prCommon->SetValue(std::move(valueResult));
+            std::call_once(*successCallOnceFlag, [&prCommon, &valueResult] { prCommon->SetValue(std::move(valueResult)); });
         }
         catch (const std::exception &e)
         {
@@ -365,12 +367,15 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
 }
 
 bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
-                                        std::function<void()> callback, std::size_t countCommon,
-                                        std::shared_ptr<std::atomic_size_t> sharedFailureCount)
+                                        std::function<void()> successCallback, 
+                                        std::function<void(std::error_condition)> failureCallback, 
+                                        std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount, 
+                                        std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
-                               [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
-                                futureAck { std::move(futureAck) }, countCommon,
+                               [this, successCallback { std::move(successCallback) }, 
+                                failureCallback { std::move(failureCallback) }, vReq { std::move(vReq) }, 
+                                futureAck { std::move(futureAck) }, countCommon, successCallOnceFlag { std::move(successCallOnceFlag) },
                                 sharedFailureCount { std::move(sharedFailureCount) }, tempEID]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
@@ -382,7 +387,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                     lkPublish.unlock();
                     if (sharedFailureCount->fetch_add(1U) == countCommon)
                     {
-                        callback();
+                        failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::HeartbeatFailure));
                     }
                     return;
                 }
@@ -404,7 +409,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                 }
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
                 {
-                    callback();
+                    failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::AckTimedOut));
                 }
                 return;
             }
@@ -412,8 +417,12 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
             {
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
                 {
-                    callback();
+                    failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::HeartbeatFailure));
                 }
+            }
+            else
+            {
+                std::call_once(*successCallOnceFlag, successCallback);
             }
             return;
         }
@@ -422,11 +431,15 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
 }
 
 bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futureAck, 
-                                        std::vector<unsigned char> &vReq, uint32_t tempEID, std::function<void()> callback, 
-                                        std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount)
+                                        std::vector<unsigned char> &vReq, uint32_t tempEID, 
+                                        std::function<void()> successCallback, 
+                                        std::function<void(std::error_condition)> failureCallback, 
+                                        std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount, 
+                                        std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
-                               [this, hostName{ std::move(hostName) }, callback { std::move(callback) }, 
+                               [this, hostName{ std::move(hostName) }, successCallOnceFlag { std::move(successCallOnceFlag) },
+                                successCallback { std::move(successCallback) }, failureCallback { std::move(failureCallback) },
                                 vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, countCommon,
                                 sharedFailureCount { std::move(sharedFailureCount) }, tempEID]() mutable {
         int retryNum = 0;
@@ -439,7 +452,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
                     lkPublish.unlock();
                     if (sharedFailureCount->fetch_add(1U) == countCommon)
                     {
-                        callback();
+                        failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::HeartbeatFailure));
                     }
                     return;
                 }
@@ -462,7 +475,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
                 }
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
                 {
-                    callback();
+                    failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::AckTimedOut));
                 }
                 return;
             }
@@ -470,8 +483,12 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
             {
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
                 {
-                    callback();
+                    failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::HeartbeatFailure));
                 }
+            }
+            else
+            {
+                std::call_once(*successCallOnceFlag, successCallback);
             }
             return;
         }
@@ -479,12 +496,14 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, 
-                                        uint32_t tempEID, std::function<void()> callback)
+bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+                                        std::function<void()> successCallback, 
+                                        std::function<void(std::error_condition)> failureCallback)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), 
-                               [this, callback { std::move(callback) }, vReq { std::move(vReq) }, 
-                                futureAck { std::move(futureAck) }, tempEID]() mutable {
+                               [this, vReq { std::move(vReq) }, futureAck { std::move(futureAck) }, tempEID,
+                                failureCallback { std::move(failureCallback) }, 
+                                successCallback { std::move(successCallback) }]() mutable {
         int retryNum = 0;
         while (retryNum < 3)
         {
@@ -493,7 +512,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                 if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                 {
                     lkPublish.unlock();
-                    callback();
+                    failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::HeartbeatFailure));
                     return;
                 }
                 auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
@@ -512,8 +531,16 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                     std::lock_guard lk(Remote::mCallback);
                     ackLookup.erase(tempEID);
                 }
-                callback();
+                failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::AckTimedOut));
                 return;
+            }
+            if (futureAck.Get())
+            {
+                successCallback();
+            }
+            else 
+            {
+                failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::HeartbeatFailure));
             }
             return;
         }
@@ -663,4 +690,24 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
 bool JAMScript::RExecDetails::ArgumentGC()
 {
     return false;
+}
+
+const char* JAMScript::RExecDetails::RemoteExecutionErrorCategory::name() const noexcept
+{
+    return "RemoteExecutionError";
+}
+
+std::string JAMScript::RExecDetails::RemoteExecutionErrorCategory::message(int ev) const
+{
+    switch (static_cast<RemoteExecutionErrorCode>(ev))
+    {
+        case RemoteExecutionErrorCode::Success:
+            return "Remote Execution Success";
+        case RemoteExecutionErrorCode::HeartbeatFailure:
+            return "Remote Execution Failed due to Hearbeat Failure";
+        case RemoteExecutionErrorCode::AckTimedOut:
+            return "Remote Execution Failed due to Acknoledgement Timeout";
+        default:
+            return "(unrecognized error)";
+    }
 }

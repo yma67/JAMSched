@@ -461,11 +461,12 @@ namespace JAMScript
          */
         template <typename... Args>
         void CreateRemoteExecAsyncMultiLevelAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                                         std::function<void()> &&callBack, Args &&... eArgs) 
+                                                         std::function<void()> &&callBackSuccess,
+                                                         std::function<void(std::error_condition)> &&callBackFailed, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, 
-                                                                 std::forward<std::function<void()>>(callBack), 
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, std::forward<std::function<void()>>(callBackSuccess),
+                                                                 std::forward<std::function<void(std::error_condition)>>(callBackFailed), 
                                                                  std::forward<Args>(eArgs)...);
         }
         
@@ -480,7 +481,8 @@ namespace JAMScript
         void CreateRemoteExecAsyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, [](std::error_condition){}, 
+                                                                 std::forward<Args>(eArgs)...);
         }
 
         /**
@@ -494,11 +496,12 @@ namespace JAMScript
          */
         template <typename... Args>
         void CreateRemoteExecAsyncAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                               std::function<void()> &&callBack, Args &&... eArgs) 
+                                               std::function<void()> &&callBackSuccess,
+                                               std::function<void(std::error_condition)> &&callBackFailed, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, 
-                                                 std::forward<std::function<void()>>(callBack), 
+            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, std::forward<std::function<void()>>(callBackSuccess),
+                                                 std::forward<std::function<void(std::error_condition)>>(callBackFailed), 
                                                  std::forward<Args>(eArgs)...);
         }
 
@@ -513,7 +516,8 @@ namespace JAMScript
         void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, []{}, 
+                                                 [](std::error_condition){},  std::forward<Args>(eArgs)...);
         }
 
         /**

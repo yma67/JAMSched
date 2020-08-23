@@ -11,8 +11,19 @@ int main()
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(5000));
             printf("==============================================\n");
             JAMScript::ThisTask::CreateRemoteExecAsyncAvecRappeler(
-                std::string("helloj"), std::string(""), 0, [] {
-                printf("Timed Out\n");
+                std::string("helloj"), std::string(""), 0, []{}, [] (std::error_condition ec) {
+                switch (ec.value())
+                {
+                case int(RemoteExecutionErrorCode::HeartbeatFailure):
+                    printf("Heartbeat Failed\n");
+                    break;
+                case int(RemoteExecutionErrorCode::AckTimedOut):
+                    printf("Acknoledgement Failed\n");
+                    break;
+                default:
+                    break;
+                }
+                
             });
         }
     });
@@ -23,8 +34,18 @@ int main()
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
             printf(">>...........\n");
             JAMScript::ThisTask::CreateRemoteExecAsyncAvecRappeler(
-                std::string("xyzfunc"), std::string(""), 0, [] {
-                    printf("Timed Out\n");
+                std::string("xyzfunc"), std::string(""), 0, []{}, [] (std::error_condition ec) {
+                    switch (ec.value())
+                    {
+                    case int(RemoteExecutionErrorCode::HeartbeatFailure):
+                        printf("Heartbeat Failed\n");
+                        break;
+                    case int(RemoteExecutionErrorCode::AckTimedOut):
+                        printf("Acknoledgement Failed\n");
+                        break;
+                    default:
+                        break;
+                    }
                 }, 
                 std::string("mahesh"), 234.56, 78
             );
