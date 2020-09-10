@@ -1,12 +1,12 @@
 #include <jamscript.hpp>
 
-int count = 0;
+std::atomic_int count = 0;
 std::chrono::high_resolution_clock::time_point prevUS;
 [[clang::optnone]] int execincr(int x, float y){
-  count++;
-if(count % 1000000 == 0) 
+  int currtc = count++;
+if(currtc % 1000000 == 0) 
 {
-  printf("-----------------Value of count %d, elapsed %ld us\n", count, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - prevUS).count());
+  printf("-----------------Value of count %d, elapsed %ld us\n", currtc, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - prevUS).count());
   prevUS = std::chrono::high_resolution_clock::now();
 }
   return 0;
@@ -14,7 +14,7 @@ if(count % 1000000 == 0)
 
 int incr(int x, float y) {
     auto s = std::chrono::high_resolution_clock::now();
-  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(true, 0, false), std::chrono::milliseconds(10), std::string("incr"), x, y);
+  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(true, 0, true), std::chrono::milliseconds(10), std::string("incr"), x, y);
     // printf("Task Creation elapsed %ld ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - s).count());
   //rbs->CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(10), std::function(execincr), x, y);
   //  JAMScript::ThisTask::Yield();
@@ -34,7 +34,7 @@ int execloop(){
 }
 int loop() {
   int i;
-  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(true, 0, false), std::chrono::milliseconds(10), std::string("loop"));
+  JAMScript::ThisTask::CreateLocalNamedBatchExecution<int>(JAMScript::StackTraits(true, 0, true), std::chrono::milliseconds(10), std::string("loop"));
   return 0;
 }
 int user_main(int argc, char **argv) {

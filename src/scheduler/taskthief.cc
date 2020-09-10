@@ -42,7 +42,7 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
         }
     }
     if (stealableCount > 1) {
-        auto toStealCount = stealableCount / 2;
+        auto toStealCount = std::max(toSteal->isReady.size() * ((toSteal->isReady.size() - 1) / toSteal->isReady.size()), 1UL);;
         auto supposeTo = toStealCount;
         auto itBatch = toSteal->isReady.begin();
         while (itBatch != toSteal->isReady.end() && toStealCount > 0)
@@ -147,12 +147,13 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             size_t rStart = rand() % victim->thiefs.size();
             for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
             {
-                auto* pVictim = victim->thiefs[(rStart + T_T) % victim->thiefs.size()].get();
+                auto* pVictim = victim->thiefs[(rStart - T_T + victim->thiefs.size()) % victim->thiefs.size()].get();
                 if (pVictim != this)
                 {
                     auto numStolen = StealFrom(pVictim);
                     if ((numStolen > 0) || !isReady.empty())
                     {
+                        if ((numStolen > 0)) printf("stolen: %lu\n", numStolen);
                         break;
                     }
                 }

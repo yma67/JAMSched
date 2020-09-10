@@ -597,29 +597,14 @@ namespace JAMScript
         TaskAttr(Fn &&tf, Args... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
         virtual ~TaskAttr() {}
 
-        static void* operator new(std::size_t sz) 
-        {
-            return taskAttrPool.malloc();
-        }
-
-        static void operator delete(void* ptr)
-        {
-            taskAttrPool.free(static_cast<TaskAttr<Fn, Args...> *>(ptr));
-        }
-
     private:
 
         TaskAttr() = delete;
-
-        static boost::object_pool<TaskAttr<Fn, Args...>> taskAttrPool;
 
         typename std::decay<Fn>::type tFunction;
         std::tuple<Args...> tArgs;
 
     };
-
-    template <typename Fn, typename... Args>
-    boost::object_pool<TaskAttr<Fn, Args...>> TaskAttr<Fn, Args...>::taskAttrPool;
 
     template <typename Fn, typename... Args>
     class SharedCopyStackTask : public TaskInterface
@@ -642,8 +627,9 @@ namespace JAMScript
 #endif
             if ((uintptr_t)(tos) <= (uintptr_t)scheduler->sharedStackAlignedEndAct &&
                 ((uintptr_t)(scheduler->sharedStackAlignedEnd) - (uintptr_t)(scheduler->sharedStackSizeActual)) <=
-                    (uintptr_t)(tos))
+                (uintptr_t)(tos))
             {
+                if (status == TASK_FINISHED) goto END_COPYSTACK;
                 privateStackSize = (uintptr_t)(scheduler->sharedStackAlignedEndAct) - (uintptr_t)(tos);
                 if (privateStackSizeUpperBound < privateStackSize)
                 {
@@ -665,6 +651,7 @@ namespace JAMScript
                     }
                 }
                 memcpy(privateStack, tos, privateStackSize);
+END_COPYSTACK:
                 TaskInterface::thisTask = nullptr;
                 scheduler->taskRunning = nullptr;
                 SwapToContext(&uContext, &scheduler->schedulerContext);
@@ -710,19 +697,7 @@ namespace JAMScript
             }
         }
 
-        static void* operator new(std::size_t sz) 
-        {
-            return sharedCopyStackPool.malloc();
-        }
-
-        static void operator delete(void* ptr)
-        {
-            sharedCopyStackPool.free(static_cast<SharedCopyStackTask<Fn, Args...> *>(ptr));
-        }
-
     private:
-
-        static boost::object_pool<SharedCopyStackTask<Fn, Args...>> sharedCopyStackPool;
 
         void RefreshContext()
         {
@@ -741,9 +716,6 @@ namespace JAMScript
         TaskAttr<Fn, Args...> valueStore;
 
     };
-
-    template <typename Fn, typename... Args>
-    boost::object_pool<SharedCopyStackTask<Fn, Args...>> SharedCopyStackTask<Fn, Args...>::sharedCopyStackPool;
 
     template <typename Fn, typename... Args>
     class StandAloneStackTask : public TaskInterface
@@ -808,28 +780,13 @@ namespace JAMScript
             delete[] reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp);
         }
 
-        static void* operator new(std::size_t sz) 
-        {
-            return standAloneStackTaskPool.malloc();
-        }
-
-        static void operator delete(void* ptr)
-        {
-            standAloneStackTaskPool.free(static_cast<StandAloneStackTask<Fn, Args...> *>(ptr));
-        }
-
     private:
-
-        static boost::object_pool<StandAloneStackTask<Fn, Args...>> standAloneStackTaskPool;
 
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         uint64_t v_stack_id;
 #endif
         TaskAttr<Fn, Args...> valueStore;
     };
-
-    template <typename Fn, typename... Args>
-    boost::object_pool<StandAloneStackTask<Fn, Args...>> StandAloneStackTask<Fn, Args...>::standAloneStackTaskPool;
 
     namespace JAMStorageTypes
     {

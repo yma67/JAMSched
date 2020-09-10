@@ -8,11 +8,10 @@ namespace JAMScript
     class SpinMutex
     {
 
-        std::atomic_flag flag;
+        std::atomic_flag flag = ATOMIC_FLAG_INIT;
 
     public:
 
-        SpinMutex() : flag{false} {}
         void lock();
         bool try_lock();
         void unlock();

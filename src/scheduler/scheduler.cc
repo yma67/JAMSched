@@ -187,12 +187,30 @@ JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
 {
     StealScheduler *minThief = nullptr;
     unsigned int minSize = std::numeric_limits<unsigned int>::max();
+    std::vector<StealScheduler *> zeroSchedulers;
     for (auto& thief : thiefs)
     {
-        if (minSize > thief->Size())
+        size_t nsz = thief->Size();
+        if (minSize > nsz)
         {
             minThief = thief.get();
-            minSize = thief->Size();
+            minSize = nsz;
+        }
+        if (nsz == 0)
+        {
+            zeroSchedulers.push_back(thief.get());
+        }
+    }
+    if (zeroSchedulers.size() > 0)
+    {
+        auto* ptrTaskCurrent = TaskInterface::Active();
+        if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && rand() % 100 < 15)
+        {
+            return static_cast<StealScheduler *>(ptrTaskCurrent->scheduler);
+        }
+        else
+        {
+            return zeroSchedulers[rand() % zeroSchedulers.size()];
         }
     }
     return minThief;
