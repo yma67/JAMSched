@@ -47,6 +47,7 @@ namespace JAMScript
     struct RedisState;
     class JAMDataKey;
     class BroadcastManager;
+    class Timer;
 
     class RIBScheduler : public SchedulerBase
     {
@@ -58,7 +59,7 @@ namespace JAMScript
         friend class LogManager;
         friend class Decider;
         friend class Remote;
-        friend class Time;
+        friend class Timer;
 
         friend void ThisTask::Yield();
 
@@ -110,7 +111,7 @@ namespace JAMScript
         void RegisterRPCall(const std::string &fName, Fn && fn) 
         {
             localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
-            localFuncStackTraitsMap[fName] = StackTraits();
+            localFuncStackTraitsMap[fName] = StackTraits(true, 0, true);
         }
 
         /**
@@ -148,30 +149,38 @@ namespace JAMScript
                 execRemote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
                 auto fName = rpcAttr["actname"].get<std::string>();
-                if (localFuncStackTraitsMap.find(fName) == localFuncStackTraitsMap.end())
+                StackTraits localFuncStackTraits(true, 0, true);
+                auto itLocalFuncStackTraits = localFuncStackTraitsMap.find(fName);
+                if (itLocalFuncStackTraits != localFuncStackTraitsMap.end())
                 {
-                    return false;
+                    localFuncStackTraits = itLocalFuncStackTraits->second;
                 }
-                CreateBatchTask({ localFuncStackTraitsMap[fName] }, Clock::duration::max(), 
-                [this, execRemote, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))]() 
+                CreateBatchTask({ localFuncStackTraits }, Clock::duration::max(), 
+                [this, execRemote, rpcAttr]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
-                    for (int i = 0; i < 3; i++)
-                    {
+                    Remote::publishThreadPool.enqueue([execRemote, vReq { std::move(vReq) }] () mutable {
                         std::unique_lock lk(Remote::mCallback);
-                        if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
+                        for (int i = 0; i < 3; i++)
                         {
-                            if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                            if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
+                            {
+                                lk.unlock();
+                                if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                                {
+                                    break;
+                                }
+                            }
+                            else
                             {
                                 lk.unlock();
                                 break;
                             }
                         }
-                        lk.unlock();
-                    }
+                    });
                 }).Detach();
                 return true;
             }
@@ -578,6 +587,11 @@ namespace JAMScript
         T ExtractRemote(Future<nlohmann::json>& future) 
         {
             return future.Get().get<T>();
+        }
+
+        void SetStealers(std::vector<std::unique_ptr<StealScheduler>> thiefs) 
+        { 
+            this->thiefs = std::move(thiefs);
         }
 
         RIBScheduler *GetRIBScheduler() override { return this; }

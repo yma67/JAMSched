@@ -126,7 +126,9 @@ void JAMScript::ThisTask::Yield()
 {
     if (TaskInterface::Active()->status != TASK_FINISHED) 
     {
-        TaskInterface::Active()->scheduler->Enable(TaskInterface::Active());
+        //TaskInterface::Active()->scheduler->Enable(TaskInterface::Active());
+        //TaskInterface::Active()->SwapOut();
+        TaskInterface::Active()->Enable();
         TaskInterface::Active()->SwapOut();
     }
 }

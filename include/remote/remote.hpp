@@ -387,6 +387,7 @@ namespace JAMScript
         friend class CloudFogInfo;
         friend class LogManager;
         friend class Time;
+        using RemoteLockType = SpinMutex;
         void CancelAllRExecRequests();
 
         bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> successCallback, 
@@ -641,9 +642,10 @@ namespace JAMScript
                              uint32_t tempEID, std::function<void()> successCallback, 
                              std::function<void(std::error_condition)> failureCallback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
-        static SpinMutex mCallback;
+        static RemoteLockType mCallback;
         static std::unordered_set<CloudFogInfo *> isValidConnection;
         static ThreadPool callbackThreadPool;
+        static ThreadPool publishThreadPool;
         std::mutex mLoopSleep;
         std::condition_variable cvLoopSleep;
         std::uint32_t eIdFactory;

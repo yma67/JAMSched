@@ -1,9 +1,11 @@
 #include "scheduler/taskthief.hpp"
 #include "scheduler/scheduler.hpp"
 #include <algorithm>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
-    : SchedulerBase(ssz), victim(victim) {}
+    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U) {}
 
 JAMScript::StealScheduler::~StealScheduler()
 {
@@ -28,12 +30,13 @@ void JAMScript::StealScheduler::Steal(TaskInterface *toSteal)
     toSteal->Steal(this);
     isReady.push_back(*toSteal);
     cvQMutex.notify_one();
+    sizeOfQueue++;
 }
 
 size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
 {
     std::scoped_lock sLock(qMutex, toSteal->qMutex);
-    int stealableCount = 0;
+    unsigned long stealableCount = 0;
     for (auto& task: toSteal->isReady)
     {
         if (task.isStealable)
@@ -42,7 +45,8 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
         }
     }
     if (stealableCount > 1) {
-        auto toStealCount = std::max(toSteal->isReady.size() * ((toSteal->isReady.size() - 1) / toSteal->isReady.size()), 1UL);;
+        auto nThiefs = victim->thiefs.size();
+        auto toStealCount = std::max(stealableCount * ((nThiefs - 1) / nThiefs), 1UL);;
         auto supposeTo = toStealCount;
         auto itBatch = toSteal->isReady.begin();
         while (itBatch != toSteal->isReady.end() && toStealCount > 0)
@@ -51,6 +55,8 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
             {
                 auto *pNextSteal = &(*itBatch);
                 pNextSteal->Steal(this);
+                toSteal->sizeOfQueue--;
+                sizeOfQueue++;
                 itBatch = toSteal->isReady.erase(itBatch);
                 isReady.push_back(*pNextSteal);
                 toStealCount--;
@@ -76,18 +82,20 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
     }
     toEnable->status = TASK_READY;
     cvQMutex.notify_one();
+    sizeOfQueue++;
 }
 
 void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)
 {
-    std::unique_lock lk(qMutex);
+    //std::unique_lock lk(qMutex);
     toDisable->status = TASK_PENDING;
+    sizeOfQueue--;
 }
 
-const uint32_t JAMScript::StealScheduler::Size() const
+const uint64_t JAMScript::StealScheduler::Size() const
 {
-    std::unique_lock lk(qMutex);
-    return isReady.size();
+    // std::unique_lock lk(qMutex);
+    return sizeOfQueue;
 }
 
 void JAMScript::StealScheduler::ShutDown()
@@ -135,50 +143,68 @@ void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint 
     return victim->SleepUntil(task, tp, lk);
 }
 
+void JAMScript::StealScheduler::PostCoreUsage()
+{
+    struct rusage Ru;
+    getrusage(RUSAGE_THREAD, &Ru);
+    upCPUTime.store(Ru.ru_utime.tv_usec + Ru.ru_stime.tv_usec);
+}
+
 void JAMScript::StealScheduler::RunSchedulerMainLoop()
 {
     while (toContinue)
     {
         std::unique_lock lock(qMutex);
-        if (isReady.empty())
-        {
-            lock.unlock();
-            // During time of Trigeminal Neuralgia...
-            size_t rStart = rand() % victim->thiefs.size();
-            for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
-            {
-                auto* pVictim = victim->thiefs[(rStart - T_T + victim->thiefs.size()) % victim->thiefs.size()].get();
-                if (pVictim != this)
-                {
-                    auto numStolen = StealFrom(pVictim);
-                    if ((numStolen > 0) || !isReady.empty())
-                    {
-                        if ((numStolen > 0)) printf("stolen: %lu\n", numStolen);
-                        break;
-                    }
-                }
-            }
-            lock.lock();
-        }
         while (isReady.empty() && toContinue)
         {
+            for (int retryStealCount = 0; retryStealCount < 2 && isReady.empty(); retryStealCount++)
+            {
+                lock.unlock();
+                // During time of Trigeminal Neuralgia...
+                size_t rStart = rand() % victim->thiefs.size();
+                for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
+                {
+                    auto* pVictim = victim->thiefs[(rStart - T_T + victim->thiefs.size()) % victim->thiefs.size()].get();
+                    if (pVictim != this)
+                    {
+                        auto numStolen = StealFrom(pVictim);
+                        if ((numStolen > 0) || !isReady.empty())
+                        {
+                            if ((numStolen > 1)) printf("stolen: %lu\n", numStolen);
+                            break;
+                        }
+                    }
+                }
+                lock.lock();
+            }
+            if (!isReady.empty())
+            {
+                break;
+            }
+            // PostCoreUsage();
             cvQMutex.wait(lock);
+            // cvQMutex.wait_for(lock, std::chrono::microseconds(10));
         }
         if (!toContinue) 
         {
             break;
         }
-        auto iterNext = isReady.begin();
-        auto *pNext = &(*iterNext);
-        isReady.pop_front();
-        pNext->isStealable = false;
-        pNext->status = TASK_RUNNING;
-        lock.unlock();
-        pNext->SwapIn();
-        lock.lock();
-        if (pNext->status == TASK_FINISHED)
+        while (!isReady.empty())
         {
-            delete pNext;
+            auto iterNext = isReady.begin();
+            auto *pNext = &(*iterNext);
+            isReady.pop_front();
+            pNext->isStealable = false;
+            pNext->status = TASK_RUNNING;
+            lock.unlock();
+            pNext->SwapIn();
+            sizeOfQueue--;
+            //PostCoreUsage();
+            lock.lock();
+            if (pNext->status == TASK_FINISHED)
+            {
+                delete pNext;
+            }
         }
     }
 }

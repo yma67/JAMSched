@@ -673,6 +673,7 @@ END_COPYSTACK:
             {
                 this->scheduler = scheduler;
                 RefreshContext();
+                isStealable = false;
                 return true;
             }
             return false;

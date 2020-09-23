@@ -26,10 +26,22 @@ JAMScript::Timer::~Timer()
 
 void JAMScript::Timer::RunTimerLoop() 
 {
+    int iterCount = 0;
     while (scheduler->toContinue) 
     {
         NotifyAllTimeouts();
         std::this_thread::sleep_for(std::chrono::nanoseconds(500));
+        if (iterCount++ == 1000)
+        {
+            iterCount = 0;
+            std::vector<size_t> sizesOfExecutor;
+            std::cout << "sizes of executors ";
+            for (auto& t: scheduler->thiefs)
+            {
+                std::cout << t->Size() << " ";
+            }
+            std::cout << std::endl;
+        }
     }
 }
 

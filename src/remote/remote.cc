@@ -14,8 +14,9 @@
 
 const std::string JAMScript::RExecDetails::HeartbeatFailureException::message_ = std::string("Cancelled due to bad remote connection");
 std::unordered_set<JAMScript::CloudFogInfo *> JAMScript::Remote::isValidConnection;
-JAMScript::SpinMutex JAMScript::Remote::mCallback;
+JAMScript::Remote::RemoteLockType JAMScript::Remote::mCallback;
 ThreadPool JAMScript::Remote::callbackThreadPool(1);
+ThreadPool JAMScript::Remote::publishThreadPool(1);
 
 static void connected(void *a)
 {
@@ -660,8 +661,9 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                 if (rMsg.contains("actid") && rMsg["actid"].is_number_unsigned()) 
                 {
                     auto actId = rMsg["actid"].get<uint32_t>();
-                    if (!remote->cache.contains(actId) || remote->scheduler->toContinue && 
-                        remote->scheduler->CreateRPBatchCall(cfINFO, std::move(rMsg))) {
+                    if (/*!remote->cache.contains(actId) || */remote->scheduler->toContinue && 
+                        remote->scheduler->CreateRPBatchCall(cfINFO, rMsg)) {
+                                                                // printf("ok\n");
                         remote->cache.insert(actId, rMsg);
                         auto vReq = nlohmann::json::to_cbor(nlohmann::json({
                             {"actid", actId}, {"cmd", "REXEC-ACK"}}).dump());
