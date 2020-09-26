@@ -34,13 +34,14 @@ namespace JAMScript
 
     struct StackTraits
     {
-        bool useSharedStack, canSteal;
+        bool useSharedStack, canSteal, launchImmediately;
         uint32_t stackSize;
         int pinCore;
-        StackTraits() : useSharedStack(false), stackSize(4096U), canSteal(true), pinCore(-1) {}
-        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
+        StackTraits() : useSharedStack(false), stackSize(4096U), canSteal(true), pinCore(-1), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs, bool immediate) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1),launchImmediately(immediate) {}
     };
 
     class LogManager;
@@ -218,6 +219,7 @@ namespace JAMScript
             fn->deadline = std::move(deadline);
             fn->onCancel = std::move(onCancel);
             fn->isStealable = stackTraits.canSteal;
+            fn->isImmediate = stackTraits.launchImmediately;
             std::lock_guard lock(qMutex);
             decider.RecordInteractiveJobArrival(
                 {std::chrono::duration_cast<std::chrono::microseconds>(deadline).count(),
@@ -253,6 +255,7 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
+            fn->isImmediate = stackTraits.launchImmediately;
             auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
@@ -267,15 +270,22 @@ namespace JAMScript
                 {
                     pNextThief = GetMinThief();
                 }
-                if (pNextThief != nullptr)
+                auto* ptrTaskCurrent = TaskInterface::Active();
+                if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
                 {
-                    pNextThief->Steal(fn);
+                    static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->Steal(fn, stackTraits.launchImmediately);
+                }
+                else if (pNextThief != nullptr && pNextThief->Size() == 0)
+                {
+                    pNextThief->Steal(fn, stackTraits.launchImmediately);
                 }
                 else
                 {
-                    std::lock_guard lock(qMutex);
-                    bQueue.push_back(*fn);
-                    cvQMutex.notify_one();
+                    thiefs[rand() % thiefs.size()]->Steal(fn, stackTraits.launchImmediately);
+                }
+                if (stackTraits.launchImmediately)
+                {
+                    ThisTask::Yield();
                 }
             } 
             else 

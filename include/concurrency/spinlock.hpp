@@ -18,5 +18,18 @@ namespace JAMScript
 
     };
 
+    class SpinOnlyMutex
+    {
+
+        std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
+    public:
+
+        void lock();
+        bool try_lock();
+        void unlock();
+
+    };
+
 } // namespace JAMScript
 #endif

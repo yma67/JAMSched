@@ -18,7 +18,7 @@ namespace JAMScript
         friend class RIBScheduler;
 
         virtual const uint64_t Size() const;
-        virtual void Steal(TaskInterface *toSteal);
+        virtual void Steal(TaskInterface *toSteal, bool isImmediate);
         virtual size_t StealFrom(StealScheduler *toSteal);
 
         void ShutDown() override;

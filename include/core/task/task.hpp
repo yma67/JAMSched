@@ -175,7 +175,7 @@ namespace JAMScript
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
-        mutable SpinMutex qMutex;
+        mutable SpinOnlyMutex qMutex;
         std::condition_variable_any cvQMutex;
         std::atomic<bool> toContinue;
         std::atomic<TaskInterface *> taskRunning;
@@ -525,7 +525,7 @@ namespace JAMScript
 
         std::atomic<TaskType> taskType;
         std::atomic<TaskStatus> status;
-        std::atomic_bool isStealable;
+        std::atomic_bool isStealable, isImmediate;
         std::atomic_intptr_t cvStatus;
         SchedulerBase *scheduler;
         std::unique_ptr<struct timeout> timeOut;
@@ -673,7 +673,7 @@ END_COPYSTACK:
             {
                 this->scheduler = scheduler;
                 RefreshContext();
-                isStealable = false;
+                // isStealable = false;
                 return true;
             }
             return false;
@@ -757,7 +757,7 @@ END_COPYSTACK:
         void InitStack(uint32_t stackSize)
         {
             auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
-            uContext.uc_stack.ss_sp = new uint8_t[stackSize];
+            uContext.uc_stack.ss_sp = reinterpret_cast<std::uint8_t*>(aligned_alloc(16, stackSize));
             uContext.uc_stack.ss_size = stackSize;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
             v_stack_id = VALGRIND_STACK_REGISTER(
@@ -778,7 +778,7 @@ END_COPYSTACK:
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
             VALGRIND_STACK_DEREGISTER(v_stack_id);
 #endif
-            delete[] reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp);
+            free(reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp));
         }
 
     private:

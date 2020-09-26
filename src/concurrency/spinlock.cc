@@ -27,3 +27,19 @@ void JAMScript::SpinMutex::unlock()
 {
     flag.clear(std::memory_order_release);
 }
+
+void JAMScript::SpinOnlyMutex::lock()
+{
+    int cnt = 0;
+    while (flag.test_and_set(std::memory_order_acquire));
+}
+
+bool JAMScript::SpinOnlyMutex::try_lock()
+{
+    return !flag.test_and_set(std::memory_order_acquire);
+}
+
+void JAMScript::SpinOnlyMutex::unlock()
+{
+    flag.clear(std::memory_order_release);
+}

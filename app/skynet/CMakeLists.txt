@@ -1,4 +1,10 @@
 add_executable(skynet main.cc)
-target_link_libraries(skynet PRIVATE jamsched)
+target_link_libraries(skynet PRIVATE jamsched tcmalloc)
 target_include_directories(jamsched PRIVATE "${PROJECT_SOURCE_DIR}/include/")
+# Boost
+find_package(Boost 1.65.0 COMPONENTS program_options filesystem system fiber REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+add_executable(skynetbfib async_bfib.cc)
+target_link_libraries(skynetbfib PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} tcmalloc)
+
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/skynet.erl" "${CMAKE_CURRENT_BINARY_DIR}/skynet.erl" COPYONLY)

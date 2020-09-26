@@ -46,6 +46,8 @@ void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...)
     ucp->registers[14] = va_arg(va, int);
     ucp->registers[15] = va_arg(va, int);
     va_end(va);
+    asm("fnstcw     0x40(%rdi)      \n\t"
+        "stmxcsr    0x44(%rdi)      \n\t");
     uintptr_t u_p =
         (uintptr_t)(ucp->uc_stack.ss_size - (sizeof(void *) << 1) + (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
