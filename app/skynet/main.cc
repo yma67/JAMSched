@@ -29,7 +29,7 @@ public:
 bool useImmediateExecutePolicy = true;
 JAMScript::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 template <std::size_t N>
-void skynet(SingleConsumerOneShotQueue<long, N>& cNum, long num, long size, long div)
+void skynet(SingleConsumerOneShotQueue<long, N> &cNum, long num, long size, long div)
 {
     // printf("num=%ld, size=%ld\n", num, size);
     if (size == 1)
@@ -39,7 +39,7 @@ void skynet(SingleConsumerOneShotQueue<long, N>& cNum, long num, long size, long
     }
     else
     {
-        SingleConsumerOneShotQueue<long, NumberOfChild> sc;
+        auto sc = std::make_unique<SingleConsumerOneShotQueue<long, NumberOfChild>>();
         for (long i = 0; i < div; i++)
         {
             long factor = size / div;
@@ -48,16 +48,16 @@ void skynet(SingleConsumerOneShotQueue<long, N>& cNum, long num, long size, long
             {
                 JAMScript::ThisTask::CreateBatchTask(
                 stCommon, JAMScript::Duration::max(), 
-                skynet<NumberOfChild>, std::ref(sc), long(subNum), long(factor), long(div)).Detach();
+                skynet<NumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
             }
             else
             {
                 JAMScript::ThisTask::CreateBatchTask(
                 stCommonNode, JAMScript::Duration::max(), 
-                skynet<NumberOfChild>, std::ref(sc), long(subNum), long(factor), long(div)).Detach();
+                skynet<NumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
             }
         }
-        auto& v = sc.PopAll();
+        auto& v = sc->PopAll();
         long sum = 0;
         for (long i = 0; i < div; i++)
         {
@@ -81,9 +81,9 @@ int main(int argc, char *argv[])
         ribScheduler.CreateBatchTask(
             stCommonNode, JAMScript::Duration::max(), [&ribScheduler, &totalNS] {
             auto tpStart = std::chrono::high_resolution_clock::now();
-            SingleConsumerOneShotQueue<long, 1> sc;
-            skynet<1>(std::ref(sc), 0, NumberOfCoroutine, NumberOfChild);
-            auto res = sc.PopAll()[0];
+            auto sc = std::make_unique<SingleConsumerOneShotQueue<long, 1>>();
+            skynet<1>(std::ref(*sc), 0, NumberOfCoroutine, NumberOfChild);
+            auto res = sc->PopAll()[0];
             auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - tpStart).count();
             totalNS += elapsed;
             std::cout << "result = " << res << " elapsed = " << elapsed / 1000000 << " ms per_fiber = " << elapsed / 1111111 << " ns/fiber" << std::endl;
