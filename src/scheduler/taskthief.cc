@@ -24,13 +24,24 @@ void JAMScript::StealScheduler::StopSchedulerMainLoop()
     lk.unlock();
 }
 
-void JAMScript::StealScheduler::Steal(TaskInterface *toSteal, bool isImmediate)
+void JAMScript::StealScheduler::EnableImmediately(TaskInterface *toEnable)
 {
-    std::unique_lock lk(qMutex);
-    toSteal->Steal(this);
+    std::scoped_lock lk(qMutex);
+    BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
     sizeOfQueue++;
-    if (isImmediate) isReady.push_front(*toSteal);
-    else isReady.push_back(*toSteal);
+    isReady.push_front(*toEnable);
+    toEnable->status = TASK_READY;
+    cvQMutex.notify_one();
+}
+
+
+void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
+{
+    std::scoped_lock lk(qMutex);
+    BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
+    sizeOfQueue++;
+    isReady.push_back(*toEnable);
+    toEnable->status = TASK_READY;
     cvQMutex.notify_one();
 }
 
@@ -80,22 +91,6 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
         }
     }
     return tasksToSteal.size();
-}
-
-void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
-{
-    std::unique_lock lk(qMutex);
-    BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
-    sizeOfQueue++;
-    isReady.push_front(*toEnable); // same as golang
-    toEnable->status = TASK_READY;
-    cvQMutex.notify_one();
-}
-
-void JAMScript::StealScheduler::Disable(TaskInterface *toDisable)
-{
-    toDisable->status = TASK_PENDING;
-    sizeOfQueue--;
 }
 
 const uint64_t JAMScript::StealScheduler::Size() const

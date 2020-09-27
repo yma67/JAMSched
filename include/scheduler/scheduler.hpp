@@ -68,7 +68,7 @@ namespace JAMScript
         void RunSchedulerMainLoop() override;
 
         void Enable(TaskInterface *toEnable) override;
-        void Disable(TaskInterface *toEnable) override;
+        void EnableImmediately(TaskInterface *toEnable) override;
 
         TimePoint GetSchedulerStartTime() const override;
         TimePoint GetCycleStartTime() const override;
@@ -219,7 +219,6 @@ namespace JAMScript
             fn->deadline = std::move(deadline);
             fn->onCancel = std::move(onCancel);
             fn->isStealable = stackTraits.canSteal;
-            fn->isImmediate = stackTraits.launchImmediately;
             std::lock_guard lock(qMutex);
             decider.RecordInteractiveJobArrival(
                 {std::chrono::duration_cast<std::chrono::microseconds>(deadline).count(),
@@ -255,7 +254,6 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
-            fn->isImmediate = stackTraits.launchImmediately;
             auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
@@ -273,19 +271,22 @@ namespace JAMScript
                 auto* ptrTaskCurrent = TaskInterface::Active();
                 if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
                 {
-                    static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->Steal(fn, stackTraits.launchImmediately);
+                    fn->Steal(static_cast<StealScheduler *>(ptrTaskCurrent->scheduler));
+                    if (stackTraits.launchImmediately) static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->EnableImmediately(fn);
+                    else static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->Enable(fn);
                 }
                 else if (pNextThief != nullptr && pNextThief->Size() == 0)
                 {
-                    pNextThief->Steal(fn, stackTraits.launchImmediately);
+                    fn->Steal(pNextThief);
+                    if (stackTraits.launchImmediately) pNextThief->EnableImmediately(fn);
+                    else pNextThief->Enable(fn);
                 }
                 else
                 {
-                    thiefs[rand() % thiefs.size()]->Steal(fn, stackTraits.launchImmediately);
-                }
-                if (stackTraits.launchImmediately)
-                {
-                    ThisTask::Yield();
+                    auto pn = thiefs[rand() % thiefs.size()].get();
+                    fn->Steal(pn);
+                    if (stackTraits.launchImmediately) pn->EnableImmediately(fn);
+                    else pn->Enable(fn);
                 }
             } 
             else 

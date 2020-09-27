@@ -98,7 +98,7 @@ void JAMScript::Timer::TimeoutCallback(void *args)
     auto cvWaitFlag = t->cvStatus.exchange(-2, std::memory_order_seq_cst);
     if (cvWaitFlag != static_cast<std::intptr_t>(-1))
     {
-        t->scheduler->Enable(t);
+        t->EnableImmediately();
     }
 }
 

@@ -52,7 +52,7 @@ class BenchSched : public JAMScript::SchedulerBase
 public:
 
     void Enable(JAMScript::TaskInterface *toEnable) override {}
-    void Disable(JAMScript::TaskInterface *toEnable) override {}
+    void EnableImmediately(JAMScript::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override
     {
         this->onlyTask->SwapIn();

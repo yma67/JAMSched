@@ -145,11 +145,6 @@ void JAMScript::RIBScheduler::ShutDown()
     std::call_once(ribSchedulerShutdownFlag, [this] { this->ShutDownRunOnce(); });
 }
 
-void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
-{
-    toDisable->status = TASK_PENDING;
-}
-
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
 {
     std::lock_guard lock(qMutex);
@@ -170,6 +165,31 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
     {
         BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
         bQueue.push_back(*toEnable);
+    }
+    toEnable->status = TASK_READY;
+    cvQMutex.notify_one();
+}
+
+void JAMScript::RIBScheduler::EnableImmediately(TaskInterface *toEnable)
+{
+    std::lock_guard lock(qMutex);
+    if (toEnable->taskType == INTERACTIVE_TASK_T)
+    {
+        if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
+        {
+            BOOST_ASSERT_MSG(!toEnable->riStackHook.is_linked(), "Should not duplicate ready stack");
+            iCancelStack.push_front(*toEnable);
+        }
+        else
+        {
+            BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
+            iEDFPriorityQueue.insert(*toEnable);
+        }
+    }
+    if (toEnable->taskType == BATCH_TASK_T)
+    {
+        BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
+        bQueue.push_front(*toEnable);
     }
     toEnable->status = TASK_READY;
     cvQMutex.notify_one();
@@ -275,7 +295,8 @@ bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<
                 auto *pNextThief = GetMinThief();
                 if (pNextThief != nullptr)
                 {
-                    pNextThief->Steal(pTop, true);
+                    pTop->Steal(pNextThief);
+                    pNextThief->EnableImmediately(pTop);
                 }
             }
             else

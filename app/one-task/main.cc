@@ -40,9 +40,9 @@ class BenchSched : public JAMScript::SchedulerBase
 {
 public:
 
-    void Enable(JAMScript::TaskInterface *toEnable) {}
-    void Disable(JAMScript::TaskInterface *toEnable) {}
-    void RunSchedulerMainLoop()
+    void Enable(JAMScript::TaskInterface *toEnable) override {}
+    void EnableImmediately(JAMScript::TaskInterface *toEnable) override {}
+    void RunSchedulerMainLoop() override 
     {
         for (auto task: tasks) {
             task->SwapIn();
@@ -51,7 +51,7 @@ public:
         }
     }
     BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
-    ~BenchSched() { 
+    ~BenchSched() override { 
         std::for_each(tasks.begin(), tasks.end(), [] (JAMScript::TaskInterface *t) { delete t; });
     }
     std::vector<JAMScript::TaskInterface *> tasks;

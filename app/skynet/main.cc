@@ -53,7 +53,7 @@ void skynet(SingleConsumerOneShotQueue<long, N> &cNum, long num, long size, long
             else
             {
                 JAMScript::ThisTask::CreateBatchTask(
-                stCommonNode, JAMScript::Duration::max(), 
+                stCommon, JAMScript::Duration::max(), 
                 skynet<NumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
             }
         }
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
         for (int i = 0; i < atoi(argv[1]); i++) vst.push_back(std::move(std::make_unique<JAMScript::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
         ribScheduler.CreateBatchTask(
-            stCommonNode, JAMScript::Duration::max(), [&ribScheduler, &totalNS] {
+            stCommon, JAMScript::Duration::max(), [&ribScheduler, &totalNS] {
             auto tpStart = std::chrono::high_resolution_clock::now();
             auto sc = std::make_unique<SingleConsumerOneShotQueue<long, 1>>();
             skynet<1>(std::ref(*sc), 0, NumberOfCoroutine, NumberOfChild);

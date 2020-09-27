@@ -161,7 +161,7 @@ namespace JAMScript
          */
         virtual void RunSchedulerMainLoop() = 0;
         virtual void Enable(TaskInterface *toEnable) = 0;
-        virtual void Disable(TaskInterface *toEnable) = 0;
+        virtual void EnableImmediately(TaskInterface *toEnable) = 0;
         virtual RIBScheduler *GetRIBScheduler() { return nullptr; }
 
         TaskInterface *GetTaskRunning() { return taskRunning; }
@@ -499,8 +499,8 @@ namespace JAMScript
         virtual bool Steal(SchedulerBase *scheduler) = 0;
         
         virtual const bool CanSteal() const { return false; }
-        void Disable() { scheduler->Disable(this); }
         void Enable() { scheduler->Enable(this); }
+        void EnableImmediately() { scheduler->EnableImmediately(this); }
 
         const TaskType GetTaskType() const { return taskType; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
@@ -525,7 +525,7 @@ namespace JAMScript
 
         std::atomic<TaskType> taskType;
         std::atomic<TaskStatus> status;
-        std::atomic_bool isStealable, isImmediate;
+        std::atomic_bool isStealable;
         std::atomic_intptr_t cvStatus;
         SchedulerBase *scheduler;
         std::unique_ptr<struct timeout> timeOut;
