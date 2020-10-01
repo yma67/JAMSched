@@ -34,19 +34,21 @@ namespace JAMScript
 
     struct StackTraits
     {
-        bool useSharedStack, canSteal;
+        bool useSharedStack, canSteal, launchImmediately;
         uint32_t stackSize;
         int pinCore;
-        StackTraits() : useSharedStack(false), stackSize(4096U), canSteal(true), pinCore(-1) {}
-        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc) {}
+        StackTraits() : useSharedStack(false), stackSize(4096U), canSteal(true), pinCore(-1), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc), launchImmediately(false) {}
+        StackTraits(bool ux, uint32_t ssz, bool cs, bool immediate) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1),launchImmediately(immediate) {}
     };
 
     class LogManager;
     struct RedisState;
     class JAMDataKey;
     class BroadcastManager;
+    class Timer;
 
     class RIBScheduler : public SchedulerBase
     {
@@ -58,7 +60,7 @@ namespace JAMScript
         friend class LogManager;
         friend class Decider;
         friend class Remote;
-        friend class Time;
+        friend class Timer;
 
         friend void ThisTask::Yield();
 
@@ -66,7 +68,7 @@ namespace JAMScript
         void RunSchedulerMainLoop() override;
 
         void Enable(TaskInterface *toEnable) override;
-        void Disable(TaskInterface *toEnable) override;
+        void EnableImmediately(TaskInterface *toEnable) override;
 
         TimePoint GetSchedulerStartTime() const override;
         TimePoint GetCycleStartTime() const override;
@@ -110,7 +112,7 @@ namespace JAMScript
         void RegisterRPCall(const std::string &fName, Fn && fn) 
         {
             localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
-            localFuncStackTraitsMap[fName] = StackTraits();
+            localFuncStackTraitsMap[fName] = StackTraits(true, 0, true);
         }
 
         /**
@@ -148,30 +150,38 @@ namespace JAMScript
                 execRemote != nullptr && rpcAttr.contains("actid") && rpcAttr.contains("cmd")) 
             {
                 auto fName = rpcAttr["actname"].get<std::string>();
-                if (localFuncStackTraitsMap.find(fName) == localFuncStackTraitsMap.end())
+                StackTraits localFuncStackTraits(true, 0, true);
+                auto itLocalFuncStackTraits = localFuncStackTraitsMap.find(fName);
+                if (itLocalFuncStackTraits != localFuncStackTraitsMap.end())
                 {
-                    return false;
+                    localFuncStackTraits = itLocalFuncStackTraits->second;
                 }
-                CreateBatchTask({ localFuncStackTraitsMap[fName] }, Clock::duration::max(), 
-                [this, execRemote, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))]() 
+                CreateBatchTask({ localFuncStackTraits }, Clock::duration::max(), 
+                [this, execRemote, rpcAttr]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
-                    for (int i = 0; i < 3; i++)
-                    {
+                    Remote::publishThreadPool.enqueue([execRemote, vReq { std::move(vReq) }] () mutable {
                         std::unique_lock lk(Remote::mCallback);
-                        if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
+                        for (int i = 0; i < 3; i++)
                         {
-                            if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                            if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
+                            {
+                                lk.unlock();
+                                if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
+                                {
+                                    break;
+                                }
+                            }
+                            else
                             {
                                 lk.unlock();
                                 break;
                             }
                         }
-                        lk.unlock();
-                    }
+                    });
                 }).Detach();
                 return true;
             }
@@ -258,15 +268,25 @@ namespace JAMScript
                 {
                     pNextThief = GetMinThief();
                 }
-                if (pNextThief != nullptr)
+                auto* ptrTaskCurrent = TaskInterface::Active();
+                if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
                 {
-                    pNextThief->Steal(fn);
+                    fn->Steal(static_cast<StealScheduler *>(ptrTaskCurrent->scheduler));
+                    if (stackTraits.launchImmediately) static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->EnableImmediately(fn);
+                    else static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->Enable(fn);
+                }
+                else if (pNextThief != nullptr && pNextThief->Size() == 0)
+                {
+                    fn->Steal(pNextThief);
+                    if (stackTraits.launchImmediately) pNextThief->EnableImmediately(fn);
+                    else pNextThief->Enable(fn);
                 }
                 else
                 {
-                    std::lock_guard lock(qMutex);
-                    bQueue.push_back(*fn);
-                    cvQMutex.notify_one();
+                    auto pn = thiefs[rand() % thiefs.size()].get();
+                    fn->Steal(pn);
+                    if (stackTraits.launchImmediately) pn->EnableImmediately(fn);
+                    else pn->Enable(fn);
                 }
             } 
             else 
@@ -315,7 +335,7 @@ namespace JAMScript
          * @param burst burst duration of the task
          * @param eName function name of the task
          * @param eArgs arguments of tf
-         * @return taskhandle that can join or detach such task
+         * @return future of the value
          * @remark interactive task will be executed on main thread if not expired
          * @remark even if missed deadline, if the task chooses to be stolen, it could be distributed to a executor thread
          * @remark otherwise, it will be added to a LIFO stack, and it is subject to cancel, or could be executed if main thread has extra sporadic server
@@ -324,7 +344,7 @@ namespace JAMScript
          */
         template <typename T, typename... Args>
         Future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
-                                                       const std::string &eName, Args &&... eArgs) 
+                                                       const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
@@ -338,7 +358,15 @@ namespace JAMScript
             {
                 try 
                 {
-                    pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    if constexpr(std::is_same<T, void>::value)
+                    {
+                        std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
+                        pf->SetValue();
+                    }
+                    else
+                    {
+                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    }
                 } 
                 catch (const std::exception& e) 
                 {
@@ -354,7 +382,7 @@ namespace JAMScript
          * @param burst burst duration of the task
          * @param eName function of the task
          * @param eArgs arguments of tf
-         * @return taskhandle that can join or detach such task
+         * @return future of the value
          * @remark if task is stealable, it will be distributed to the executor kernel thread with least amout of tasks in its ready queue
          * @remark if task is not stealable, it will be distributed to the main (real time) thread
          * @remark if the task choose to pin core and the core is available, the it will be added to the specified executor
@@ -362,7 +390,7 @@ namespace JAMScript
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args &&... eArgs) 
+        Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
@@ -373,7 +401,54 @@ namespace JAMScript
             {
                 try 
                 {
-                    pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    if constexpr(std::is_same<T, void>::value)
+                    {
+                        std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
+                        pf->SetValue();
+                    }
+                    else
+                    {
+                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    }
+                } 
+                catch (const std::exception& e) 
+                {
+                    pf->SetException(std::make_exception_ptr(e));
+                }
+            }).Detach();
+            return fu;
+        }
+
+        /**
+         * Create Real-Time Task By String Name
+         * @param stackTraits stack configuration
+         * @param id burst duration of the task
+         * @param eName function of the task
+         * @param eArgs arguments of tf
+         * @return future of the value
+         * @ref JAMScript::RIBScheduler::CreateRealTimeTask
+         * @warning may throw exception if function is not registered
+         */
+        template <typename T, typename... Args>
+        Future<T> CreateLocalNamedRealTimeExecution(const StackTraits &stackTraits, uint32_t id, const std::string &eName, Args ... eArgs) 
+        {
+            auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
+                std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
+            auto pf = std::make_unique<Promise<T>>();
+            auto fu = pf->GetFuture();
+            CreateRealTimeTask(stackTraits, id, [pf { std::move(pf) }, tAttr { std::move(tAttr) }]() 
+            {
+                try 
+                {
+                    if constexpr(std::is_same<T, void>::value)
+                    {
+                        std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
+                        pf->SetValue();
+                    }
+                    else
+                    {
+                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                    }
                 } 
                 catch (const std::exception& e) 
                 {
@@ -406,11 +481,12 @@ namespace JAMScript
          */
         template <typename... Args>
         void CreateRemoteExecAsyncMultiLevelAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                                         std::function<void()> &&callBack, Args &&... eArgs) 
+                                                         std::function<void()> &&callBackSuccess,
+                                                         std::function<void(std::error_condition)> &&callBackFailed, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, 
-                                                                 std::forward<std::function<void()>>(callBack), 
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, std::forward<std::function<void()>>(callBackSuccess),
+                                                                 std::forward<std::function<void(std::error_condition)>>(callBackFailed), 
                                                                  std::forward<Args>(eArgs)...);
         }
         
@@ -425,7 +501,8 @@ namespace JAMScript
         void CreateRemoteExecAsyncMultiLevel(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsyncWithCallbackToEachConnection(eName, condstr, condvec, []{}, [](std::error_condition){}, 
+                                                                 std::forward<Args>(eArgs)...);
         }
 
         /**
@@ -439,11 +516,12 @@ namespace JAMScript
          */
         template <typename... Args>
         void CreateRemoteExecAsyncAvecRappeler(const std::string &eName, const std::string &condstr, uint32_t condvec, 
-                                               std::function<void()> &&callBack, Args &&... eArgs) 
+                                               std::function<void()> &&callBackSuccess,
+                                               std::function<void(std::error_condition)> &&callBackFailed, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, 
-                                                 std::forward<std::function<void()>>(callBack), 
+            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, std::forward<std::function<void()>>(callBackSuccess),
+                                                 std::forward<std::function<void(std::error_condition)>>(callBackFailed), 
                                                  std::forward<Args>(eArgs)...);
         }
 
@@ -458,7 +536,8 @@ namespace JAMScript
         void CreateRemoteExecAsync(const std::string &eName, const std::string &condstr, uint32_t condvec, Args &&... eArgs) 
         {
             BOOST_ASSERT(remote != nullptr);
-            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, []{}, std::forward<Args>(eArgs)...);
+            remote->CreateRExecAsyncWithCallback(eName, condstr, condvec, []{}, 
+                                                 [](std::error_condition){},  std::forward<Args>(eArgs)...);
         }
 
         /**
@@ -519,6 +598,11 @@ namespace JAMScript
         T ExtractRemote(Future<nlohmann::json>& future) 
         {
             return future.Get().get<T>();
+        }
+
+        void SetStealers(std::vector<std::unique_ptr<StealScheduler>> thiefs) 
+        { 
+            this->thiefs = std::move(thiefs);
         }
 
         RIBScheduler *GetRIBScheduler() override { return this; }
@@ -615,18 +699,18 @@ namespace JAMScript
             return TaskInterface::Active()->GetRIBScheduler()->CreateRealTimeTask(std::forward<Args>(args)...);
         }
 
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedInteractiveExecution(Args&&... args)
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedInteractiveExecution(Args&&... args)
         {
             BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
-            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedInteractiveExecution(std::forward<Args>(args)...);
+            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedInteractiveExecution<T>(std::forward<Args>(args)...);
         }
 
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedBatchExecution(Args&&... args)
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedBatchExecution(Args&&... args)
         {
             BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
-            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedBatchExecution(std::forward<Args>(args)...);
+            return TaskInterface::Active()->GetRIBScheduler()->CreateLocalNamedBatchExecution<T>(std::forward<Args>(args)...);
         }
 
         template <typename ...Args>

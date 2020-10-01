@@ -14,6 +14,19 @@ int main(int argc, char *argv[])
             JAMScript::ThisTask::CreateRemoteExecAsyncMultiLevelAvecRappeler(
                 std::string("helloj"), std::string(""), 0, [] {
                 std::cout << "Lauched the remot exec.." << std::endl;
+            }, 
+            [] (std::error_condition ec) {
+                switch (ec.value())
+                {
+                case int(RemoteExecutionErrorCode::HeartbeatFailure):
+                    printf("Heartbeat Failed\n");
+                    break;
+                case int(RemoteExecutionErrorCode::AckTimedOut):
+                    printf("Acknoledgement Failed\n");
+                    break;
+                default:
+                    break;
+                }
             });
         }
     });
@@ -27,6 +40,19 @@ int main(int argc, char *argv[])
                 std::string("xyzfunc"), std::string(""), 0, [] {
                     std::cout << "Lauched the remot exec.." << std::endl;
                 }, 
+                [] (std::error_condition ec) {
+                    switch (ec.value())
+                    {
+                    case int(RemoteExecutionErrorCode::HeartbeatFailure):
+                        printf("Heartbeat Failed\n");
+                        break;
+                    case int(RemoteExecutionErrorCode::AckTimedOut):
+                        printf("Acknoledgement Failed\n");
+                        break;
+                    default:
+                        break;
+                    }
+                },
                 std::string("mahesh"), 234.56, 78
             );
         }

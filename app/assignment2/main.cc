@@ -135,7 +135,7 @@ int main()
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     auto taskStackTrait = {false, 1024 * 2, false};
 #else
-    JAMScript::StackTraits taskStackTrait = {false, 1024 * 2, true};
+    JAMScript::StackTraits taskStackTrait = {false, 1024 * 8, true};
 #endif
     ribScheduler.CreateBatchTask({false, 1024 * 256, taskStackTrait.canSteal}, std::chrono::steady_clock::duration::max(), [&]() {
         ReadWriteLock rw;

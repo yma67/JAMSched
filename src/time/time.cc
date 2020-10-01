@@ -26,10 +26,23 @@ JAMScript::Timer::~Timer()
 
 void JAMScript::Timer::RunTimerLoop() 
 {
+    uint64_t printCount = 0;
     while (scheduler->toContinue) 
     {
         NotifyAllTimeouts();
         std::this_thread::sleep_for(std::chrono::nanoseconds(500));
+#ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
+        if (printCount++ == 1000)
+        {
+            printCount = 0;
+            std::cout << "sizes of executors ";
+            for (auto& t: scheduler->thiefs)
+            {
+                std::cout << t->Size() << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
     }
 }
 
@@ -85,7 +98,7 @@ void JAMScript::Timer::TimeoutCallback(void *args)
     auto cvWaitFlag = t->cvStatus.exchange(-2, std::memory_order_seq_cst);
     if (cvWaitFlag != static_cast<std::intptr_t>(-1))
     {
-        t->scheduler->Enable(t);
+        t->EnableImmediately();
     }
 }
 

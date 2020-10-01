@@ -17,8 +17,7 @@ namespace JAMScript
 
         friend class RIBScheduler;
 
-        virtual const uint32_t Size() const;
-        virtual void Steal(TaskInterface *toSteal);
+        virtual const uint64_t Size() const;
         virtual size_t StealFrom(StealScheduler *toSteal);
 
         void ShutDown() override;
@@ -26,7 +25,7 @@ namespace JAMScript
         virtual void StopSchedulerMainLoop();
         
         void Enable(TaskInterface *toEnable) override;
-        void Disable(TaskInterface *toDisable) override;
+        void EnableImmediately(TaskInterface *toSteal) override;
 
         TimePoint GetSchedulerStartTime() const override;
         TimePoint GetCycleStartTime() const override;
@@ -43,6 +42,8 @@ namespace JAMScript
 
     private:
 
+        void PostCoreUsage();
+        std::atomic_uint64_t upCPUTime, sizeOfQueue;
         bool isRunning;
         RIBScheduler *victim;
         JAMStorageTypes::ThiefQueueType isReady;

@@ -21,8 +21,8 @@ class BenchSchedXS : public JAMScript::SchedulerBase
 {
 public:
     std::vector<JAMScript::TaskInterface *> freeList;
-    void Enable(JAMScript::TaskInterface *toEnable) {}
-    void Disable(JAMScript::TaskInterface *toEnable) {}
+    void Enable(JAMScript::TaskInterface *toEnable) override {}
+    void EnableImmediately(JAMScript::TaskInterface *toEnable) override {}
     JAMScript::TaskInterface *NextTask()
     {
         try
@@ -39,14 +39,14 @@ public:
             return nullptr;
         }
     }
-    void RunSchedulerMainLoop()
+    void RunSchedulerMainLoop() override
     {
         while (toContinue)
         {
             try
             {
                 auto nextTask = NextTask();
-#ifdef JAMSCRIPT_ENABLE_VALGRIND
+#if 1
                 if (nextTask != nullptr)
                 {
                     nextTask->SwapIn();

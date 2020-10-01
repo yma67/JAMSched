@@ -16,6 +16,7 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/slist.hpp>
+#include <boost/pool/object_pool.hpp>
 #include <boost/intrusive/treap_set.hpp>
 #include <boost/intrusive/unordered_set.hpp>
 
@@ -160,7 +161,7 @@ namespace JAMScript
          */
         virtual void RunSchedulerMainLoop() = 0;
         virtual void Enable(TaskInterface *toEnable) = 0;
-        virtual void Disable(TaskInterface *toEnable) = 0;
+        virtual void EnableImmediately(TaskInterface *toEnable) = 0;
         virtual RIBScheduler *GetRIBScheduler() { return nullptr; }
 
         TaskInterface *GetTaskRunning() { return taskRunning; }
@@ -174,8 +175,8 @@ namespace JAMScript
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
-        mutable std::mutex qMutex;
-        std::condition_variable cvQMutex;
+        mutable SpinOnlyMutex qMutex;
+        std::condition_variable_any cvQMutex;
         std::atomic<bool> toContinue;
         std::atomic<TaskInterface *> taskRunning;
         uint8_t *sharedStackBegin, *sharedStackAlignedEnd, *sharedStackAlignedEndAct;
@@ -304,15 +305,15 @@ namespace JAMScript
          * Create Local Exec Interactive Task
          * @ref RIBScheduler::CreateLocalNamedInteractiveExecution
          */
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedInteractiveExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedInteractiveExecution(Args&&... args);
 
         /**
          * Create Local Exec Batch Task
          * @ref RIBScheduler::CreateLocalNamedBatchExecution
          */
-        template <typename ...Args>
-        TaskHandle CreateLocalNamedBatchExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        auto CreateLocalNamedBatchExecution(Args&&... args);
 
         /**
          * Create Local Exec Batch Task
@@ -418,11 +419,11 @@ namespace JAMScript
         template <typename ...Args>
         friend TaskHandle ThisTask::CreateRealTimeTask(Args&&... args);
 
-        template <typename ...Args>
-        friend TaskHandle ThisTask::CreateLocalNamedInteractiveExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        friend auto ThisTask::CreateLocalNamedInteractiveExecution(Args&&... args);
 
-        template <typename ...Args>
-        friend TaskHandle ThisTask::CreateLocalNamedBatchExecution(Args&&... args);
+        template <typename T, typename ...Args>
+        friend auto ThisTask::CreateLocalNamedBatchExecution(Args&&... args);
 
         template <typename ...Args>
         friend auto ThisTask::CreateRemoteExecAsyncMultiLevelAvecRappeler(Args&&... args);
@@ -498,8 +499,8 @@ namespace JAMScript
         virtual bool Steal(SchedulerBase *scheduler) = 0;
         
         virtual const bool CanSteal() const { return false; }
-        void Disable() { scheduler->Disable(this); }
         void Enable() { scheduler->Enable(this); }
+        void EnableImmediately() { scheduler->EnableImmediately(this); }
 
         const TaskType GetTaskType() const { return taskType; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
@@ -593,12 +594,13 @@ namespace JAMScript
         template <typename Fna, typename... Argsa>
         friend class StandAloneStackTask;
         friend class RIBScheduler;
-        TaskAttr(Fn &&tf, Args &&... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
+        TaskAttr(Fn &&tf, Args... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
         virtual ~TaskAttr() {}
 
     private:
 
         TaskAttr() = delete;
+
         typename std::decay<Fn>::type tFunction;
         std::tuple<Args...> tArgs;
 
@@ -625,8 +627,9 @@ namespace JAMScript
 #endif
             if ((uintptr_t)(tos) <= (uintptr_t)scheduler->sharedStackAlignedEndAct &&
                 ((uintptr_t)(scheduler->sharedStackAlignedEnd) - (uintptr_t)(scheduler->sharedStackSizeActual)) <=
-                    (uintptr_t)(tos))
+                (uintptr_t)(tos))
             {
+                if (status == TASK_FINISHED) goto END_COPYSTACK;
                 privateStackSize = (uintptr_t)(scheduler->sharedStackAlignedEndAct) - (uintptr_t)(tos);
                 if (privateStackSizeUpperBound < privateStackSize)
                 {
@@ -648,6 +651,7 @@ namespace JAMScript
                     }
                 }
                 memcpy(privateStack, tos, privateStackSize);
+END_COPYSTACK:
                 TaskInterface::thisTask = nullptr;
                 scheduler->taskRunning = nullptr;
                 SwapToContext(&uContext, &scheduler->schedulerContext);
@@ -669,6 +673,7 @@ namespace JAMScript
             {
                 this->scheduler = scheduler;
                 RefreshContext();
+                // isStealable = false;
                 return true;
             }
             return false;
@@ -693,7 +698,7 @@ namespace JAMScript
             }
         }
 
-    public:
+    private:
 
         void RefreshContext()
         {
@@ -752,7 +757,7 @@ namespace JAMScript
         void InitStack(uint32_t stackSize)
         {
             auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
-            uContext.uc_stack.ss_sp = new uint8_t[stackSize];
+            uContext.uc_stack.ss_sp = reinterpret_cast<std::uint8_t*>(aligned_alloc(16, stackSize));
             uContext.uc_stack.ss_size = stackSize;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
             v_stack_id = VALGRIND_STACK_REGISTER(
@@ -773,7 +778,7 @@ namespace JAMScript
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
             VALGRIND_STACK_DEREGISTER(v_stack_id);
 #endif
-            delete[] reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp);
+            free(reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp));
         }
 
     private:
@@ -783,7 +788,7 @@ namespace JAMScript
 #endif
         TaskAttr<Fn, Args...> valueStore;
     };
-    
+
     namespace JAMStorageTypes
     {
 

@@ -145,11 +145,6 @@ void JAMScript::RIBScheduler::ShutDown()
     std::call_once(ribSchedulerShutdownFlag, [this] { this->ShutDownRunOnce(); });
 }
 
-void JAMScript::RIBScheduler::Disable(TaskInterface *toDisable)
-{
-    toDisable->status = TASK_PENDING;
-}
-
 void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
 {
     std::lock_guard lock(qMutex);
@@ -175,6 +170,31 @@ void JAMScript::RIBScheduler::Enable(TaskInterface *toEnable)
     cvQMutex.notify_one();
 }
 
+void JAMScript::RIBScheduler::EnableImmediately(TaskInterface *toEnable)
+{
+    std::lock_guard lock(qMutex);
+    if (toEnable->taskType == INTERACTIVE_TASK_T)
+    {
+        if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
+        {
+            BOOST_ASSERT_MSG(!toEnable->riStackHook.is_linked(), "Should not duplicate ready stack");
+            iCancelStack.push_front(*toEnable);
+        }
+        else
+        {
+            BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
+            iEDFPriorityQueue.insert(*toEnable);
+        }
+    }
+    if (toEnable->taskType == BATCH_TASK_T)
+    {
+        BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
+        bQueue.push_front(*toEnable);
+    }
+    toEnable->status = TASK_READY;
+    cvQMutex.notify_one();
+}
+
 uint32_t JAMScript::RIBScheduler::GetThiefSizes()
 {
     uint32_t sz = 0;
@@ -187,12 +207,18 @@ JAMScript::StealScheduler *JAMScript::RIBScheduler::GetMinThief()
 {
     StealScheduler *minThief = nullptr;
     unsigned int minSize = std::numeric_limits<unsigned int>::max();
+    std::vector<StealScheduler *> zeroSchedulers;
     for (auto& thief : thiefs)
     {
-        if (minSize > thief->Size())
+        size_t nsz = thief->Size();
+        if (nsz == 0)
+        {
+            return thief.get();
+        }
+        if (minSize > nsz)
         {
             minThief = thief.get();
-            minSize = thief->Size();
+            minSize = nsz;
         }
     }
     return minThief;
@@ -269,7 +295,8 @@ bool JAMScript::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<
                 auto *pNextThief = GetMinThief();
                 if (pNextThief != nullptr)
                 {
-                    pNextThief->Steal(pTop);
+                    pTop->Steal(pNextThief);
+                    pNextThief->EnableImmediately(pTop);
                 }
             }
             else

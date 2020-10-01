@@ -70,7 +70,8 @@
         "typeindex": "cpp",
         "valarray": "cpp",
         "strstream": "cpp",
-        "cfenv": "cpp"
+        "cfenv": "cpp",
+        "*.ipp": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled",
     
