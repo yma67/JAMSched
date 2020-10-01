@@ -3,8 +3,9 @@
 
 constexpr std::size_t kNumberOfCoroutine = 1000000;
 constexpr std::size_t kNumberOfChild = 10;
+constexpr bool kWaitInGroup = true;
+constexpr bool useImmediateExecutePolicy = true;
 
-bool useImmediateExecutePolicy = true;
 JAMScript::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 
 void skynet(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long num, long size, long div)
@@ -38,9 +39,22 @@ void skynet(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long num, 
                 skynet, std::ref(*sc), std::ref(*swg), long(subNum), long(factor), long(div)).Detach();
             }
         }
-        swg->Wait();
-        sc->close();
-        std::accumulate(sc->begin(), sc->end(), 0L, std::plus<long>()) >> cNum;
+        if constexpr(kWaitInGroup) 
+        {
+            swg->Wait();
+            sc->close();
+            std::accumulate(sc->begin(), sc->end(), 0L, std::plus<long>()) >> cNum;
+        }
+        else
+        {
+            long curr, sum = 0;
+            for (int i = 0; i < div; i++)
+            {
+                curr << *sc;
+                sum += curr;
+            }
+            sum >> cNum;
+        }
         wg.Done();
     }
 }
@@ -52,7 +66,7 @@ int main(int argc, char *argv[])
     {
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
-                                {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
+                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
         std::vector<std::unique_ptr<JAMScript::StealScheduler>> vst { };
         for (int i = 0; i < atoi(argv[1]); i++) vst.push_back(std::move(std::make_unique<JAMScript::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));

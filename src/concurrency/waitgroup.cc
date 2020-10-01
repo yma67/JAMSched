@@ -1,22 +1,20 @@
 #include "concurrency/waitgroup.hpp"
 
-void JAMScript::WaitGroup::Add(int i)
+void JAMScript::WaitGroup::Add(int incr)
 {
-    std::scoped_lock l(mu_);
-    counter_ += i;
+    std::scoped_lock l(m);
+    c += incr;
 }
 
 void JAMScript::WaitGroup::Done()
 {
-    {
-        std::scoped_lock l(mu_);
-        counter_--;
-        if (counter_ <= 0) cv_.notify_all();
-    }
+    std::scoped_lock l(m);
+    c--;
+    if (c <= 0) cv.notify_all();
 }
 
 void JAMScript::WaitGroup::Wait()
 {
-    std::unique_lock l(mu_);
-    cv_.wait(l, [&] { return counter_ <= 0; });
+    std::unique_lock l(m);
+    while (c > 0) cv.wait(m);
 }
