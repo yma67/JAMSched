@@ -95,7 +95,6 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
 
 const uint64_t JAMScript::StealScheduler::Size() const
 {
-    // std::unique_lock lk(qMutex);
     return sizeOfQueue;
 }
 
@@ -202,7 +201,6 @@ void JAMScript::StealScheduler::RunSchedulerMainLoop()
             {
                 delete &(pNext);
             }
-            
         }
     }
 }

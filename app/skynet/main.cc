@@ -1,8 +1,9 @@
 #include <jamscript.hpp>
 #include <queue>
 
-#define NumberOfCoroutine 1000000
-#define NumberOfChild 10
+constexpr std::size_t kNumberOfCoroutine = 1000000;
+constexpr std::size_t kNumberOfChild = 10;
+constexpr bool kUseWaitAll = true;
 
 template <typename T, std::size_t Demand>
 class SingleConsumerOneShotQueue
@@ -10,13 +11,26 @@ class SingleConsumerOneShotQueue
     JAMScript::ConditionVariable cv;
     JAMScript::SpinOnlyMutex m;
     std::array<T, Demand> vStore;
-    std::size_t count = 0;
+    std::atomic_size_t count = 0;
 public:
     void Push(T t) 
     {
         std::scoped_lock sl(m);
         vStore[count++] = t;
-        if (Demand <= count) cv.notify_one();
+        if constexpr(kUseWaitAll) 
+        {
+            if (Demand <= count) cv.notify_one();
+        } 
+        else 
+        {
+            cv.notify_one();
+        }
+    }
+    T popOne() 
+    {
+        std::unique_lock sl(m);
+        while (count < 1) cv.wait(sl);
+        return vStore[--count];
     }
     std::array<T, Demand> &PopAll()
     {
@@ -39,7 +53,7 @@ void skynet(SingleConsumerOneShotQueue<long, N> &cNum, long num, long size, long
     }
     else
     {
-        auto sc = std::make_unique<SingleConsumerOneShotQueue<long, NumberOfChild>>();
+        auto sc = std::make_unique<SingleConsumerOneShotQueue<long, kNumberOfChild>>();
         for (long i = 0; i < div; i++)
         {
             long factor = size / div;
@@ -48,20 +62,30 @@ void skynet(SingleConsumerOneShotQueue<long, N> &cNum, long num, long size, long
             {
                 JAMScript::ThisTask::CreateBatchTask(
                 stCommon, JAMScript::Duration::max(), 
-                skynet<NumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
+                skynet<kNumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
             }
             else
             {
                 JAMScript::ThisTask::CreateBatchTask(
                 stCommon, JAMScript::Duration::max(), 
-                skynet<NumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
+                skynet<kNumberOfChild>, std::ref(*sc), long(subNum), long(factor), long(div)).Detach();
             }
         }
-        auto& v = sc->PopAll();
         long sum = 0;
-        for (long i = 0; i < div; i++)
+        if constexpr(kUseWaitAll) 
         {
-            sum += v[i];
+            auto& v = sc->PopAll();
+            for (long i = 0; i < div; i++)
+            {
+                sum += v[i];
+            }
+        } 
+        else 
+        {
+            for (long i = 0; i < div; i++)
+            {
+                sum += sc->popOne();
+            }
         }
         cNum.Push(sum);
     }
@@ -82,7 +106,7 @@ int main(int argc, char *argv[])
             stCommon, JAMScript::Duration::max(), [&ribScheduler, &totalNS] {
             auto tpStart = std::chrono::high_resolution_clock::now();
             auto sc = std::make_unique<SingleConsumerOneShotQueue<long, 1>>();
-            skynet<1>(std::ref(*sc), 0, NumberOfCoroutine, NumberOfChild);
+            skynet<1>(std::ref(*sc), 0, kNumberOfCoroutine, kNumberOfChild);
             auto res = sc->PopAll()[0];
             auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - tpStart).count();
             totalNS += elapsed;
