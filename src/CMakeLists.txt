@@ -20,7 +20,7 @@ file(GLOB_RECURSE JAMCOMPONENTS_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ "$
 set(JAMCOMPONENTS_SOURCES_LIST "")
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
     list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
-endforeach(jamcomponent_source ${JAMTEST_SOURCES})
+endforeach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
 
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 if (JAMSCRIPT_DEBUG_LINEINFO_OPT)
