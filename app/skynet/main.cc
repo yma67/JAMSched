@@ -85,6 +85,43 @@ int main(int argc, char *argv[])
         });
         ribScheduler.RunSchedulerMainLoop();
     }
+    JAMScript::RIBScheduler ribs(1024 * 256);
+    ribs.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
+                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
+    ribs.CreateBatchTask(stCommonNode, JAMScript::Duration::max(), [&ribs] {
+        try 
+        {
+            auto tps = std::chrono::high_resolution_clock::now();
+            JAMScript::async(ribs, [] {
+                auto sc = std::make_unique<JAMScript::Channel<long>>();
+                auto swg = std::make_unique<JAMScript::WaitGroup>();
+                skynet(std::ref(*sc), std::ref(*swg), 0, kNumberOfCoroutine, kNumberOfChild);
+                long res;
+                res << (*sc);
+                std::cout << res << std::endl;
+                return res;
+            }).then([] (JAMScript::future<long> result) {
+                return result.get() == 499999500000;
+            }).then(ribs, stCommonNode, [tps] (JAMScript::future<bool> isCorrect) {
+                if (isCorrect.get())
+                {
+                    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - tps).count();
+                    std::cout << "result correct, elapsed = " << elapsed / 1000000 << " ms per_fiber = " << elapsed / 1111111 << " ns/fiber" << std::endl;
+                }
+                return std::string("YAY");
+            }).then([&ribs](JAMScript::future<std::string> happyMessage) {
+                auto sMessage = happyMessage.get();
+                std::cout << sMessage << std::endl;
+                ribs.ShutDown();
+                return JAMScript::unit();
+            }); 
+        } 
+        catch (const std::exception& e) 
+        {
+            std::cerr << e.what() << std::endl;
+        }
+    });
+    ribs.RunSchedulerMainLoop();
     printf("avg over 10 = %ld ms\n", totalNS / 10000000);
     return 0;
 }

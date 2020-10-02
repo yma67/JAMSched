@@ -4,7 +4,7 @@
 #include <chrono>
 #include <pthread.h>
 
-TEST_CASE("Performance Future", "[future]")
+TEST_CASE("Performance future", "[future]")
 {
 
     std::chrono::duration dt = std::chrono::nanoseconds(0);
@@ -18,17 +18,17 @@ TEST_CASE("Performance Future", "[future]")
     for (int i = 0; i < nIter; i++)
     {
         JAMScript::RIBScheduler ribScheduler(1024 * 256);
-        auto *p = new JAMScript::Promise<std::chrono::steady_clock::time_point>();
+        auto *p = new JAMScript::promise<std::chrono::steady_clock::time_point>();
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
 
         ribScheduler.CreateBatchTask({false, 1024 * 32, false}, std::chrono::milliseconds(90), [barrier, p, &dt, &ribScheduler]() {
-            auto fut = p->GetFuture();
+            auto fut = p->get_future();
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
-            //std::cout << "Before Get" << std::endl;
-            auto ts = fut.Get();
-            //std::cout << "After Get" << std::endl;
+            //std::cout << "Before get" << std::endl;
+            auto ts = fut.get();
+            //std::cout << "After get" << std::endl;
             dt += std::chrono::steady_clock::now() - ts;
             ribScheduler.ShutDown();
             delete p;
@@ -36,7 +36,7 @@ TEST_CASE("Performance Future", "[future]")
         ribScheduler.CreateBatchTask({false, 1024 * 32, true}, std::chrono::milliseconds(90), [barrier, p, &ribScheduler]() {
             pthread_barrier_wait(barrier);
             // std::this_thread::sleep_for(std::chrono::microseconds(100));
-            p->SetValue(std::chrono::steady_clock::now());
+            p->set_value(std::chrono::steady_clock::now());
             JAMScript::ThisTask::Yield();
         }).Detach();
         ribScheduler.RunSchedulerMainLoop();
@@ -53,24 +53,24 @@ TEST_CASE("InterLock", "[future]")
     std::string sec("muthucumaru maheswaran loves java");
 #endif
     JAMScript::RIBScheduler ribScheduler(1024 * 256);
-    auto p = std::make_shared<JAMScript::Promise<std::chrono::steady_clock::time_point>>();
+    auto p = std::make_shared<JAMScript::promise<std::chrono::steady_clock::time_point>>();
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(90), [sec, p, &ribScheduler]() {
-        auto pt = std::make_shared<JAMScript::Promise<std::string>>();
+        auto pt = std::make_shared<JAMScript::promise<std::string>>();
         auto prev = pt;
         for (auto ch : sec)
         {
-            auto p = std::make_shared<JAMScript::Promise<std::string>>();
+            auto p = std::make_shared<JAMScript::promise<std::string>>();
             ribScheduler.CreateBatchTask({false, 1024 * 256, true}, std::chrono::milliseconds(90), [p, ch, prev]() {
-                            auto sx = p->GetFuture().Get();
-                            prev->SetValue(ch + sx);
+                            auto sx = p->get_future().get();
+                            prev->set_value(ch + sx);
                         })
                 .Detach();
             prev = p;
         }
-        prev->SetValue("");
-        auto ans = pt->GetFuture().Get();
+        prev->set_value("");
+        auto ans = pt->get_future().get();
         REQUIRE(ans == sec);
         WARN(ans);
         ribScheduler.ShutDown();
@@ -91,7 +91,7 @@ TEST_CASE("LExec", "[future]")
 #ifndef JAMSCRIPT_ON_TRAVIS
         JAMScript::ThisTask::SleepFor(std::chrono::microseconds(100));
 #endif
-        REQUIRE(fu.Get() == 7);
+        REQUIRE(fu.get() == 7);
         ribScheduler.ShutDown();
     }).Detach();
     ribScheduler.RunSchedulerMainLoop();

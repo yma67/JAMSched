@@ -410,8 +410,8 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
-            auto futureAck = pr->GetFuture();
+            auto& pr = ackLookup[tempEID] = std::make_unique<promise<bool>>();
+            auto futureAck = pr->get_future();
             cloudFogInfo[hostName]->rExecPending.insert(tempEID);
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
@@ -442,8 +442,8 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
-            auto futureAck = pr->GetFuture();
+            auto& pr = ackLookup[tempEID] = std::make_unique<promise<bool>>();
+            auto futureAck = pr->get_future();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             return CreateRetryTask(futureAck, vReq, tempEID, std::move(successCallback), std::move(failureCallback), 
@@ -472,8 +472,8 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
-            auto futureAck = pr->GetFuture();
+            auto& pr = ackLookup[tempEID] = std::make_unique<promise<bool>>();
+            auto futureAck = pr->get_future();
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
             return CreateRetryTask(futureAck, vReq, tempEID, std::move(successCallback), std::move(failureCallback));
@@ -522,10 +522,10 @@ namespace JAMScript
                 {"cond", condstr},
                 {"condvec", condvec},
                 {"actarg", "-"}};
-            auto prCommon = std::make_shared<Promise<std::pair<bool, nlohmann::json>>>();
+            auto prCommon = std::make_shared<promise<std::pair<bool, nlohmann::json>>>();
             auto failureCountCommon = std::make_shared<std::atomic_size_t>(0U);
             auto callOnceShared = std::make_shared<std::once_flag>();
-            auto fuCommon = prCommon->GetFuture();
+            auto fuCommon = prCommon->get_future();
             {
                 std::lock_guard lock(Remote::mCallback);
                 auto countCommon = cloudFogInfo.size();
@@ -537,7 +537,7 @@ namespace JAMScript
                                         countCommon, failureCountCommon, callOnceShared);
                 }
             }
-            return fuCommon.Get().second;
+            return fuCommon.get().second;
         }
 
         template <typename... Args>
@@ -561,10 +561,10 @@ namespace JAMScript
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
-            auto futureAck = prAck->GetFuture();
-            auto& pr = rLookup[tempEID] = std::make_unique<Promise<std::pair<bool, nlohmann::json>>>();
-            auto fuExec = pr->GetFuture();
+            auto& prAck = ackLookup[tempEID] = std::make_unique<promise<bool>>();
+            auto futureAck = prAck->get_future();
+            auto& pr = rLookup[tempEID] = std::make_unique<promise<std::pair<bool, nlohmann::json>>>();
+            auto fuExec = pr->get_future();
             mainFogInfo->rExecPending.insert(tempEID);
             lk.unlock();
             int retryNum = 0;
@@ -582,7 +582,7 @@ namespace JAMScript
                                     nvoid_new(vReq.data(), vReq.size()));
                     lk.unlock();
                 }
-                if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+                if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
                 {
                     if (retryNum < 3)
                     {
@@ -595,17 +595,17 @@ namespace JAMScript
                     lk.unlock();
                     return {"exception", std::string("retry failed")};
                 }
-                if (!futureAck.Get())
+                if (!futureAck.get())
                 {
                     return {"exception", std::string("heartbeat failed")};
                 }
                 break;
             }
-            if (!fuExec.WaitFor(timeOut))
+            if (fuExec.wait_for(timeOut) != future_status::ready)
             {
                 return {"exception", std::string("value timeout")};
             }
-            return fuExec.Get().second;
+            return fuExec.get().second;
         }
 
         template <typename... Args>
@@ -623,22 +623,22 @@ namespace JAMScript
     private:
 
         bool CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
-                                 std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, std::size_t countCommon, 
+                                 std::shared_ptr<promise<std::pair<bool, nlohmann::json>>> prCommon, std::size_t countCommon, 
                                  std::shared_ptr<std::atomic_size_t> failureCountCommon, 
                                  std::shared_ptr<std::once_flag> successCallOnceFlag);
         bool CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
-                                 std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
+                                 std::shared_ptr<promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                  std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
                                  std::shared_ptr<std::once_flag> successCallOnceFlag);
-        bool CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+        bool CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                              std::function<void()> successCallback, std::function<void(std::error_condition)> failureCallback, 
                              std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount, 
                              std::shared_ptr<std::once_flag> successCallOnceFlag);
-        bool CreateRetryTask(std::string hostName, Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+        bool CreateRetryTask(std::string hostName, future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                              std::function<void()> successCallback, std::function<void(std::error_condition)> failureCallback, 
                              std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount, 
                              std::shared_ptr<std::once_flag> successCallOnceFlag);
-        bool CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, 
+        bool CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, 
                              uint32_t tempEID, std::function<void()> successCallback, 
                              std::function<void(std::error_condition)> failureCallback);
         static int RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg);
@@ -653,9 +653,9 @@ namespace JAMScript
         std::unique_ptr<CloudFogInfo> mainFogInfo;
         std::string devId, appId, hostAddr;
         boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<bool>>> ackLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<promise<bool>>> ackLookup;
         std::unordered_map<std::string, std::unique_ptr<CloudFogInfo>> cloudFogInfo;
-        std::unordered_map<uint32_t, std::unique_ptr<Promise<std::pair<bool, nlohmann::json>>>> rLookup;
+        std::unordered_map<uint32_t, std::unique_ptr<promise<std::pair<bool, nlohmann::json>>>> rLookup;
 
     };
 
