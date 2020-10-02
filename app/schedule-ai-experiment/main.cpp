@@ -191,53 +191,47 @@ int main(int argc, char *argv[])
             }
 #ifndef JAMSCRIPT_SCHED_AI_EXP
             auto sec3 = std::make_shared<std::string>();
-            auto p = std::make_shared<JAMScript::Promise<std::string>>();
-            auto ep = std::make_shared<JAMScript::Promise<void>>();
-            auto rp = std::make_shared<JAMScript::Promise<std::string &>>();
+            auto p = std::make_shared<JAMScript::promise<std::string>>();
+            auto ep = std::make_shared<JAMScript::promise<bool>>();
             auto fx = jRIBScheduler.CreateInteractiveTask(
                 {true, 0}, std::chrono::nanoseconds(38000000), std::chrono::nanoseconds(99), []() {},
-                [p, ep, rp, sec3]() {
+                [p, ep, sec3]() {
                     *sec3 = "I don't like cpp";
                     std::cout << "Start Joining Task " << &sec3 << std::endl;
-                    ep->SetException(std::make_exception_ptr(JAMScript::InvalidArgumentException("cancelled")));
-                    rp->SetValue(*sec3);
-                    p->SetValue("I like Java");
+                    ep->set_exception(std::make_exception_ptr(JAMScript::InvalidArgumentException("cancelled")));
+                    p->set_value("I like Java");
                     std::cout << "End Joining Task" << std::endl;
                 });
             fx.Detach();
-            auto fp = p->GetFuture();
-            auto frp = rp->GetFuture();
+            auto fp = p->get_future();
             std::cout << "Before Join" << std::endl;
             std::cout << "After Join" << std::endl;
-            std::cout << "Secret is: \"" << fp.Get() << "\"" << std::endl;
+            std::cout << "Secret is: \"" << fp.get() << "\"" << std::endl;
             try
             {
-                ep->GetFuture().Get();
+                ep->get_future().get();
             }
             catch (const JAMScript::InvalidArgumentException &e)
             {
                 std::cout << e.what() << std::endl;
             }
-            std::cout << "Secret3 " << &sec3 << " is: \"" << frp.Get() << "\"" << std::endl;
-            // Test GetFor, GetUntil
+            // Test get_for, get_until
             // Success
-            JAMScript::Promise<std::string> prCouldArrive;
+            JAMScript::promise<std::string> prCouldArrive;
             std::thread([&prCouldArrive](){
-                prCouldArrive.SetValue("GetUntil Success! ");
+                prCouldArrive.set_value("get_until Success! ");
             }).detach();
-            auto fuCouldArrive = prCouldArrive.GetFuture();
-            // comment out to test GetUntil
-            // auto couldArriveVal = fuCouldArrive.GetUntil(std::chrono::steady_clock::now() + std::chrono::seconds(100));
-            auto couldArriveVal = fuCouldArrive.GetFor(std::chrono::seconds(100));
+            auto fuCouldArrive = prCouldArrive.get_future();
+            // comment out to test get_until
+            // auto couldArriveVal = fuCouldArrive.get_until(std::chrono::steady_clock::now() + std::chrono::seconds(100));
+            fuCouldArrive.wait_for(std::chrono::seconds(100));
+            auto couldArriveVal = fuCouldArrive.get();
             std::cout << couldArriveVal << std::endl;
             // Fail
-            JAMScript::Promise<std::string> prNeverArrive;
-            auto fuNeverArrive = prNeverArrive.GetFuture();
-            try {
-                fuNeverArrive.GetFor(std::chrono::milliseconds(500));
-            } catch (const std::exception& e) {
-                std::cout << e.what() << std::endl;
-            }
+            JAMScript::promise<std::string> prNeverArrive;
+            auto fuNeverArrive = prNeverArrive.get_future();
+            if (fuNeverArrive.wait_for(std::chrono::milliseconds(500)) == JAMScript::future_status::timeout) 
+                std::cout << "Timed Out" << std::endl;
 #endif
             jRIBScheduler.ShutDown();
             return 3;

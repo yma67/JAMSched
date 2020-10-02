@@ -76,9 +76,9 @@ int main()
                                      
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             printf("==============================================\n");
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            JAMScript::future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
  //           ribScheduler.ExtractRemote(&jf);
-//            jf.Get();
+//            jf.get();
             //std::cout << jf << std::endl;
         }
     });
@@ -91,7 +91,7 @@ int main()
                                      
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             printf(">>...........\n");
-            JAMScript::Future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            JAMScript::future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
 //            int q = ribScheduler.ExtractRemote(&jf);
             //std::cout << jf << std::endl;
         }

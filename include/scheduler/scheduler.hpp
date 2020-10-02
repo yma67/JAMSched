@@ -15,6 +15,7 @@
 #include "core/task/task.hpp"
 #include "scheduler/decider.hpp"
 #include "scheduler/taskthief.hpp"
+#include "scheduler/stacktraits.hpp"
 
 #ifndef RT_MMAP_BUCKET_SIZE
 #define RT_MMAP_BUCKET_SIZE 200
@@ -32,17 +33,7 @@ namespace JAMScript
             : sTime(s), eTime(e), taskId(id) {}
     };
 
-    struct StackTraits
-    {
-        bool useSharedStack, canSteal, launchImmediately;
-        uint32_t stackSize;
-        int pinCore;
-        StackTraits() : useSharedStack(false), stackSize(4096U), canSteal(true), pinCore(-1), launchImmediately(false) {}
-        StackTraits(bool ux, uint32_t ssz) : useSharedStack(ux), stackSize(ssz), canSteal(true), pinCore(-1), launchImmediately(false) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1), launchImmediately(false) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs, int pc) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(pc), launchImmediately(false) {}
-        StackTraits(bool ux, uint32_t ssz, bool cs, bool immediate) : useSharedStack(ux), stackSize(ssz), canSteal(cs), pinCore(-1),launchImmediately(immediate) {}
-    };
+    
 
     class LogManager;
     struct RedisState;
@@ -125,8 +116,8 @@ namespace JAMScript
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
             {
-                auto fu = std::make_unique<Promise<nlohmann::json>>();
-                auto fut = fu->GetFuture();
+                auto fu = std::make_unique<promise<nlohmann::json>>();
+                auto fut = fu->get_future();
                 auto fName = rpcAttr["actname"].get<std::string>();
                 if (localFuncStackTraitsMap.find(fName) == localFuncStackTraitsMap.end())
                 {
@@ -136,9 +127,9 @@ namespace JAMScript
                 [this, fu { std::move(fu) }, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))] () 
                 {
                     nlohmann::json jxe(localFuncMap[fName]->Invoke(std::move(rpcAttr["args"])));
-                    fu->SetValue(std::move(jxe));
+                    fu->set_value(std::move(jxe));
                 }).Detach();
-                return fut.Get();
+                return fut.get();
             }
             return {};
         }
@@ -343,16 +334,16 @@ namespace JAMScript
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
+        future<T> CreateLocalNamedInteractiveExecution(const StackTraits &stackTraits, Duration deadline, Duration burst, 
                                                        const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            auto pf = std::make_shared<Promise<T>>();
-            auto fu = pf->GetFuture();
+            auto pf = std::make_shared<promise<T>>();
+            auto fu = pf->get_future();
             CreateInteractiveTask(stackTraits, std::forward<Duration>(deadline), std::forward<Duration>(burst), [pf]() 
             {
-                pf->SetException(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
+                pf->set_exception(std::make_exception_ptr(InvalidArgumentException("Local Named Execution Cancelled")));
             }
             , [pf, tAttr { std::move(tAttr) }]() 
             {
@@ -361,16 +352,16 @@ namespace JAMScript
                     if constexpr(std::is_same<T, void>::value)
                     {
                         std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
-                        pf->SetValue();
+                        pf->set_value();
                     }
                     else
                     {
-                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                        pf->set_value(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
                     }
                 } 
                 catch (const std::exception& e) 
                 {
-                    pf->SetException(std::make_exception_ptr(e));
+                    pf->set_exception(std::make_exception_ptr(e));
                 }
             }).Detach();
             return fu;
@@ -390,12 +381,12 @@ namespace JAMScript
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args ... eArgs) 
+        future<T> CreateLocalNamedBatchExecution(const StackTraits &stackTraits, Duration burst, const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            auto pf = std::make_unique<Promise<T>>();
-            auto fu = pf->GetFuture();
+            auto pf = std::make_unique<promise<T>>();
+            auto fu = pf->get_future();
             CreateBatchTask(stackTraits, std::forward<Duration>(burst),
             [pf { std::move(pf) }, tAttr { std::move(tAttr) }]() 
             {
@@ -404,16 +395,16 @@ namespace JAMScript
                     if constexpr(std::is_same<T, void>::value)
                     {
                         std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
-                        pf->SetValue();
+                        pf->set_value();
                     }
                     else
                     {
-                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                        pf->set_value(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
                     }
                 } 
                 catch (const std::exception& e) 
                 {
-                    pf->SetException(std::make_exception_ptr(e));
+                    pf->set_exception(std::make_exception_ptr(e));
                 }
             }).Detach();
             return fu;
@@ -430,12 +421,12 @@ namespace JAMScript
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
-        Future<T> CreateLocalNamedRealTimeExecution(const StackTraits &stackTraits, uint32_t id, const std::string &eName, Args ... eArgs) 
+        future<T> CreateLocalNamedRealTimeExecution(const StackTraits &stackTraits, uint32_t id, const std::string &eName, Args ... eArgs) 
         {
             auto tAttr = std::make_unique<TaskAttr<std::function<T(Args...)>, Args...>>(
                 std::any_cast<std::function<T(Args...)>>(lexecFuncMap[eName]), std::forward<Args>(eArgs)...);
-            auto pf = std::make_unique<Promise<T>>();
-            auto fu = pf->GetFuture();
+            auto pf = std::make_unique<promise<T>>();
+            auto fu = pf->get_future();
             CreateRealTimeTask(stackTraits, id, [pf { std::move(pf) }, tAttr { std::move(tAttr) }]() 
             {
                 try 
@@ -443,16 +434,16 @@ namespace JAMScript
                     if constexpr(std::is_same<T, void>::value)
                     {
                         std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs));
-                        pf->SetValue();
+                        pf->set_value();
                     }
                     else
                     {
-                        pf->SetValue(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
+                        pf->set_value(std::apply(std::move(tAttr->tFunction), std::move(tAttr->tArgs)));
                     }
                 } 
                 catch (const std::exception& e) 
                 {
-                    pf->SetException(std::make_exception_ptr(e));
+                    pf->set_exception(std::make_exception_ptr(e));
                 }
             }).Detach();
             return fu;
@@ -595,9 +586,9 @@ namespace JAMScript
         void ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
 
         template <typename T>
-        T ExtractRemote(Future<nlohmann::json>& future) 
+        T ExtractRemote(future<nlohmann::json>& future) 
         {
-            return future.Get().get<T>();
+            return future.get().get<T>();
         }
 
         void SetStealers(std::vector<std::unique_ptr<StealScheduler>> thiefs) 

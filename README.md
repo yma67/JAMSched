@@ -111,7 +111,7 @@ auto fu = ribScheduler.CreateLocalNamedInteractiveExecution<int>(
     3, 4
 );
 // after some lines of code...
-int val = fu.Get();
+int val = fu.get();
 ```
 ### Note 
 Also available for Batch Tasks

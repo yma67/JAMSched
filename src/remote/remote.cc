@@ -63,14 +63,14 @@ void JAMScript::CloudFogInfo::Clear()
     {
         if (remote->ackLookup.find(id) != remote->ackLookup.end())
         {
-            remote->ackLookup[id]->SetValue(false);
+            remote->ackLookup[id]->set_value(false);
         }
     }
     for (auto id: rExecPending)
     {
         if (remote->rLookup.find(id) != remote->rLookup.end())
         {
-            remote->rLookup[id]->SetValue(std::make_pair(false, nlohmann::json({})));
+            remote->rLookup[id]->set_value(std::make_pair(false, nlohmann::json({})));
         }
     }
     mqtt_deleteserver(mqttAdapter);
@@ -156,7 +156,7 @@ void JAMScript::Remote::CancelAllRExecRequests()
 }
 
 bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
-                                            std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
+                                            std::shared_ptr<promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                             std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
                                             std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
@@ -170,7 +170,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
             lk.unlock();
             if (failureCountCommon->fetch_add(1U) == countCommon)
             {
-                prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
             }
             return;
         }
@@ -179,10 +179,10 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
         auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
         auto tempEID = eIdFactory;
         eIdFactory++;
-        auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
-        auto futureAck = prAck->GetFuture();
-        auto& pr = rLookup[tempEID] = std::make_unique<Promise<std::pair<bool, nlohmann::json>>>();
-        auto fuExec = pr->GetFuture();
+        auto& prAck = ackLookup[tempEID] = std::make_unique<promise<bool>>();
+        auto futureAck = prAck->get_future();
+        auto& pr = rLookup[tempEID] = std::make_unique<promise<std::pair<bool, nlohmann::json>>>();
+        auto fuExec = pr->get_future();
         mainFogInfo->rExecPending.insert(tempEID);
         lk.unlock();
         int retryNum = 0;
@@ -194,7 +194,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
             }
@@ -203,7 +203,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
             mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), 
                             nvoid_new(vReq.data(), vReq.size()));
             lk.unlock();
-            if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+            if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
                 {
@@ -216,42 +216,42 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("retry failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("retry failed")})));
                 }
                 return;
             }
-            if (!futureAck.Get() && failureCountCommon->fetch_add(1U) == countCommon)
+            if (!futureAck.get() && failureCountCommon->fetch_add(1U) == countCommon)
             {
-                prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
             }
             break;
         }
         try 
         {
-            if (!fuExec.WaitFor(timeOut))
+            if (fuExec.wait_for(timeOut) != future_status::ready)
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("execution timeout")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("execution timeout")})));
                 }
                 return;
             }
-            auto valueResult = fuExec.Get();
+            auto valueResult = fuExec.get();
             if (!valueResult.first)
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
             }
-            std::call_once(*successCallOnceFlag, [&prCommon, &valueResult] { prCommon->SetValue(std::move(valueResult)); });
+            std::call_once(*successCallOnceFlag, [&prCommon, &valueResult] { prCommon->set_value(std::move(valueResult)); });
         }
         catch (const std::exception &e)
         {
             if (failureCountCommon->fetch_add(1U) == countCommon)
             {
-                prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string(e.what())})));
+                prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string(e.what())})));
             }
             return;
         }
@@ -260,7 +260,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
 }
 
 bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
-                                            std::shared_ptr<Promise<std::pair<bool, nlohmann::json>>> prCommon, 
+                                            std::shared_ptr<promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                             std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
                                             std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
@@ -274,7 +274,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
             lk.unlock();
             if (failureCountCommon->fetch_add(1U) == countCommon)
             {
-                prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
             }
             return;
         }
@@ -283,10 +283,10 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
         auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
         auto tempEID = eIdFactory;
         eIdFactory++;
-        auto& prAck = ackLookup[tempEID] = std::make_unique<Promise<bool>>();
-        auto futureAck = prAck->GetFuture();
-        auto& pr = rLookup[tempEID] = std::make_unique<Promise<std::pair<bool, nlohmann::json>>>();
-        auto fuExec = pr->GetFuture();
+        auto& prAck = ackLookup[tempEID] = std::make_unique<promise<bool>>();
+        auto futureAck = prAck->get_future();
+        auto& pr = rLookup[tempEID] = std::make_unique<promise<std::pair<bool, nlohmann::json>>>();
+        auto fuExec = pr->get_future();
         mainFogInfo->rExecPending.insert(tempEID);
         lk.unlock();
         int retryNum = 0;
@@ -298,7 +298,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
             }
@@ -306,7 +306,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
             mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
                             nvoid_new(vReq.data(), vReq.size()));
             lk.unlock();
-            if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+            if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
                 {
@@ -319,15 +319,15 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
                 lk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("retry failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("retry failed")})));
                 }
                 return;
             }
-            if (!futureAck.Get())
+            if (!futureAck.get())
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
             }
@@ -335,30 +335,30 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
         }
         try 
         {
-            if (!fuExec.WaitFor(timeOut))
+            if (fuExec.wait_for(timeOut) != future_status::ready)
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("execution timeout")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("execution timeout")})));
                 }
                 return;
             }
-            auto valueResult = fuExec.Get();
+            auto valueResult = fuExec.get();
             if (!valueResult.first)
             {
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
-                    prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
+                    prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
                 }
                 return;
             }
-            std::call_once(*successCallOnceFlag, [&prCommon, &valueResult] { prCommon->SetValue(std::move(valueResult)); });
+            std::call_once(*successCallOnceFlag, [&prCommon, &valueResult] { prCommon->set_value(std::move(valueResult)); });
         }
         catch (const std::exception &e)
         {
             if (failureCountCommon->fetch_add(1U) == countCommon)
             {
-                prCommon->SetValue(std::make_pair(false, nlohmann::json({"exception", std::string(e.what())})));
+                prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string(e.what())})));
             }
             return;
         }
@@ -366,7 +366,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                                         std::function<void()> successCallback, 
                                         std::function<void(std::error_condition)> failureCallback, 
                                         std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount, 
@@ -396,7 +396,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                                 nvoid_new(vReq.data(), vReq.size()));
                 lkPublish.unlock();
             }
-            if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+            if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
                 {
@@ -413,7 +413,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                 }
                 return;
             }
-            if (!futureAck.Get())
+            if (!futureAck.get())
             {
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
                 {
@@ -430,7 +430,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futureAck, 
+bool JAMScript::Remote::CreateRetryTask(std::string hostName, future<bool> &futureAck, 
                                         std::vector<unsigned char> &vReq, uint32_t tempEID, 
                                         std::function<void()> successCallback, 
                                         std::function<void(std::error_condition)> failureCallback, 
@@ -462,7 +462,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
                                 nvoid_new(vReq.data(), vReq.size()));
                 lkPublish.unlock();
             }
-            if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+            if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
                 {
@@ -479,7 +479,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
                 }
                 return;
             }
-            if (!futureAck.Get())
+            if (!futureAck.get())
             {
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
                 {
@@ -496,7 +496,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, Future<bool> &futu
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                                         std::function<void()> successCallback, 
                                         std::function<void(std::error_condition)> failureCallback)
 {
@@ -520,7 +520,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                                 nvoid_new(vReq.data(), vReq.size()));
                 lkPublish.unlock();
             }
-            if (!futureAck.WaitFor(std::chrono::milliseconds(100)))
+            if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
                 {
@@ -534,7 +534,7 @@ bool JAMScript::Remote::CreateRetryTask(Future<bool> &futureAck, std::vector<uns
                 failureCallback(RExecDetails::CreateErrorCondition(RemoteExecutionErrorCode::AckTimedOut));
                 return;
             }
-            if (futureAck.Get())
+            if (futureAck.get())
             {
                 successCallback();
             }
@@ -652,7 +652,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     if (remote->ackLookup.find(actId) != remote->ackLookup.end()) 
                     {
                         auto& refRLookup = remote->ackLookup[actId];
-                        refRLookup->SetValue(true);
+                        refRLookup->set_value(true);
                         remote->ackLookup.erase(actId);
                     }
                 }
@@ -683,7 +683,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     if (remote->rLookup.find(actId) != remote->rLookup.end()) 
                     {
                         auto& refRLookup = remote->rLookup[actId];
-                        refRLookup->SetValue(std::make_pair(true, rMsg["args"]));
+                        refRLookup->set_value(std::make_pair(true, rMsg["args"]));
                         cfINFO->rExecPending.erase(actId);
                         remote->rLookup.erase(actId);
                     }

@@ -9,13 +9,13 @@ int main()
         JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-        JAMScript::Promise<void> prShutDown;
+        JAMScript::promise<void> prShutDown;
         ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             countArray[0] = 1;
-            prShutDown.SetValue();
+            prShutDown.set_value();
             printf("==============================================\n");
         });
                     
@@ -26,7 +26,7 @@ int main()
             JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
             countArray[1] = 1;
             printf(">>...........\n");
-            prShutDown.GetFuture().Get();
+            prShutDown.get_future().get();
             ribScheduler.ShutDown();
         });
         ribScheduler.RunSchedulerMainLoop();
