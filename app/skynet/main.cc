@@ -57,42 +57,44 @@ void GetSkynetWithCSP(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, 
     if constexpr(kWaitInGroup) wg.Done();
 }
 
-namespace RangeNaive
+template <typename T>
+inline auto Generate(T base, std::size_t sz)
 {
-    template <typename T>
-    inline auto Generate(T base, std::size_t sz)
-    {
-        std::vector<T> r(sz);
-        std::iota(r.begin(), r.end(), base);
-        return r;
-    }
+    std::vector<T> r(sz);
+    std::iota(r.begin(), r.end(), base);
+    return r;
+}
 
-    template <typename R, typename Fn>
-    inline auto Map(Fn&& t, std::vector<R>&& r)
-    {
-        std::vector<typename std::result_of<Fn(R)>::type> rt;
-        std::transform(r.begin(), r.end(), std::back_inserter(rt), t);
-        return rt;
-    } 
+template <typename R, typename Fn>
+inline auto Map(Fn&& t, std::vector<R>&& r)
+{
+    std::vector<typename std::result_of<Fn(R)>::type> rt;
+    std::transform(r.begin(), r.end(), std::back_inserter(rt), t);
+    return rt;
+} 
 
-    template <typename R, typename T, typename Fn>
-    inline auto Reduce(Fn&& t, T s, std::vector<R>&& r)
-    {
-        return std::accumulate(r.begin(), r.end(), s, t);
-    }
+template <typename R, typename T, typename Fn>
+inline auto FoldLeft(Fn&& t, T s, std::vector<R>&& r)
+{
+    return std::accumulate(r.begin(), r.end(), s, t);
 }
 
 auto GetSkynetWithAsync(long num, long size, long div) -> long
 {
-    return (size == 1) ? num : 
-    RangeNaive::Reduce([](auto x, auto &y) { return x + y.get(); }, 0L, 
-    RangeNaive::Map([num, size, div] (long i) {
-        return JAMScript::async(
-            (size / div == 1) ? (stCommon) : (stCommonNode),
-            [num, size, div, i] {
-            return GetSkynetWithAsync(num + i * (size / div), size / div, div);
-        });
-    }, RangeNaive::Generate(0L, div)));
+    if (size == 1) return num;
+    return FoldLeft([](auto x, auto &y) { return x + y.get(); }, 0L, 
+        Map([num, size, div] (long i) {
+            return JAMScript::async(
+                (size / div == 1) ? (stCommon) : (stCommonNode),
+                [num, size, div, i] {
+                return GetSkynetWithAsync(
+                    num + i * (size / div), 
+                    size / div, div
+                );
+            });
+        }, 
+        Generate(0L, div))
+    );
 }
 
 int main(int argc, char *argv[])
