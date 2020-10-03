@@ -1,6 +1,6 @@
 add_executable(skynet main.cc)
+target_compile_features(skynet PUBLIC cxx_std_17)
 target_link_libraries(skynet PRIVATE jamsched tcmalloc)
-target_include_directories(jamsched PRIVATE "${PROJECT_SOURCE_DIR}/include/")
 # Boost
 find_package(Boost 1.65.0 COMPONENTS program_options filesystem system fiber REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})

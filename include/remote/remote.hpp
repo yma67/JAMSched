@@ -23,11 +23,13 @@
 template <>
 struct nlohmann::adl_serializer<char *>
 {
-    static void to_json(json &j, const char *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const char *&value)
     {
         j = std::string(value);
     }
-    static void from_json(const json &j, char *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, char *&value)
     {
         std::string st = j.template get<std::string>();
         value = strdup(st.c_str());
@@ -37,11 +39,13 @@ struct nlohmann::adl_serializer<char *>
 template <>
 struct nlohmann::adl_serializer<const char *>
 {
-    static void to_json(json &j, const char *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const char *&value)
     {
         j = std::string(value, value + strlen(value));
     }
-    static void from_json(const json &j, const char *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, const char *&value)
     {
         std::string st = j.template get<std::string>();
         value = strdup(st.c_str());
@@ -52,13 +56,15 @@ struct nlohmann::adl_serializer<const char *>
 template <>
 struct nlohmann::adl_serializer<nvoid_t *>
 {
-    static void to_json(json &j, const nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const nvoid_t *&value)
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), 
                                  reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
     }
-    static void from_json(const json &j, nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, nvoid_t *&value)
     {
         auto bArray = j.template get<std::vector<char>>();
         value = nvoid_new(bArray.data(), bArray.size());
@@ -68,13 +74,15 @@ struct nlohmann::adl_serializer<nvoid_t *>
 template <>
 struct nlohmann::adl_serializer<const nvoid_t *>
 {
-    static void to_json(json &j, const nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const nvoid_t *&value)
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), 
                                  reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
     }
-    static void from_json(const json &j, const nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, const nvoid_t *&value)
     {
         auto bArray = j.template get<std::vector<char>>();
         value = nvoid_new(bArray.data(), bArray.size());

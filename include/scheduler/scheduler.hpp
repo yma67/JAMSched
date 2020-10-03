@@ -245,6 +245,7 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = std::move(burst);
             fn->isStealable = stackTraits.canSteal;
+            if (fn == nullptr || fn->notifier == nullptr) printf("FFFFFFF\n");
             auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
