@@ -1,12 +1,13 @@
 #ifndef JAMSCRIPT_TASKTHIEF_HH
 #define JAMSCRIPT_TASKTHIEF_HH
-#include "core/task/task.hpp"
 
-#include <condition_variable>
-#include <iostream>
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <iostream>
+#include <condition_variable>
+
+#include "core/task/task.hpp"
 
 namespace JAMScript
 {

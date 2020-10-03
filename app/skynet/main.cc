@@ -1,4 +1,7 @@
+#include <boost/range/algorithm.hpp>
+#include <boost/range/numeric.hpp>
 #include <jamscript.hpp>
+#include <functional>
 #include <queue>
 
 constexpr std::size_t kNumberOfCoroutine = 1000000;
@@ -9,12 +12,13 @@ constexpr bool useImmediateExecutePolicy = true;
 JAMScript::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), 
                        stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 
-auto GetDurationNS(std::chrono::high_resolution_clock::time_point tp) {
+inline auto GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
+{
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::high_resolution_clock::now() - tp).count();
 }
 
-void CSPSkynet(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long num, long size, long div)
+void GetSkynetWithCSP(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long num, long size, long div)
 {
     if (size > 1)
     {
@@ -27,7 +31,7 @@ void CSPSkynet(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long nu
             long subNum = num + i * (factor);
             JAMScript::ThisTask::CreateBatchTask(
                 (factor == 1) ? (stCommon) : (stCommonNode), JAMScript::Duration::max(),
-                CSPSkynet, std::ref(*sc), std::ref(*swg), long(subNum), long(factor), long(div))
+                GetSkynetWithCSP, std::ref(*sc), std::ref(*swg), long(subNum), long(factor), long(div))
                 .Detach();
         }
         if constexpr(kWaitInGroup)
@@ -53,26 +57,42 @@ void CSPSkynet(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long nu
     if constexpr(kWaitInGroup) wg.Done();
 }
 
-long FutureSkynet(long num, long size, long div)
+namespace RangeNaive
 {
-    if (size > 1)
+    template <typename T>
+    inline auto Generate(T base, std::size_t sz)
     {
-        std::vector<long> l(div);
-        std::vector<JAMScript::future<long>> futures;
-        std::iota(l.begin(), l.end(), 0);
-        std::transform(l.begin(), l.end(), std::back_inserter(futures), [num, size, div] (long i) {
-            long factor = size / div;
-            long subNum = num + i * (factor);
-            return JAMScript::async((factor == 1) ? (stCommon) : (stCommonNode),
-                                    [factor, subNum, div] {
-                                        return FutureSkynet(subNum, factor, div);
-                                    });
-        });
-        return std::accumulate(futures.begin(), futures.end(), 0L, [](auto x, auto &y) {
-            return x + y.get();
-        });
+        std::vector<T> r(sz);
+        std::iota(r.begin(), r.end(), base);
+        return r;
     }
-    return num;
+
+    template <typename R, typename Fn>
+    inline auto Map(Fn&& t, std::vector<R>&& r)
+    {
+        std::vector<typename std::result_of<Fn(R)>::type> rt;
+        std::transform(r.begin(), r.end(), std::back_inserter(rt), t);
+        return rt;
+    } 
+
+    template <typename R, typename T, typename Fn>
+    inline auto Reduce(Fn&& t, T s, std::vector<R>&& r)
+    {
+        return std::accumulate(r.begin(), r.end(), s, t);
+    }
+}
+
+auto GetSkynetWithAsync(long num, long size, long div) -> long
+{
+    return (size == 1) ? num : 
+    RangeNaive::Reduce([](auto x, auto &y) { return x + y.get(); }, 0L, 
+    RangeNaive::Map([num, size, div] (long i) {
+        return JAMScript::async(
+            (size / div == 1) ? (stCommon) : (stCommonNode),
+            [num, size, div, i] {
+            return GetSkynetWithAsync(num + i * (size / div), size / div, div);
+        });
+    }, RangeNaive::Generate(0L, div)));
 }
 
 int main(int argc, char *argv[])
@@ -92,7 +112,7 @@ int main(int argc, char *argv[])
             auto tpStart = std::chrono::high_resolution_clock::now();
             auto sc = std::make_unique<JAMScript::Channel<long>>();
             auto swg = std::make_unique<JAMScript::WaitGroup>();
-            CSPSkynet(std::ref(*sc), std::ref(*swg), 0, kNumberOfCoroutine, kNumberOfChild);
+            GetSkynetWithCSP(std::ref(*sc), std::ref(*swg), 0, kNumberOfCoroutine, kNumberOfChild);
             long res;
             res << (*sc);
             auto elapsed = GetDurationNS(tpStart);
@@ -118,7 +138,7 @@ int main(int argc, char *argv[])
         ribScheduler.CreateBatchTask(stCommonNode, JAMScript::Duration::max(), 
         [&i, tpStart, &totalFutureNS, &ribScheduler] {
             JAMScript::async([&i, tpStart, &totalFutureNS, &ribScheduler] {
-                return FutureSkynet(0L, long(kNumberOfCoroutine), long(kNumberOfChild));
+                return GetSkynetWithAsync(0L, long(kNumberOfCoroutine), long(kNumberOfChild));
             }).then([tpStart](JAMScript::future<long> res) {
                 long r = res.get();
                 if (r == 499999500000)

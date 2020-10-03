@@ -71,7 +71,8 @@
         "valarray": "cpp",
         "strstream": "cpp",
         "cfenv": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "span": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled",
     

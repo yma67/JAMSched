@@ -3,11 +3,11 @@
 #ifndef CHANNEL_HPP_
 #define CHANNEL_HPP_
 
-#include <atomic>
-#include <concurrency/condition_variable.hpp>
-#include <concurrency/mutex.hpp>
-#include <cstdlib>
 #include <queue>
+#include <atomic>
+#include <cstdlib>
+#include "concurrency/mutex.hpp"
+#include "concurrency/condition_variable.hpp"
 
 #include "blocking_iterator.hpp"
 
