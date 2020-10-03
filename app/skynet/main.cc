@@ -1,5 +1,3 @@
-#include <boost/range/algorithm.hpp>
-#include <boost/range/numeric.hpp>
 #include <jamscript.hpp>
 #include <functional>
 #include <queue>
@@ -81,8 +79,8 @@ inline auto FoldLeft(Fn&& t, T s, std::vector<R>&& r)
 
 auto GetSkynetWithAsync(long num, long size, long div) -> long
 {
-    if (size == 1) return num;
-    return FoldLeft([](auto x, auto &y) { return x + y.get(); }, 0L, 
+    return (size == 1) ? (num) : 
+        FoldLeft([](auto x, auto &y) { return x + y.get(); }, 0L, 
         Map([num, size, div] (long i) {
             return JAMScript::async(
                 (size / div == 1) ? (stCommon) : (stCommonNode),
