@@ -39,24 +39,30 @@ static std::mutex mtx{};
 static boost::fibers::condition_variable_any cnd{};
 
 // microbenchmark
-void skynet( allocator_type & salloc, channel_type & c, std::size_t num, std::size_t size, std::size_t div) {
-    if ( 1 == size) {
-        c.push( num);
-    } else {
-        channel_type rc{ 16 };
-        for ( std::size_t i = 0; i < div; ++i) {
-            auto sub_num = num + i * size / div;
-            boost::fibers::fiber{ boost::fibers::launch::dispatch,
-                              std::allocator_arg, salloc,
-                              skynet,
-                              std::ref( salloc), std::ref( rc), sub_num, size / div, div }.detach();
+std::uint64_t skynet(allocator_type& salloc, std::uint64_t num, std::uint64_t size, std::uint64_t div) {
+    if ( size != 1){
+        size /= div;
+
+        std::vector<boost::fibers::future<std::uint64_t> > results;
+        results.reserve( div);
+
+        for ( std::uint64_t i = 0; i != div; ++i) {
+            std::uint64_t sub_num = num + i * size;
+            results.emplace_back(boost::fibers::async(
+                  boost::fibers::launch::dispatch
+                , std::allocator_arg, salloc
+                , skynet
+                , std::ref( salloc), sub_num, size, div));
         }
-        std::uint64_t sum{ 0 };
-        for ( std::size_t i = 0; i < div; ++i) {
-            sum += rc.value_pop();
-        }
-        c.push( sum);
+
+        std::uint64_t sum = 0;
+        for ( auto& f : results)
+            sum += f.get();
+            
+        return sum;
     }
+
+    return num;
 }
 
 void thread( std::uint32_t thread_count) {
@@ -69,7 +75,7 @@ void thread( std::uint32_t thread_count) {
 
 int main() {
     try {
-        // count of logical cpus
+        // count of logical ids
         std::uint32_t thread_count = std::thread::hardware_concurrency();
         std::size_t size{ 1000000 };
         std::size_t div{ 10 };
@@ -84,8 +90,7 @@ int main() {
         // main-thread registers itself at work-stealing scheduler
         boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >( thread_count);
         time_point_type start{ clock_type::now() };
-        skynet( salloc, rc, 0, size, div);
-        result = rc.value_pop();
+        result = skynet( salloc, 0, size, div);
         if ( 499999500000 != result) {
             throw std::runtime_error("invalid result");
         }

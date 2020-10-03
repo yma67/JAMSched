@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include "core/task/task.hpp"
 #include "concurrency/condition_variable.hpp"
 #include "scheduler/stacktraits.hpp"
 #include <memory>
@@ -894,13 +895,22 @@ future<U> make_exceptional_future(std::exception_ptr p) {
 #if defined (__clang__) || defined(_MSC_VER) || \
     (defined (__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 9) || __GNUC__ >= 5))
 
-template<typename Executor, typename F, typename... Args>
-future<detail::callable_ret_type<F, Args...>> async(Executor& executor, F&& f, Args&&... args) {
+class RIBScheduler;
+
+template<typename F, typename... Args>
+future<detail::callable_ret_type<F, Args...>> async(RIBScheduler& executor, F&& f, Args&&... args);
+template<typename F, typename... Args>
+future<detail::callable_ret_type<F, Args...>> async(
+  RIBScheduler& executor, JAMScript::StackTraits st, F&& f, Args&&... args);
+
+template<typename F, typename... Args>
+future<detail::callable_ret_type<F, Args...>> async(
+  JAMScript::StackTraits st, F&& f, Args&&... args) {
   using future_inner_type = detail::callable_ret_type<F, Args...>;
 
   auto promise_ptr = std::make_shared<promise<future_inner_type>>();
   auto result = promise_ptr->get_future();
-  executor.CreateBatchTask({true, 0, true}, JAMScript::Duration::max(), 
+  ThisTask::CreateBatchTask(st, JAMScript::Duration::max(), 
   [promise_ptr, f = std::forward<F>(f), args...] () mutable {
     try {
       promise_ptr->set_value(std::forward<F>(f)(args...));
@@ -911,14 +921,14 @@ future<detail::callable_ret_type<F, Args...>> async(Executor& executor, F&& f, A
 
   return result;
 }
-template<typename Executor, typename F, typename... Args>
-future<detail::callable_ret_type<F, Args...>> async(
-  Executor& executor, JAMScript::StackTraits st, F&& f, Args&&... args) {
+
+template<typename F, typename... Args>
+future<detail::callable_ret_type<F, Args...>> async(F&& f, Args&&... args) {
   using future_inner_type = detail::callable_ret_type<F, Args...>;
 
   auto promise_ptr = std::make_shared<promise<future_inner_type>>();
   auto result = promise_ptr->get_future();
-  executor.CreateBatchTask(st, JAMScript::Duration::max(), 
+  ThisTask::CreateBatchTask(StackTraits(true, 0, true), JAMScript::Duration::max(), 
   [promise_ptr, f = std::forward<F>(f), args...] () mutable {
     try {
       promise_ptr->set_value(std::forward<F>(f)(args...));
