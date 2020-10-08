@@ -243,9 +243,9 @@ namespace JAMScript
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = BATCH_TASK_T;
-            fn->burst = std::move(burst);
+            fn->burst = burst;
             fn->isStealable = stackTraits.canSteal;
-            auto ptrTaskHandle = fn->notifier;
+            std::shared_ptr<Notifier> ptrTaskHandle(fn->notifier);
             if (fn->isStealable)
             {
                 StealScheduler *pNextThief = nullptr;
@@ -258,27 +258,19 @@ namespace JAMScript
                 else 
                 {
                     pNextThief = GetMinThief();
+                    auto* ptrTaskCurrent = TaskInterface::Active();
+                    if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
+                    {
+                        pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->scheduler);
+                    }
+                    else if (pNextThief == nullptr || pNextThief->Size() > 0)
+                    {
+                        pNextThief = thiefs[rand() % thiefs.size()].get();
+                    }
                 }
-                auto* ptrTaskCurrent = TaskInterface::Active();
-                if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
-                {
-                    fn->Steal(static_cast<StealScheduler *>(ptrTaskCurrent->scheduler));
-                    if (stackTraits.launchImmediately) static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->EnableImmediately(fn);
-                    else static_cast<StealScheduler *>(ptrTaskCurrent->scheduler)->Enable(fn);
-                }
-                else if (pNextThief != nullptr && pNextThief->Size() == 0)
-                {
-                    fn->Steal(pNextThief);
-                    if (stackTraits.launchImmediately) pNextThief->EnableImmediately(fn);
-                    else pNextThief->Enable(fn);
-                }
-                else
-                {
-                    auto pn = thiefs[rand() % thiefs.size()].get();
-                    fn->Steal(pn);
-                    if (stackTraits.launchImmediately) pn->EnableImmediately(fn);
-                    else pn->Enable(fn);
-                }
+                fn->Steal(pNextThief);
+                if (stackTraits.launchImmediately) fn->EnableImmediately();
+                else fn->Enable();
             } 
             else 
             {

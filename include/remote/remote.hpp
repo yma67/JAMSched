@@ -1,12 +1,11 @@
 #ifndef JAMSCRIPT_JAMSCRIPT_REMOTE_HH
 #define JAMSCRIPT_JAMSCRIPT_REMOTE_HH
+#include <boost/compute/detail/lru_cache.hpp>
 #include <remote/mqtt/mqtt_adapter.h>
-#include <remote/mqtt/nvoid.h>
 #include <exception/exception.hpp>
 #include <concurrency/future.hpp>
-#include "remote/threadpool.hpp"
+#include <remote/mqtt/nvoid.h>
 #include <nlohmann/json.hpp>
-#include <boost/compute/detail/lru_cache.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <cstdint>
@@ -15,6 +14,8 @@
 #include <memory>
 #include <mutex>
 
+#include "remote/threadpool.hpp"
+
 // Serializer
 // possible to define your own in program files
 // but should in consistent with ArgumentGC specialization
@@ -22,11 +23,13 @@
 template <>
 struct nlohmann::adl_serializer<char *>
 {
-    static void to_json(json &j, const char *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const char *&value)
     {
         j = std::string(value);
     }
-    static void from_json(const json &j, char *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, char *&value)
     {
         std::string st = j.template get<std::string>();
         value = strdup(st.c_str());
@@ -36,11 +39,13 @@ struct nlohmann::adl_serializer<char *>
 template <>
 struct nlohmann::adl_serializer<const char *>
 {
-    static void to_json(json &j, const char *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const char *&value)
     {
         j = std::string(value, value + strlen(value));
     }
-    static void from_json(const json &j, const char *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, const char *&value)
     {
         std::string st = j.template get<std::string>();
         value = strdup(st.c_str());
@@ -51,13 +56,15 @@ struct nlohmann::adl_serializer<const char *>
 template <>
 struct nlohmann::adl_serializer<nvoid_t *>
 {
-    static void to_json(json &j, const nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const nvoid_t *&value)
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), 
                                  reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
     }
-    static void from_json(const json &j, nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, nvoid_t *&value)
     {
         auto bArray = j.template get<std::vector<char>>();
         value = nvoid_new(bArray.data(), bArray.size());
@@ -67,13 +74,15 @@ struct nlohmann::adl_serializer<nvoid_t *>
 template <>
 struct nlohmann::adl_serializer<const nvoid_t *>
 {
-    static void to_json(json &j, const nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void to_json(BasicJsonType &j, const nvoid_t *&value)
     {
         std::vector<char> bArray(reinterpret_cast<char *>(value->data), 
                                  reinterpret_cast<char *>(value->data) + value->len);
         j = bArray;
     }
-    static void from_json(const json &j, const nvoid_t *&value)
+    template <typename BasicJsonType>
+    static void from_json(const BasicJsonType &j, const nvoid_t *&value)
     {
         auto bArray = j.template get<std::vector<char>>();
         value = nvoid_new(bArray.data(), bArray.size());

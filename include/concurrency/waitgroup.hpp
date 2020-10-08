@@ -1,9 +1,9 @@
 #ifndef WAITGROUP_
 #define WAITGROUP_
 
-#include <concurrency/condition_variable.hpp>
 #include <atomic>
 #include <thread>
+#include "concurrency/condition_variable.hpp"
 
 namespace JAMScript
 {

@@ -75,7 +75,7 @@ void nvoid_print(nvoid_t *n)
             printf("\n");
         if (i % GROUP_WIDTH == 0)
             printf(" ");
-        printf("%x", *(int8_t *)&n->data[i]);
+        printf("%x", ((int8_t *)(n->data))[i]);
     }
     printf("\n");
 }
@@ -91,7 +91,7 @@ void nvoid_print_ascii(nvoid_t *n)
             printf("\n");
         if (i % GROUP_WIDTH == 0)
             printf(" ");
-        printf("%c", *(int8_t *)&n->data[i]);
+        printf("%c", ((int8_t *)(n->data))[i]);
     }
     printf("\n");
 }
