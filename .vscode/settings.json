@@ -72,7 +72,10 @@
         "strstream": "cpp",
         "cfenv": "cpp",
         "*.ipp": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "ranges": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled",
     

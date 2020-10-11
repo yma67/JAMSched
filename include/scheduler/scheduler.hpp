@@ -245,7 +245,7 @@ namespace JAMScript
             fn->taskType = BATCH_TASK_T;
             fn->burst = burst;
             fn->isStealable = stackTraits.canSteal;
-            std::shared_ptr<Notifier> ptrTaskHandle(fn->notifier);
+            auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
                 StealScheduler *pNextThief = nullptr;

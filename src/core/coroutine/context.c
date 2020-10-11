@@ -39,7 +39,6 @@
 void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...)
 {
     va_list va;
-    memset(ucp->registers, 0, 16 * 8);
     if (argc != 2)
         __builtin_trap();
     va_start(va, argc);

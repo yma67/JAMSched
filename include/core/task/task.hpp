@@ -523,18 +523,18 @@ namespace JAMScript
         static TaskInterface* Active();
         static thread_local TaskInterface *thisTask;
 
+        SchedulerBase *scheduler;
         std::atomic<TaskType> taskType;
         std::atomic<TaskStatus> status;
         std::atomic_bool isStealable;
         std::atomic_intptr_t cvStatus;
-        SchedulerBase *scheduler;
-        std::unique_ptr<struct timeout> timeOut;
-        JAMScriptUserContext uContext;
-        long references;
-        Duration deadline, burst;
         uint32_t id;
+        long references;
         std::shared_ptr<Notifier> notifier;
+        std::unique_ptr<struct timeout> timeOut;
+        Duration deadline, burst;
         std::function<void()> onCancel;
+        JAMScriptUserContext uContext;
 
     };
 
@@ -756,6 +756,7 @@ END_COPYSTACK:
 
         void InitStack(uint32_t stackSize)
         {
+            memset(&uContext, 0, sizeof(uContext));
             auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
             uContext.uc_stack.ss_sp = reinterpret_cast<std::uint8_t*>(aligned_alloc(16, stackSize));
             uContext.uc_stack.ss_size = stackSize;
