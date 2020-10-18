@@ -1,49 +1,49 @@
 #include <utility>
 
 template <typename T>
-constexpr JAMScript::Channel<T>::Channel(const size_type capacity) : cap{capacity}, is_closed{false}
+constexpr jamc::Channel<T>::Channel(const size_type capacity) : cap{capacity}, is_closed{false}
 {
 }
 
 template <typename T>
-constexpr typename JAMScript::Channel<T>::size_type JAMScript::Channel<T>::size() const noexcept
+constexpr typename jamc::Channel<T>::size_type jamc::Channel<T>::size() const noexcept
 {
     return queue.size();
 }
 
 template <typename T>
-constexpr bool JAMScript::Channel<T>::empty() const noexcept
+constexpr bool jamc::Channel<T>::empty() const noexcept
 {
     return queue.empty();
 }
 
 template <typename T>
-void JAMScript::Channel<T>::close() noexcept
+void jamc::Channel<T>::close() noexcept
 {
     cnd.notify_one();
     is_closed.store(true);
 }
 
 template <typename T>
-bool JAMScript::Channel<T>::closed() const noexcept
+bool jamc::Channel<T>::closed() const noexcept
 {
     return is_closed.load();
 }
 
 template <typename T>
-BlockingIterator<JAMScript::Channel<T>> JAMScript::Channel<T>::begin() noexcept
+BlockingIterator<jamc::Channel<T>> jamc::Channel<T>::begin() noexcept
 {
     return BlockingIterator<Channel<T>>{*this};
 }
 
 template <typename T>
-BlockingIterator<JAMScript::Channel<T>> JAMScript::Channel<T>::end() noexcept
+BlockingIterator<jamc::Channel<T>> jamc::Channel<T>::end() noexcept
 {
     return BlockingIterator<Channel<T>>{*this};
 }
 
 template <typename T>
-void operator>>(const T& in, JAMScript::Channel<T>& ch)
+void operator>>(const T& in, jamc::Channel<T>& ch)
 {
     if (ch.closed()) {
         throw ClosedChannel{"cannot write on closed channel"};
@@ -61,7 +61,7 @@ void operator>>(const T& in, JAMScript::Channel<T>& ch)
 }
 
 template <typename T>
-void operator>>(T&& in, JAMScript::Channel<T>& ch)
+void operator>>(T&& in, jamc::Channel<T>& ch)
 {
     if (ch.closed()) {
         throw ClosedChannel{"cannot write on closed channel"};
@@ -79,7 +79,7 @@ void operator>>(T&& in, JAMScript::Channel<T>& ch)
 }
 
 template <typename T>
-void operator<<(T& out, JAMScript::Channel<T>& ch)
+void operator<<(T& out, jamc::Channel<T>& ch)
 {
     if (ch.closed() && ch.empty()) {
         return;

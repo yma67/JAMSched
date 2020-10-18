@@ -23,7 +23,7 @@ class ClosedChannel : public std::runtime_error {
 public:
     explicit ClosedChannel(const char* msg) : std::runtime_error(msg) {}
 };
-namespace JAMScript 
+namespace jamc 
 {
     /**
      *  @brief Thread-safe container for sharing data between threads.
@@ -64,7 +64,7 @@ namespace JAMScript
          * @throws ClosedChannel if channel is closed.
          */
         template <typename Type>
-        friend void operator>>(Type&&, JAMScript::Channel<Type>&);
+        friend void operator>>(Type&&, jamc::Channel<Type>&);
 
         /**
          * Pops an element from the channel.
@@ -72,7 +72,7 @@ namespace JAMScript
          * @tparam Type The type of the elements.
          */
         template <typename Type>
-        friend void operator<<(Type&, JAMScript::Channel<Type>&);
+        friend void operator<<(Type&, jamc::Channel<Type>&);
 
         /**
          * Returns the number of elements in the channel.

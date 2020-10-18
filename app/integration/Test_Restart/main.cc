@@ -6,14 +6,14 @@ int main()
     {
         printf("Trail No. %d\n", i);
         int countArray[2] = {0, 0};
-        JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+        jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-        JAMScript::promise<void> prShutDown;
+        jamc::promise<void> prShutDown;
         ribScheduler.CreateBatchTask({false, 1024 * 256}, std::chrono::steady_clock::duration::max(), [&]() {
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             countArray[0] = 1;
             prShutDown.set_value();
             printf("==============================================\n");
@@ -23,7 +23,7 @@ int main()
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                     {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                                     
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             countArray[1] = 1;
             printf(">>...........\n");
             prShutDown.get_future().get();

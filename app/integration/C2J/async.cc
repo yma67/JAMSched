@@ -2,15 +2,15 @@
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
         for (int i = 0; i < 1000; i++)
         {
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(5000));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(5000));
             printf("==============================================\n");
-            JAMScript::ThisTask::CreateRemoteExecAsyncAvecRappeler(
+            jamc::ctask::CreateRemoteExecAsyncAvecRappeler(
                 std::string("helloj"), std::string(""), 0, []{}, [] (std::error_condition ec) {
                 switch (ec.value())
                 {
@@ -31,9 +31,9 @@ int main()
     ribScheduler.CreateBatchTask({false, 1024 * 256, false}, std::chrono::steady_clock::duration::max(), [&]() {
         while (true)
         {                                        
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(700));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(700));
             printf(">>...........\n");
-            JAMScript::ThisTask::CreateRemoteExecAsyncAvecRappeler(
+            jamc::ctask::CreateRemoteExecAsyncAvecRappeler(
                 std::string("xyzfunc"), std::string(""), 0, []{}, [] (std::error_condition ec) {
                     switch (ec.value())
                     {

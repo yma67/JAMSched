@@ -4,12 +4,12 @@
 
 struct A
 {
-    static JAMScript::TaskLS<int> i;
+    static jamc::TaskLS<int> i;
     int b, c;
     A(int b_, int c_) : b(b_), c(c_) {}
 };
 
-JAMScript::TaskLS<int> A::i = CreateTaskLS(int, 8);
+jamc::TaskLS<int> A::i = CreateTaskLS(int, 8);
 
 auto xglb = CreateTaskLS(int, 84);
 
@@ -78,7 +78,7 @@ int CiteLabAdditionFunctionBatch(int a, char b, float c, short d, double e, long
 
 TEST_CASE("Task Local", "[tasklocal]")
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256);
+    jamc::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
 #ifdef JAMSCRIPT_ON_TRAVIS

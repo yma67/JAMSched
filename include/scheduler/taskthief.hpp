@@ -9,7 +9,7 @@
 
 #include "core/task/task.hpp"
 
-namespace JAMScript
+namespace jamc
 {
 
     class StealScheduler : public SchedulerBase
@@ -51,5 +51,5 @@ namespace JAMScript
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

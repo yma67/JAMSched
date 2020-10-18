@@ -39,18 +39,18 @@ auto addNumberFunctor = std::function(addNumbers);
 auto scaleNumberFunctor = std::function(scaleNumber);
 auto getTimeFunctor = std::function(getTime);
 
-auto addNumberInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(addNumberFunctor)>(addNumberFunctor);
-auto scaleNumberInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(scaleNumberFunctor)>(scaleNumberFunctor);
-auto getTimeInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(getTimeFunctor)>(getTimeFunctor);
+auto addNumberInvoker = jamc::RExecDetails::RoutineRemote<decltype(addNumberFunctor)>(addNumberFunctor);
+auto scaleNumberInvoker = jamc::RExecDetails::RoutineRemote<decltype(scaleNumberFunctor)>(scaleNumberFunctor);
+auto getTimeInvoker = jamc::RExecDetails::RoutineRemote<decltype(getTimeFunctor)>(getTimeFunctor);
 
 auto RPCFunctionJSyncFunctor = std::function(RPCFunctionJSync);
-auto RPCFunctionJSyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJSyncFunctor)>(RPCFunctionJSyncFunctor);
+auto RPCFunctionJSyncInvoker = jamc::RExecDetails::RoutineRemote<decltype(RPCFunctionJSyncFunctor)>(RPCFunctionJSyncFunctor);
 auto RPCFunctionJAsyncFunctor = std::function(RPCFunctionJAsync);
-auto RPCFunctionJAsyncInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
+auto RPCFunctionJAsyncInvoker = jamc::RExecDetails::RoutineRemote<decltype(RPCFunctionJAsyncFunctor)>(RPCFunctionJAsyncFunctor);
 auto DuplicateCStringFunctor = std::function(strdup);
-auto DuplicateCStringInvoker = JAMScript::RExecDetails::RoutineRemote<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
+auto DuplicateCStringInvoker = jamc::RExecDetails::RoutineRemote<decltype(DuplicateCStringFunctor)>(DuplicateCStringFunctor);
 
-std::unordered_map<std::string, JAMScript::RExecDetails::RoutineInterface *> invokerMap = {
+std::unordered_map<std::string, jamc::RExecDetails::RoutineInterface *> invokerMap = {
 
     {std::string("addNumbers"), &addNumberInvoker},
     {std::string("scaleNumber"), &scaleNumberInvoker},    
@@ -63,7 +63,7 @@ std::unordered_map<std::string, JAMScript::RExecDetails::RoutineInterface *> inv
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCalls(invokerMap);
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
@@ -74,9 +74,9 @@ int main()
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                                      
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             printf("==============================================\n");
-            JAMScript::future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            jamc::future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
  //           ribScheduler.ExtractRemote(&jf);
 //            jf.get();
             //std::cout << jf << std::endl;
@@ -89,9 +89,9 @@ int main()
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                                      
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             printf(">>...........\n");
-            JAMScript::future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            jamc::future<nlohmann::json> jf = ribScheduler.CreateRemoteExecution(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
 //            int q = ribScheduler.ExtractRemote(&jf);
             //std::cout << jf << std::endl;
         }

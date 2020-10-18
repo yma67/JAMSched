@@ -8,7 +8,7 @@
 
 #include <boost/intrusive/list.hpp>
 
-namespace JAMScript
+namespace jamc
 {
     class ConditionVariable;
     class Notifier
@@ -32,5 +32,5 @@ namespace JAMScript
         const type operator()(const Notifier &v) const { return reinterpret_cast<uintptr_t>(&v); }
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

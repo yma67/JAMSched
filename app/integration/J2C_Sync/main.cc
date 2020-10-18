@@ -7,7 +7,7 @@ struct VeryLargeObject {
 VeryLargeObject* globalVLO = nullptr;
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                              {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                         
@@ -17,7 +17,7 @@ int main()
             VeryLargeObject *vlo  = new VeryLargeObject;
             globalVLO = vlo;
             // Sleep for 70ms          
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             // this statement should prevent if the coroutines are not scheduled in the same pthread
             printf("==============================================\n");
             // this statement generates execption and program will crash very soon

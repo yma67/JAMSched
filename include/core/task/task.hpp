@@ -28,7 +28,7 @@
 #include <valgrind/valgrind.h>
 #endif
 
-namespace JAMScript
+namespace jamc
 {
 
     class TaskInterface;
@@ -240,7 +240,7 @@ namespace JAMScript
 
     };
 
-    namespace ThisTask {
+    namespace ctask {
 
         /**
          * Exit current task
@@ -400,56 +400,56 @@ namespace JAMScript
         template <typename T, typename... Args>
         friend T &GetByJTLSLocation(JTLSLocation location, Args &&... args);
 
-        friend void ThisTask::Exit();
+        friend void ctask::Exit();
 
-        friend void ThisTask::Yield();
-
-        template <typename _Clock, typename _Dur>
-        friend void ThisTask::SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
+        friend void ctask::Yield();
 
         template <typename _Clock, typename _Dur>
-        friend void ThisTask::SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
+        friend void ctask::SleepFor(const std::chrono::duration<_Clock, _Dur> &dt);
+
+        template <typename _Clock, typename _Dur>
+        friend void ctask::SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp);
 
         template <typename ...Args>
-        friend TaskHandle ThisTask::CreateBatchTask(Args&&... args);
+        friend TaskHandle ctask::CreateBatchTask(Args&&... args);
 
         template <typename ...Args>
-        friend TaskHandle ThisTask::CreateInteractiveTask(Args&&... args);
+        friend TaskHandle ctask::CreateInteractiveTask(Args&&... args);
 
         template <typename ...Args>
-        friend TaskHandle ThisTask::CreateRealTimeTask(Args&&... args);
+        friend TaskHandle ctask::CreateRealTimeTask(Args&&... args);
 
         template <typename T, typename ...Args>
-        friend auto ThisTask::CreateLocalNamedInteractiveExecution(Args&&... args);
+        friend auto ctask::CreateLocalNamedInteractiveExecution(Args&&... args);
 
         template <typename T, typename ...Args>
-        friend auto ThisTask::CreateLocalNamedBatchExecution(Args&&... args);
+        friend auto ctask::CreateLocalNamedBatchExecution(Args&&... args);
 
         template <typename ...Args>
-        friend auto ThisTask::CreateRemoteExecAsyncMultiLevelAvecRappeler(Args&&... args);
+        friend auto ctask::CreateRemoteExecAsyncMultiLevelAvecRappeler(Args&&... args);
 
         template <typename ...Args>
-        friend auto ThisTask::CreateRemoteExecAsyncMultiLevel(Args&&... args);
+        friend auto ctask::CreateRemoteExecAsyncMultiLevel(Args&&... args);
 
         template <typename ...Args>
-        friend auto ThisTask::CreateRemoteExecAsyncAvecRappeler(Args&&... args);
+        friend auto ctask::CreateRemoteExecAsyncAvecRappeler(Args&&... args);
 
         template <typename ...Args>
-        friend auto ThisTask::CreateRemoteExecAsync(Args&&... args);
+        friend auto ctask::CreateRemoteExecAsync(Args&&... args);
 
         template <typename ...Args>
-        friend auto ThisTask::CreateRemoteExecSyncMultiLevel(Args&&... args);
+        friend auto ctask::CreateRemoteExecSyncMultiLevel(Args&&... args);
 
         template <typename ...Args>
-        friend auto ThisTask::CreateRemoteExecSync(Args&&... args);
+        friend auto ctask::CreateRemoteExecSync(Args&&... args);
 
-        friend auto ThisTask::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName);
+        friend auto ctask::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName);
 
-        friend auto ThisTask::ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
+        friend auto ctask::ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value);
 
-        friend Duration ThisTask::GetTimeElapsedCycle();
+        friend Duration ctask::GetTimeElapsedCycle();
         
-        friend Duration ThisTask::GetTimeElapsedScheduler();
+        friend Duration ctask::GetTimeElapsedScheduler();
 
         friend bool operator<(const TaskInterface &a, const TaskInterface &b) noexcept;
         friend bool operator>(const TaskInterface &a, const TaskInterface &b) noexcept;
@@ -485,13 +485,13 @@ namespace JAMScript
 
         RIBScheduler *GetRIBScheduler() { return scheduler->GetRIBScheduler(); }
 
-        JAMScript::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
-        JAMScript::JAMHookTypes::ReadyInteractiveStackHook riStackHook;
-        JAMScript::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
+        jamc::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
+        jamc::JAMHookTypes::ReadyInteractiveStackHook riStackHook;
+        jamc::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
         boost::intrusive::unordered_set_member_hook<> rtHook;
-        JAMScript::JAMHookTypes::WaitSetHook wsHook;
-        JAMScript::JAMHookTypes::ThiefQueueHook trHook;
-        JAMScript::JAMHookTypes::ThiefSetHook twHook;
+        jamc::JAMHookTypes::WaitSetHook wsHook;
+        jamc::JAMHookTypes::ThiefQueueHook trHook;
+        jamc::JAMHookTypes::ThiefSetHook twHook;
 
         virtual void SwapOut() = 0;
         virtual void SwapIn() = 0;
@@ -538,7 +538,7 @@ namespace JAMScript
 
     };
 
-    namespace ThisTask {
+    namespace ctask {
 
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt)
@@ -556,7 +556,7 @@ namespace JAMScript
             BOOST_ASSERT_MSG(tp <= Clock::now(), "Early Wakeup?");
         }
 
-    } // namespace ThisTask
+    } // namespace ctask
 
     struct EdfPriority
     {
@@ -848,7 +848,7 @@ END_COPYSTACK:
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface,
-                JAMScript::JAMHookTypes::ThiefQueueHook,
+                jamc::JAMHookTypes::ThiefQueueHook,
                 &TaskInterface::trHook>, boost::intrusive::constant_time_size< false >>
             ThiefQueueType;
         
@@ -873,5 +873,5 @@ END_COPYSTACK:
     bool priority_order(const TaskInterface &a, const TaskInterface &b) noexcept;
     bool priority_inverse_order(const TaskInterface &a, const TaskInterface &b) noexcept;
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

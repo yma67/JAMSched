@@ -25,7 +25,7 @@ double getTime()
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCall("DuplicateCString", strdup);
     ribScheduler.RegisterRPCall("RPCFunctionJSync", [] (int a, int b) -> int {
         std::cout << "Sync Add of " << a << " + " << b << std::endl;
@@ -60,10 +60,10 @@ int main()
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
                                      
-            auto sleepStart = JAMScript::Clock::now();
-            JAMScript::ThisTask::SleepFor(tuSleepTime);
-            std::cout << "JSleep Latency: " << std::chrono::duration_cast<std::chrono::microseconds>(JAMScript::Clock::now() - sleepStart - tuSleepTime).count() << " us" << std::endl;
-            JAMScript::ThisTask::Yield();
+            auto sleepStart = jamc::Clock::now();
+            jamc::ctask::SleepFor(tuSleepTime);
+            std::cout << "JSleep Latency: " << std::chrono::duration_cast<std::chrono::microseconds>(jamc::Clock::now() - sleepStart - tuSleepTime).count() << " us" << std::endl;
+            jamc::ctask::Yield();
             printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
         }
     }).Detach();
@@ -73,7 +73,7 @@ int main()
         {
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(slotSize), 0}});
-            JAMScript::ThisTask::SleepFor(tuSleepTime);
+            jamc::ctask::SleepFor(tuSleepTime);
             printf(">>...........\n");
         }
     }).Detach();

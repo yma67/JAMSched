@@ -1,7 +1,7 @@
 #ifndef JAMSCRIPT_MUTEX_HH
 #define JAMSCRIPT_MUTEX_HH
 #include "concurrency/semaphore.hpp"
-namespace JAMScript
+namespace jamc
 {
     class Mutex
     {
@@ -24,6 +24,6 @@ namespace JAMScript
     private:
         Semaphore<1> s;
     };
-} // namespace JAMScript
+} // namespace jamc
 
 #endif

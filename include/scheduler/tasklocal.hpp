@@ -5,7 +5,7 @@
 
 #include "core/task/task.hpp"
 
-namespace JAMScript
+namespace jamc
 {
 
     using JTLSLocation = void **;
@@ -69,7 +69,7 @@ namespace JAMScript
         return &dummy;                \
     }()
 
-#define CreateTaskLS(tname, ...) JAMScript::__CreateTaskLS<tname>(GetJTLSLocation(), ##__VA_ARGS__)
+#define CreateTaskLS(tname, ...) jamc::__CreateTaskLS<tname>(GetJTLSLocation(), ##__VA_ARGS__)
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

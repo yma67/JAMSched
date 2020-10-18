@@ -4,16 +4,16 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-JAMScript::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
+jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
     : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U) {}
 
-JAMScript::StealScheduler::~StealScheduler()
+jamc::StealScheduler::~StealScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
     isReady.clear_and_dispose(dTaskInf);
 }
 
-void JAMScript::StealScheduler::StopSchedulerMainLoop()
+void jamc::StealScheduler::StopSchedulerMainLoop()
 {
     std::unique_lock lk(qMutex);
     if (toContinue)
@@ -24,7 +24,7 @@ void JAMScript::StealScheduler::StopSchedulerMainLoop()
     lk.unlock();
 }
 
-void JAMScript::StealScheduler::EnableImmediately(TaskInterface *toEnable)
+void jamc::StealScheduler::EnableImmediately(TaskInterface *toEnable)
 {
     std::scoped_lock lk(qMutex);
     BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
@@ -35,7 +35,7 @@ void JAMScript::StealScheduler::EnableImmediately(TaskInterface *toEnable)
 }
 
 
-void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
+void jamc::StealScheduler::Enable(TaskInterface *toEnable)
 {
     std::scoped_lock lk(qMutex);
     BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
@@ -45,7 +45,7 @@ void JAMScript::StealScheduler::Enable(TaskInterface *toEnable)
     cvQMutex.notify_one();
 }
 
-size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
+size_t jamc::StealScheduler::StealFrom(StealScheduler *toSteal)
 {
     std::vector<TaskInterface *> tasksToSteal;
     {
@@ -93,64 +93,64 @@ size_t JAMScript::StealScheduler::StealFrom(StealScheduler *toSteal)
     return tasksToSteal.size();
 }
 
-const uint64_t JAMScript::StealScheduler::Size() const
+const uint64_t jamc::StealScheduler::Size() const
 {
     return sizeOfQueue;
 }
 
-void JAMScript::StealScheduler::ShutDown()
+void jamc::StealScheduler::ShutDown()
 {
     victim->ShutDown();
 }
 
-JAMScript::TimePoint JAMScript::StealScheduler::GetSchedulerStartTime() const
+jamc::TimePoint jamc::StealScheduler::GetSchedulerStartTime() const
 {
     return victim->GetSchedulerStartTime();
 }
 
-JAMScript::TimePoint JAMScript::StealScheduler::GetCycleStartTime() const
+jamc::TimePoint jamc::StealScheduler::GetCycleStartTime() const
 {
     return victim->GetCycleStartTime();
 }
 
-void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
+void jamc::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt) 
 {
     return victim->SleepFor(task, dt);
 }
 
-void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp) 
+void jamc::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp) 
 {
     return victim->SleepUntil(task, tp);
 }
 
-void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) 
+void jamc::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) 
 {
     return victim->SleepFor(task, dt, lk);
 }
 
-void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
+void jamc::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) 
 {
     return victim->SleepUntil(task, tp, lk);
 }
 
-void JAMScript::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) 
+void jamc::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<Mutex> &lk) 
 {
     return victim->SleepFor(task, dt, lk);
 }
 
-void JAMScript::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
+void jamc::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
 {
     return victim->SleepUntil(task, tp, lk);
 }
 
-void JAMScript::StealScheduler::PostCoreUsage()
+void jamc::StealScheduler::PostCoreUsage()
 {
     struct rusage Ru;
     getrusage(RUSAGE_THREAD, &Ru);
     upCPUTime.store(Ru.ru_utime.tv_usec + Ru.ru_stime.tv_usec);
 }
 
-void JAMScript::StealScheduler::RunSchedulerMainLoop()
+void jamc::StealScheduler::RunSchedulerMainLoop()
 {
     srand(time(nullptr));
     while (toContinue)

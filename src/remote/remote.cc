@@ -12,17 +12,17 @@
 #define PONG_COUNTER_MAX 10
 #endif
 
-const std::string JAMScript::RExecDetails::HeartbeatFailureException::message_ = std::string("Cancelled due to bad remote connection");
-std::unordered_set<JAMScript::CloudFogInfo *> JAMScript::Remote::isValidConnection;
-JAMScript::Remote::RemoteLockType JAMScript::Remote::mCallback;
-ThreadPool JAMScript::Remote::callbackThreadPool(1);
+const std::string jamc::RExecDetails::HeartbeatFailureException::message_ = std::string("Cancelled due to bad remote connection");
+std::unordered_set<jamc::CloudFogInfo *> jamc::Remote::isValidConnection;
+jamc::Remote::RemoteLockType jamc::Remote::mCallback;
+ThreadPool jamc::Remote::callbackThreadPool(1);
 
 static void connected(void *a)
 {
     // a is a pointer to a mqtt_adapter_t structure.
 }
 
-JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::string appId, std::string hostAddr)
+jamc::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::string appId, std::string hostAddr)
     :   devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr)), 
         isRegistered(false), remote(remote),
         requestUp(std::string("/") + this->appId + "/requests/up"), 
@@ -34,7 +34,7 @@ JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::st
         mqttAdapter(mqtt_createserver(const_cast<char *>(this->hostAddr.c_str()), 1, 
                     const_cast<char *>(this->devId.c_str()), connected))
 {
-    MQTTAsync_setMessageArrivedCallback(mqttAdapter->mqttserv, this, JAMScript::Remote::RemoteArrivedCallback);
+    MQTTAsync_setMessageArrivedCallback(mqttAdapter->mqttserv, this, jamc::Remote::RemoteArrivedCallback);
     mqtt_set_subscription(mqttAdapter, const_cast<char *>(requestUp.c_str()));
     mqtt_set_subscription(mqttAdapter, const_cast<char *>(requestDown.c_str()));
     mqtt_set_subscription(mqttAdapter, const_cast<char *>(replyUp.c_str()));
@@ -43,19 +43,19 @@ JAMScript::CloudFogInfo::CloudFogInfo(Remote *remote, std::string devId, std::st
     mqtt_connect(mqttAdapter);
 }
 
-bool JAMScript::CloudFogInfo::SendBuffer(const std::vector<uint8_t> &buffer)
+bool jamc::CloudFogInfo::SendBuffer(const std::vector<uint8_t> &buffer)
 {
     return mqtt_publish(mqttAdapter, const_cast<char *>("/replies/up"), 
                         nvoid_new(const_cast<uint8_t *>(buffer.data()), buffer.size()));
 }
 
-bool JAMScript::CloudFogInfo::SendBuffer(const std::vector<char> &buffer)
+bool jamc::CloudFogInfo::SendBuffer(const std::vector<char> &buffer)
 {
     return mqtt_publish(mqttAdapter, const_cast<char *>("/replies/up"), 
                         nvoid_new(const_cast<char *>(buffer.data()), buffer.size()));
 }
 
-void JAMScript::CloudFogInfo::Clear() 
+void jamc::CloudFogInfo::Clear() 
 {
     isRegistered = false;
     for (auto id: rExecPending)
@@ -75,7 +75,7 @@ void JAMScript::CloudFogInfo::Clear()
     mqtt_deleteserver(mqttAdapter);
 }
 
-JAMScript::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appId, std::string devId)
+jamc::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appId, std::string devId)
     : scheduler(scheduler), cache(1024), mainFogInfo(nullptr),
       devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr))
 {
@@ -84,12 +84,12 @@ JAMScript::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::st
     Remote::isValidConnection.insert(mainFogInfo.get());
 }
 
-JAMScript::Remote::~Remote() 
+jamc::Remote::~Remote() 
 { 
     CancelAllRExecRequests();
 }
 
-void JAMScript::Remote::CheckExpire()
+void jamc::Remote::CheckExpire()
 {
     while (scheduler->toContinue)
     {
@@ -138,7 +138,7 @@ void JAMScript::Remote::CheckExpire()
     }
 }
 
-void JAMScript::Remote::CancelAllRExecRequests()
+void jamc::Remote::CancelAllRExecRequests()
 {
     std::lock_guard lockClear(mCallback);
     if (mainFogInfo != nullptr)
@@ -154,7 +154,7 @@ void JAMScript::Remote::CancelAllRExecRequests()
     Remote::isValidConnection.clear();
 }
 
-bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
+bool jamc::Remote::CreateRetryTaskSync(std::string hostName, Duration timeOut, nlohmann::json rexRequest, 
                                             std::shared_ptr<promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                             std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
                                             std::shared_ptr<std::once_flag> successCallOnceFlag)
@@ -189,10 +189,10 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
         int retryNum = 0;
         while (retryNum < 3)
         {
-            lk.lock();
+            std::shared_lock slk(Remote::mCallback);
             if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
             {
-                lk.unlock();
+                slk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
                     prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
@@ -203,7 +203,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
             auto* ptrMQTTAdapter = refCFINFO->mqttAdapter;
             mqtt_publish(ptrMQTTAdapter, const_cast<char *>(refCFINFO->requestUp.c_str()), 
                             nvoid_new(vReq.data(), vReq.size()));
-            lk.unlock();
+            slk.unlock();
             if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
@@ -260,7 +260,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
+bool jamc::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rexRequest, 
                                             std::shared_ptr<promise<std::pair<bool, nlohmann::json>>> prCommon, 
                                             std::size_t countCommon, std::shared_ptr<std::atomic_size_t> failureCountCommon, 
                                             std::shared_ptr<std::once_flag> successCallOnceFlag)
@@ -295,10 +295,10 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
         int retryNum = 0;
         while (retryNum < 3)
         {
-            lk.lock();
+            std::shared_lock slk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
             {
-                lk.unlock();
+                slk.unlock();
                 if (failureCountCommon->fetch_add(1U) == countCommon)
                 {
                     prCommon->set_value(std::make_pair(false, nlohmann::json({"exception", std::string("heartbeat failed")})));
@@ -308,7 +308,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
             auto* ptrMQTTAdapter = mainFogInfo->mqttAdapter;
             mqtt_publish(ptrMQTTAdapter, const_cast<char *>(mainFogInfo->requestUp.c_str()), 
                             nvoid_new(vReq.data(), vReq.size()));
-            lk.unlock();
+            slk.unlock();
             if (futureAck.wait_for(std::chrono::milliseconds(100)) != future_status::ready)
             {
                 if (retryNum < 3)
@@ -369,7 +369,7 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+bool jamc::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                                         std::function<void()> successCallback, 
                                         std::function<void(std::error_condition)> failureCallback, 
                                         std::size_t countCommon, std::shared_ptr<std::atomic_size_t> sharedFailureCount, 
@@ -384,7 +384,7 @@ bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<uns
         while (retryNum < 3)
         {
             {
-                std::unique_lock lkPublish(Remote::mCallback);
+                std::shared_lock lkPublish(Remote::mCallback);
                 if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                 {
                     lkPublish.unlock();
@@ -407,7 +407,7 @@ bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<uns
                     continue;
                 }
                 {
-                    std::lock_guard lk(Remote::mCallback);
+                    std::unique_lock lk(Remote::mCallback);
                     ackLookup.erase(tempEID);
                 }
                 if (sharedFailureCount->fetch_add(1U) == countCommon)
@@ -433,7 +433,7 @@ bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<uns
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(std::string hostName, future<bool> &futureAck, 
+bool jamc::Remote::CreateRetryTask(std::string hostName, future<bool> &futureAck, 
                                         std::vector<unsigned char> &vReq, uint32_t tempEID, 
                                         std::function<void()> successCallback, 
                                         std::function<void(std::error_condition)> failureCallback, 
@@ -449,7 +449,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, future<bool> &futu
         while (retryNum < 3)
         {
             {
-                std::unique_lock lkPublish(Remote::mCallback);
+                std::shared_lock lkPublish(Remote::mCallback);
                 if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
                 {
                     lkPublish.unlock();
@@ -499,7 +499,7 @@ bool JAMScript::Remote::CreateRetryTask(std::string hostName, future<bool> &futu
     return true;
 }
 
-bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
+bool jamc::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<unsigned char> &vReq, uint32_t tempEID, 
                                         std::function<void()> successCallback, 
                                         std::function<void(std::error_condition)> failureCallback)
 {
@@ -511,7 +511,7 @@ bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<uns
         while (retryNum < 3)
         {
             {
-                std::unique_lock lkPublish(Remote::mCallback);
+                std::shared_lock lkPublish(Remote::mCallback);
                 if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
                 {
                     lkPublish.unlock();
@@ -563,7 +563,7 @@ bool JAMScript::Remote::CreateRetryTask(future<bool> &futureAck, std::vector<uns
     }                                                                                                                  \
 }
 
-int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
+int jamc::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int topiclen, MQTTAsync_message *msg)
 {
     auto *cfINFO = static_cast<CloudFogInfo *>(ctx);
     std::vector<char> cbor_((char *)msg->payload, (char *)msg->payload + msg->payloadlen);
@@ -700,17 +700,17 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
     return 1;
 }
 
-bool JAMScript::RExecDetails::ArgumentGC()
+bool jamc::RExecDetails::ArgumentGC()
 {
     return false;
 }
 
-const char* JAMScript::RExecDetails::RemoteExecutionErrorCategory::name() const noexcept
+const char* jamc::RExecDetails::RemoteExecutionErrorCategory::name() const noexcept
 {
     return "RemoteExecutionError";
 }
 
-std::string JAMScript::RExecDetails::RemoteExecutionErrorCategory::message(int ev) const
+std::string jamc::RExecDetails::RemoteExecutionErrorCategory::message(int ev) const
 {
     switch (static_cast<RemoteExecutionErrorCode>(ev))
     {

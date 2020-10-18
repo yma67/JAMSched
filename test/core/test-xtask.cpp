@@ -17,18 +17,18 @@ int naive_fact(int x)
     return (x > 1) ? (naive_fact(x - 1) * x) : (1);
 }
 
-class BenchSchedXS : public JAMScript::SchedulerBase
+class BenchSchedXS : public jamc::SchedulerBase
 {
 public:
-    std::vector<JAMScript::TaskInterface *> freeList;
-    void Enable(JAMScript::TaskInterface *toEnable) override {}
-    void EnableImmediately(JAMScript::TaskInterface *toEnable) override {}
-    JAMScript::TaskInterface *NextTask()
+    std::vector<jamc::TaskInterface *> freeList;
+    void Enable(jamc::TaskInterface *toEnable) override {}
+    void EnableImmediately(jamc::TaskInterface *toEnable) override {}
+    jamc::TaskInterface *NextTask()
     {
         try
         {
-            auto *newTask = (new JAMScript::SharedCopyStackTask(
-                reinterpret_cast<JAMScript::SchedulerBase *>(this), naive_fact, rand() % 1000));
+            auto *newTask = (new jamc::SharedCopyStackTask(
+                reinterpret_cast<jamc::SchedulerBase *>(this), naive_fact, rand() % 1000));
             freeList.push_back(newTask);
             coro_count++;
             return newTask;
@@ -70,13 +70,13 @@ public:
             }
         }
     }
-    // JAMScript::JAMStorageTypes::BatchQueueType freeList;
-    BenchSchedXS(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
+    // jamc::JAMStorageTypes::BatchQueueType freeList;
+    BenchSchedXS(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSchedXS()
     {
-        std::for_each(freeList.begin(), freeList.end(), [](JAMScript::TaskInterface *x) { delete x; });
+        std::for_each(freeList.begin(), freeList.end(), [](jamc::TaskInterface *x) { delete x; });
     }
-    JAMScript::TaskInterface *onlyTask = nullptr;
+    jamc::TaskInterface *onlyTask = nullptr;
 };
 
 #if defined(__linux__) && !defined(JAMSCRIPT_ENABLE_VALGRIND)

@@ -2,13 +2,13 @@
 #include <iostream>
 #include "concurrency/notifier.hpp"
 
-void JAMScript::Notifier::Join()
+void jamc::Notifier::Join()
 {
     std::unique_lock lk(m);
     while (!isFinished) cv.wait(lk);
 }
 
-void JAMScript::Notifier::Notify()
+void jamc::Notifier::Notify()
 {
     std::unique_lock lk(m);
     isFinished = true;

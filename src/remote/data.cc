@@ -6,7 +6,7 @@
 #define ConvertToRedisKey(apId_, nameSpace_, varName_) \
     (std::string("aps[") + apId_ + "].ns[" + nameSpace_ + "].bcasts[" + varName_.c_str() + "]").c_str()
 
-JAMScript::LogManager::LogManager(Remote *remote, RedisState redisState) 
+jamc::LogManager::LogManager(Remote *remote, RedisState redisState) 
  : remote(remote), redisState(redisState), loggerEventLoop(event_base_new()),
    redisContext(redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort))
 {
@@ -29,18 +29,18 @@ JAMScript::LogManager::LogManager(Remote *remote, RedisState redisState)
     redisLibeventAttach(redisContext, loggerEventLoop);
 }
 
-JAMScript::LogManager::~LogManager()
+jamc::LogManager::~LogManager()
 {
     event_base_free(loggerEventLoop);
     loggerEventLoop = nullptr;
     redisAsyncDisconnect(redisContext);
 }
 
-void JAMScript::LogManager::LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw)
+void jamc::LogManager::LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    std::unique_lock lk(Remote::mCallback);
+    std::shared_lock lk(Remote::mCallback);
     if (remote->mainFogInfo == nullptr)
     {
         throw InvalidArgumentException("Fog not connected");
@@ -58,7 +58,7 @@ void JAMScript::LogManager::LogRaw(const std::string &nameSpace, const std::stri
     cvAsyncBuffer.notify_one();
 }
 
-void JAMScript::LogManager::RunLoggerMainLoop()
+void jamc::LogManager::RunLoggerMainLoop()
 {
     std::thread tLoggerLibEvent([this] {
         while (remote->scheduler->toContinue)
@@ -94,7 +94,7 @@ void JAMScript::LogManager::RunLoggerMainLoop()
     tLoggerLibEvent.join();
 }
 
-void JAMScript::BroadcastVariable::Append(char* data)
+void jamc::BroadcastVariable::Append(char* data)
 {
     std::lock_guard lk(mVarStream);
     auto* ptrDataStart = reinterpret_cast<std::uint8_t *>(data);
@@ -102,7 +102,7 @@ void JAMScript::BroadcastVariable::Append(char* data)
     cvVarStream.notify_one();
 }
 
-nlohmann::json JAMScript::BroadcastVariable::Get()
+nlohmann::json jamc::BroadcastVariable::Get()
 {
     std::unique_lock lk(mVarStream);
     while (varStream.empty() && !isCancelled) cvVarStream.wait(lk);
@@ -113,7 +113,7 @@ nlohmann::json JAMScript::BroadcastVariable::Get()
     return nlohmann::json::parse(nlohmann::json::from_cbor(streamObjectRaw).get<std::string>());
 }
 
-JAMScript::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisState, std::vector<JAMDataKeyType> variableInfo)
+jamc::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisState, std::vector<JAMDataKeyType> variableInfo)
  : remote(remote), redisState(redisState), bCastEventLoop(event_base_new()), 
    redisContext(redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort))
 {
@@ -149,7 +149,7 @@ JAMScript::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisSt
         auto& nameSpaceRef = bCastVarStores[vInfo.first];
         if (nameSpaceRef.find(vInfo.second) == nameSpaceRef.end())
         {
-            std::unique_lock lk(Remote::mCallback);
+            std::shared_lock lk(Remote::mCallback);
             if (remote->mainFogInfo == nullptr)
             {
                 throw InvalidArgumentException("Fog not connected");
@@ -161,7 +161,7 @@ JAMScript::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisSt
             redisAsyncCommand(
                 redisContext, [](redisAsyncContext *c, void *r, void *privdata)
                 {
-                    auto* bCastManger = reinterpret_cast<JAMScript::BroadcastManager *>(privdata);
+                    auto* bCastManger = reinterpret_cast<jamc::BroadcastManager *>(privdata);
                     auto *reply = reinterpret_cast<redisReply *>(r);
                     if (reply == nullptr)
                     {
@@ -180,14 +180,14 @@ JAMScript::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisSt
     }
 }
 
-JAMScript::BroadcastManager::~BroadcastManager()
+jamc::BroadcastManager::~BroadcastManager()
 {
     event_base_free(bCastEventLoop);
     bCastEventLoop = nullptr;
     redisAsyncDisconnect(redisContext);
 }
 
-void JAMScript::BroadcastManager::RunBroadcastMainLoop()
+void jamc::BroadcastManager::RunBroadcastMainLoop()
 {
     while (remote->scheduler->toContinue)
     {
@@ -195,19 +195,19 @@ void JAMScript::BroadcastManager::RunBroadcastMainLoop()
     }
 }
 
-void JAMScript::BroadcastManager::StopBroadcastMainLoop()
+void jamc::BroadcastManager::StopBroadcastMainLoop()
 {
     event_base_loopbreak(bCastEventLoop);
 }
 
-nlohmann::json JAMScript::BroadcastManager::Get(const std::string &nameSpace, const std::string &variableName)
+nlohmann::json jamc::BroadcastManager::Get(const std::string &nameSpace, const std::string &variableName)
 {
     return bCastVarStores[nameSpace][variableName]->Get();
 }
 
-void JAMScript::BroadcastManager::Append(std::string key, char* data)
+void jamc::BroadcastManager::Append(std::string key, char* data)
 {
-    std::unique_lock lk(Remote::mCallback);
+    std::shared_lock lk(Remote::mCallback);
     if (remote->mainFogInfo == nullptr)
     {
         return;

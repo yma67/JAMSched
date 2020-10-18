@@ -36,7 +36,7 @@ void testloop()
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCall("addNumbers", addNumbers);
     ribScheduler.RegisterRPCall("testloop", testloop);
     ribScheduler.RegisterRPCall("funcABCD", funcABCD);    

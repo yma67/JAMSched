@@ -14,11 +14,11 @@
 #include "scheduler/stacktraits.hpp"
 #include "concurrency/condition_variable.hpp"
 
-namespace JAMScript {
+namespace jamc {
 
 // obtained from https://github.com/rpz80/cf
 // Future<void> and promise<void> are explicitly forbidden.
-// Use JAMScript::unit instead.
+// Use jamc::unit instead.
 struct unit {};
 inline bool operator == (unit, unit) { return true; }
 inline bool operator != (unit, unit) { return false; }
@@ -376,13 +376,13 @@ future<T> timeout(std::chrono::duration<Rep, Period> duration,
   }
 
   template<typename Rep, typename Period>
-  JAMScript::future_status wait_for(const std::chrono::duration<Rep, Period>& timeout) {
+  jamc::future_status wait_for(const std::chrono::duration<Rep, Period>& timeout) {
     check_state(state_);
     return state_->wait_for(timeout);
   }
 
   template<typename Clock, typename Duration>
-  JAMScript::future_status wait_until(const std::chrono::time_point<Clock, Duration>& timepoint) {
+  jamc::future_status wait_until(const std::chrono::time_point<Clock, Duration>& timepoint) {
     check_state(state_);
     return state_->wait_until(timepoint);
   }
@@ -434,7 +434,7 @@ private:
     >::value,
     detail::then_ret_type<T, F>
   >::type
-  then_impl(F&& f, Executor& executor, JAMScript::StackTraits st);
+  then_impl(F&& f, Executor& executor, jamc::StackTraits st);
 
   template<typename F, typename Executor>
   typename std::enable_if<
@@ -443,7 +443,7 @@ private:
     >::value,
     detail::then_ret_type<T, F>
   >::type
-  then_impl(F&& f, Executor& executor, JAMScript::StackTraits st);
+  then_impl(F&& f, Executor& executor, jamc::StackTraits st);
 
   template<typename F>
   void set_callback(F&& f) {
@@ -483,7 +483,7 @@ detail::then_ret_type<T, F> future<T>::then(Executor& executor, F&& f) {
 
 template<typename T>
 template<typename F, typename Executor>
-detail::then_ret_type<T, F> future<T>::then(Executor& executor, JAMScript::StackTraits st, F&& f) {
+detail::then_ret_type<T, F> future<T>::then(Executor& executor, jamc::StackTraits st, F&& f) {
   check_state(state_);
   return then_impl<F>(std::forward<F>(f), executor, st);
 }
@@ -513,23 +513,23 @@ future<T>::then_impl(F&& f) {
   set_callback([p = std::move(p), f = std::forward<F>(f),
                state = std::weak_ptr<S>(this->state_->shared_from_this())] () mutable {
     auto sp_state = state.lock();
-    JAMScript::future<T> arg_future;
+    jamc::future<T> arg_future;
 
     if (sp_state->has_exception()) {
-      arg_future = JAMScript::make_exceptional_future<T>(sp_state->get_exception());
+      arg_future = jamc::make_exceptional_future<T>(sp_state->get_exception());
     } else {
-      arg_future = JAMScript::make_ready_future<T>(sp_state->get_value());
+      arg_future = jamc::make_ready_future<T>(sp_state->get_value());
     }
 
     try {
       auto inner_f = f(std::move(arg_future));
-      inner_f.then([p = std::move(p)] (JAMScript::future<R> f) mutable {
+      inner_f.then([p = std::move(p)] (jamc::future<R> f) mutable {
         try {
           p.set_value(f.get());
         } catch (...) {
           p.set_exception(std::current_exception());
         }
-        return JAMScript::unit();
+        return jamc::unit();
       });
     } catch (...) {
       p.set_exception(std::current_exception());
@@ -557,12 +557,12 @@ future<T>::then_impl(F&& f) {
   set_callback([p = std::move(p), f = std::forward<F>(f),
                state = std::weak_ptr<S>(this->state_->shared_from_this())] () mutable {
     auto sp_state = state.lock();
-    JAMScript::future<T> arg_future;
+    jamc::future<T> arg_future;
 
     if (sp_state->has_exception()) {
-      arg_future = JAMScript::make_exceptional_future<T>(sp_state->get_exception());
+      arg_future = jamc::make_exceptional_future<T>(sp_state->get_exception());
     } else {
-      arg_future = JAMScript::make_ready_future<T>(sp_state->get_value());
+      arg_future = jamc::make_ready_future<T>(sp_state->get_value());
     }
 
     try {
@@ -598,28 +598,28 @@ future<T>::then_impl(F&& f, Executor& executor) {
   set_callback([p = std::move(p), f = std::forward<F>(f),
                state = std::weak_ptr<S>(this->state_->shared_from_this()), &executor] () mutable {
     auto sp_state = state.lock();
-    JAMScript::future<T> arg_future;
+    jamc::future<T> arg_future;
 
     if (sp_state->has_exception()) {
-      arg_future = JAMScript::make_exceptional_future<T>(sp_state->get_exception());
+      arg_future = jamc::make_exceptional_future<T>(sp_state->get_exception());
     } else {
-      arg_future = JAMScript::make_ready_future<T>(sp_state->get_value());
+      arg_future = jamc::make_ready_future<T>(sp_state->get_value());
     }
 
     auto promise_ptr = std::make_shared<promise<R>>(std::move(p));
     auto arg_future_ptr = std::make_shared<future<T>>(std::move(arg_future));
 
-    executor.CreateBatchTask({true, 0, true}, JAMScript::Duration::max(), 
+    executor.CreateBatchTask({true, 0, true}, jamc::Duration::max(), 
     [promise_ptr, arg_future_ptr, f = std::forward<F>(f), &executor] () mutable {
       try {
         auto inner_f = f(std::move(*arg_future_ptr));
-        inner_f.then(executor, [promise_ptr] (JAMScript::future<R> f) mutable {
+        inner_f.then(executor, [promise_ptr] (jamc::future<R> f) mutable {
           try {
             promise_ptr->set_value(f.get());
           } catch (...) {
             promise_ptr->set_exception(std::current_exception());
           }
-          return JAMScript::unit();
+          return jamc::unit();
         });
       } catch (...) {
         promise_ptr->set_exception(std::current_exception());
@@ -647,12 +647,12 @@ future<T>::then_impl(F&& f, Executor& executor) {
   set_callback([p = std::move(p), f = std::forward<F>(f),
                state = std::weak_ptr<S>(this->state_->shared_from_this()), &executor] () mutable {
     auto sp_state = state.lock();
-    JAMScript::future<T> arg_future;
+    jamc::future<T> arg_future;
 
     if (sp_state->has_exception()) {
-      arg_future = JAMScript::make_exceptional_future<T>(sp_state->get_exception());
+      arg_future = jamc::make_exceptional_future<T>(sp_state->get_exception());
     } else {
-      arg_future = JAMScript::make_ready_future<T>(sp_state->get_value());
+      arg_future = jamc::make_ready_future<T>(sp_state->get_value());
     }
 
     struct local_state {
@@ -666,7 +666,7 @@ future<T>::then_impl(F&& f, Executor& executor) {
     auto lstate = std::make_shared<local_state>(std::move(p), std::move(f));
     auto arg_future_ptr = std::make_shared<future<T>>(std::move(arg_future));
 
-    executor.CreateBatchTask({true, 0, true}, JAMScript::Duration::max(), 
+    executor.CreateBatchTask({true, 0, true}, jamc::Duration::max(), 
     [arg_future_ptr, lstate, sp_state] () mutable {
       try {
         auto&& result = lstate->f(std::move(*arg_future_ptr));
@@ -692,7 +692,7 @@ typename std::enable_if<
   >::value,
   detail::then_ret_type<T, F>
 >::type
-future<T>::then_impl(F&& f, Executor& executor, JAMScript::StackTraits st) {
+future<T>::then_impl(F&& f, Executor& executor, jamc::StackTraits st) {
   using R = typename detail::future_held_type<
     detail::then_arg_ret_type<T, F>
   >::type;
@@ -702,28 +702,28 @@ future<T>::then_impl(F&& f, Executor& executor, JAMScript::StackTraits st) {
   set_callback([p = std::move(p), f = std::forward<F>(f), st,
                state = std::weak_ptr<S>(this->state_->shared_from_this()), &executor] () mutable {
     auto sp_state = state.lock();
-    JAMScript::future<T> arg_future;
+    jamc::future<T> arg_future;
 
     if (sp_state->has_exception()) {
-      arg_future = JAMScript::make_exceptional_future<T>(sp_state->get_exception());
+      arg_future = jamc::make_exceptional_future<T>(sp_state->get_exception());
     } else {
-      arg_future = JAMScript::make_ready_future<T>(sp_state->get_value());
+      arg_future = jamc::make_ready_future<T>(sp_state->get_value());
     }
 
     auto promise_ptr = std::make_shared<promise<R>>(std::move(p));
     auto arg_future_ptr = std::make_shared<future<T>>(std::move(arg_future));
 
-    executor.CreateBatchTask(st, JAMScript::Duration::max(), 
+    executor.CreateBatchTask(st, jamc::Duration::max(), 
     [promise_ptr, arg_future_ptr, f = std::forward<F>(f), &executor] () mutable {
       try {
         auto inner_f = f(std::move(*arg_future_ptr));
-        inner_f.then(executor, [promise_ptr] (JAMScript::future<R> f) mutable {
+        inner_f.then(executor, [promise_ptr] (jamc::future<R> f) mutable {
           try {
             promise_ptr->set_value(f.get());
           } catch (...) {
             promise_ptr->set_exception(std::current_exception());
           }
-          return JAMScript::unit();
+          return jamc::unit();
         });
       } catch (...) {
         promise_ptr->set_exception(std::current_exception());
@@ -743,7 +743,7 @@ typename std::enable_if<
   >::value,
   detail::then_ret_type<T, F>
 >::type
-future<T>::then_impl(F&& f, Executor& executor, JAMScript::StackTraits st) {
+future<T>::then_impl(F&& f, Executor& executor, jamc::StackTraits st) {
   using R = detail::then_arg_ret_type<T, F>;
   using S = typename std::remove_reference<decltype(*this->state_)>::type;
   promise<R> p;
@@ -751,12 +751,12 @@ future<T>::then_impl(F&& f, Executor& executor, JAMScript::StackTraits st) {
   set_callback([p = std::move(p), f = std::forward<F>(f), st,
                state = std::weak_ptr<S>(this->state_->shared_from_this()), &executor] () mutable {
     auto sp_state = state.lock();
-    JAMScript::future<T> arg_future;
+    jamc::future<T> arg_future;
 
     if (sp_state->has_exception()) {
-      arg_future = JAMScript::make_exceptional_future<T>(sp_state->get_exception());
+      arg_future = jamc::make_exceptional_future<T>(sp_state->get_exception());
     } else {
-      arg_future = JAMScript::make_ready_future<T>(sp_state->get_value());
+      arg_future = jamc::make_ready_future<T>(sp_state->get_value());
     }
 
     struct local_state {
@@ -770,7 +770,7 @@ future<T>::then_impl(F&& f, Executor& executor, JAMScript::StackTraits st) {
     auto lstate = std::make_shared<local_state>(std::move(p), std::move(f));
     auto arg_future_ptr = std::make_shared<future<T>>(std::move(arg_future));
 
-    executor.CreateBatchTask(st, JAMScript::Duration::max(), 
+    executor.CreateBatchTask(st, jamc::Duration::max(), 
     [arg_future_ptr, lstate, sp_state] () mutable {
       try {
         auto&& result = lstate->f(std::move(*arg_future_ptr));
@@ -901,16 +901,16 @@ template<typename F, typename... Args>
 future<detail::callable_ret_type<F, Args...>> async(RIBScheduler& executor, F&& f, Args&&... args);
 template<typename F, typename... Args>
 future<detail::callable_ret_type<F, Args...>> async(
-  RIBScheduler& executor, JAMScript::StackTraits st, F&& f, Args&&... args);
+  RIBScheduler& executor, jamc::StackTraits st, F&& f, Args&&... args);
 
 template<typename F, typename... Args>
 future<detail::callable_ret_type<F, Args...>> async(
-  JAMScript::StackTraits st, F&& f, Args&&... args) {
+  jamc::StackTraits st, F&& f, Args&&... args) {
   using future_inner_type = detail::callable_ret_type<F, Args...>;
 
   auto promise_ptr = std::make_shared<promise<future_inner_type>>();
   auto result = promise_ptr->get_future();
-  ThisTask::CreateBatchTask(st, JAMScript::Duration::max(), 
+  ctask::CreateBatchTask(st, jamc::Duration::max(), 
   [promise_ptr, f = std::forward<F>(f), args...] () mutable {
     try {
       promise_ptr->set_value(std::forward<F>(f)(args...));
@@ -928,7 +928,7 @@ future<detail::callable_ret_type<F, Args...>> async(F&& f, Args&&... args) {
 
   auto promise_ptr = std::make_shared<promise<future_inner_type>>();
   auto result = promise_ptr->get_future();
-  ThisTask::CreateBatchTask(StackTraits(true, 0, true), JAMScript::Duration::max(), 
+  ctask::CreateBatchTask(StackTraits(true, 0, true), jamc::Duration::max(), 
   [promise_ptr, f = std::forward<F>(f), args...] () mutable {
     try {
       promise_ptr->set_value(std::forward<F>(f)(args...));
@@ -1176,4 +1176,4 @@ auto when_any(Futures&&... futures)
   }
   return shared_context->p.get_future();
 }
-} // namespace JAMScript
+} // namespace jamc

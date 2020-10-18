@@ -2,12 +2,14 @@
 #define JAMSCRIPT_JAMSCRIPT_REMOTE_HH
 #include <boost/compute/detail/lru_cache.hpp>
 #include <remote/mqtt/mqtt_adapter.h>
+#include <concurrency/spinrwlock.hpp>
 #include <exception/exception.hpp>
 #include <concurrency/future.hpp>
 #include <remote/mqtt/nvoid.h>
 #include <nlohmann/json.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <shared_mutex>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -103,7 +105,7 @@ namespace std
     };
 }
 
-namespace JAMScript
+namespace jamc
 {
     namespace RExecDetails
     {
@@ -352,9 +354,9 @@ namespace JAMScript
             std::string message(int ev) const override;
         };
 
-        inline const JAMScript::RExecDetails::RemoteExecutionErrorCategory &GetRemoteExecutionErrorCategory()
+        inline const jamc::RExecDetails::RemoteExecutionErrorCategory &GetRemoteExecutionErrorCategory()
         {
-            static JAMScript::RExecDetails::RemoteExecutionErrorCategory c;
+            static jamc::RExecDetails::RemoteExecutionErrorCategory c;
             return c;
         }
 
@@ -396,7 +398,7 @@ namespace JAMScript
         friend class CloudFogInfo;
         friend class LogManager;
         friend class Time;
-        using RemoteLockType = SpinMutex;
+        using RemoteLockType = SharedSpinMutex;
         void CancelAllRExecRequests();
 
         bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> successCallback, 
@@ -504,7 +506,7 @@ namespace JAMScript
                 {"cond", condstr},
                 {"condvec", condvec},
                 {"actarg", "-"}};
-            std::unique_lock lockGetAllHostNames(Remote::mCallback);
+            std::shared_lock lockGetAllHostNames(Remote::mCallback);
             std::vector<std::string> hostsAvailable;
             for (auto& [hostName, conn]: cloudFogInfo)
             {
@@ -539,7 +541,7 @@ namespace JAMScript
             auto callOnceShared = std::make_shared<std::once_flag>();
             auto fuCommon = prCommon->get_future();
             std::vector<std::string> hostsAvailable;
-            std::unique_lock lock(Remote::mCallback);
+            std::shared_lock lock(Remote::mCallback);
             auto countCommon = cloudFogInfo.size();
             for (auto& [hostName, conn]: cloudFogInfo)
             {
@@ -676,6 +678,6 @@ namespace JAMScript
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 
 #endif

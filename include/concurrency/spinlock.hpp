@@ -2,7 +2,7 @@
 #define JAMSCRIPT_JAMSCRIPT_SPINLOCK_HH
 #include <atomic>
 
-namespace JAMScript
+namespace jamc
 {
 
     class SpinMutex
@@ -31,5 +31,5 @@ namespace JAMScript
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

@@ -5,7 +5,7 @@
 #include <thread>
 #include "concurrency/condition_variable.hpp"
 
-namespace JAMScript
+namespace jamc
 {
     class WaitGroup 
     {

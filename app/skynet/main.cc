@@ -7,7 +7,7 @@ constexpr std::size_t kNumberOfChild = 10;
 constexpr bool kWaitInGroup = true;
 constexpr bool useImmediateExecutePolicy = true;
 
-JAMScript::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), 
+jamc::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), 
                        stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 
 inline auto GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
@@ -16,19 +16,19 @@ inline auto GetDurationNS(std::chrono::high_resolution_clock::time_point tp)
         std::chrono::high_resolution_clock::now() - tp).count();
 }
 
-void GetSkynetWithCSP(JAMScript::Channel<long> &cNum, JAMScript::WaitGroup &wg, long num, long size, long div)
+void GetSkynetWithCSP(jamc::Channel<long> &cNum, jamc::WaitGroup &wg, long num, long size, long div)
 {
     if (size > 1)
     {
-        auto sc = std::make_unique<JAMScript::Channel<long>>();
-        auto swg = std::make_unique<JAMScript::WaitGroup>();
+        auto sc = std::make_unique<jamc::Channel<long>>();
+        auto swg = std::make_unique<jamc::WaitGroup>();
         for (long i = 0; i < div; i++)
         {
             swg->Add(1);
             long factor = size / div;
             long subNum = num + i * (factor);
-            JAMScript::ThisTask::CreateBatchTask(
-                (factor == 1) ? (stCommon) : (stCommonNode), JAMScript::Duration::max(),
+            jamc::ctask::CreateBatchTask(
+                (factor == 1) ? (stCommon) : (stCommonNode), jamc::Duration::max(),
                 GetSkynetWithCSP, std::ref(*sc), std::ref(*swg), long(subNum), long(factor), long(div))
                 .Detach();
         }
@@ -82,7 +82,7 @@ auto GetSkynetWithAsync(long num, long size, long div) -> long
     return (size == 1) ? (num) : 
         FoldLeft([](auto x, auto &y) { return x + y.get(); }, 0L, 
         Map([num, size, div] (long i) {
-            return JAMScript::async(
+            return jamc::async(
                 (size / div == 1) ? (stCommon) : (stCommonNode),
                 [num, size, div, i] {
                 return GetSkynetWithAsync(
@@ -101,17 +101,17 @@ int main(int argc, char *argv[])
     std::printf("Channel + WaitGroup Version\n");
     for (int i = 0; i < 10; i++)
     {
-        JAMScript::RIBScheduler ribScheduler(1024 * 256);
+        jamc::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
-        std::vector<std::unique_ptr<JAMScript::StealScheduler>> vst{};
+        std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
         for (int i = 0; i < atoi(argv[1]); i++)
-            vst.push_back(std::move(std::make_unique<JAMScript::StealScheduler>(&ribScheduler, 1024 * 256)));
+            vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
-        ribScheduler.CreateBatchTask(stCommonNode, JAMScript::Duration::max(), [&ribScheduler, &totalNS] {
+        ribScheduler.CreateBatchTask(stCommonNode, jamc::Duration::max(), [&ribScheduler, &totalNS] {
             auto tpStart = std::chrono::high_resolution_clock::now();
-            auto sc = std::make_unique<JAMScript::Channel<long>>();
-            auto swg = std::make_unique<JAMScript::WaitGroup>();
+            auto sc = std::make_unique<jamc::Channel<long>>();
+            auto swg = std::make_unique<jamc::WaitGroup>();
             GetSkynetWithCSP(std::ref(*sc), std::ref(*swg), 0, kNumberOfCoroutine, kNumberOfChild);
             long res;
             res << (*sc);
@@ -127,19 +127,19 @@ int main(int argc, char *argv[])
     std::printf("Future Version\n");
     for (int i = 0; i < 10; i++)
     {
-        JAMScript::RIBScheduler ribScheduler(1024 * 256);
+        jamc::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
-        std::vector<std::unique_ptr<JAMScript::StealScheduler>> vst{};
+        std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
         for (int i = 0; i < atoi(argv[1]); i++)
-            vst.push_back(std::move(std::make_unique<JAMScript::StealScheduler>(&ribScheduler, 1024 * 256)));
+            vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
         auto tpStart = std::chrono::high_resolution_clock::now();
-        ribScheduler.CreateBatchTask(stCommonNode, JAMScript::Duration::max(), 
+        ribScheduler.CreateBatchTask(stCommonNode, jamc::Duration::max(), 
         [&i, tpStart, &totalFutureNS, &ribScheduler] {
-            JAMScript::async([&i, tpStart, &totalFutureNS, &ribScheduler] {
+            jamc::async([&i, tpStart, &totalFutureNS, &ribScheduler] {
                 return GetSkynetWithAsync(0L, long(kNumberOfCoroutine), long(kNumberOfChild));
-            }).then([tpStart](JAMScript::future<long> res) {
+            }).then([tpStart](jamc::future<long> res) {
                 long r = res.get();
                 if (r == 499999500000)
                 {
@@ -149,17 +149,17 @@ int main(int argc, char *argv[])
                     return elapsed;
                 }
                 return std::numeric_limits<long>::max();
-            }).then([&totalFutureNS](JAMScript::future<long> dt) {
+            }).then([&totalFutureNS](jamc::future<long> dt) {
                 totalFutureNS += dt.get();
-                return JAMScript::unit();
-            }).then([&i, &ribScheduler, &totalFutureNS](JAMScript::future<JAMScript::unit> dt) {
+                return jamc::unit();
+            }).then([&i, &ribScheduler, &totalFutureNS](jamc::future<jamc::unit> dt) {
                 dt.get();
                 if (i == 9)
                 {
                     std::printf("avg over 10 = %ld ms\n", totalFutureNS / 10000000);
                 }
                 ribScheduler.ShutDown();
-                return JAMScript::unit();
+                return jamc::unit();
             });
         });
         ribScheduler.RunSchedulerMainLoop();

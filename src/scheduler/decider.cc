@@ -2,7 +2,7 @@
 #include "scheduler/decider.hpp"
 #include <algorithm>
 
-JAMScript::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule)
+jamc::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule)
 {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
     srand(0);
@@ -11,7 +11,7 @@ JAMScript::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule)
 #endif
 }
 
-void JAMScript::Decider::NotifyChangeOfSchedule(const std::vector<RealTimeSchedule> &normal,
+void jamc::Decider::NotifyChangeOfSchedule(const std::vector<RealTimeSchedule> &normal,
                                                 const std::vector<RealTimeSchedule> &greedy)
 {
     normalSSSlot.clear();
@@ -35,7 +35,7 @@ void JAMScript::Decider::NotifyChangeOfSchedule(const std::vector<RealTimeSchedu
     period = std::chrono::duration_cast<std::chrono::microseconds>(normal.back().eTime).count();
 }
 
-uint64_t JAMScript::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
+uint64_t jamc::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
 {
     uint64_t mCount = 0;
     std::deque<ITaskEntry> tRecord(interactiveTaskRecord.begin(), interactiveTaskRecord.end());
@@ -98,7 +98,7 @@ uint64_t JAMScript::Decider::CalculateMatchCount(const std::vector<QType> &sched
     return mCount;
 }
 
-void JAMScript::Decider::RecordInteractiveJobArrival(const ITaskEntry &aInteractiveTaskRecord)
+void jamc::Decider::RecordInteractiveJobArrival(const ITaskEntry &aInteractiveTaskRecord)
 {
     interactiveTaskRecord.push_back({aInteractiveTaskRecord.deadline - scheduler->numberOfPeriods * period, aInteractiveTaskRecord.burst,
                                      std::chrono::duration_cast<std::chrono::microseconds>(
@@ -107,7 +107,7 @@ void JAMScript::Decider::RecordInteractiveJobArrival(const ITaskEntry &aInteract
                                          .count()});
 }
 
-bool JAMScript::Decider::DecideNextScheduleToRun()
+bool jamc::Decider::DecideNextScheduleToRun()
 {
     if (interactiveTaskRecord.empty())
     {

@@ -36,12 +36,12 @@ struct timespec diff(struct timespec start, struct timespec end)
     return temp;
 }
 
-class BenchSched : public JAMScript::SchedulerBase
+class BenchSched : public jamc::SchedulerBase
 {
 public:
 
-    void Enable(JAMScript::TaskInterface *toEnable) override {}
-    void EnableImmediately(JAMScript::TaskInterface *toEnable) override {}
+    void Enable(jamc::TaskInterface *toEnable) override {}
+    void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override 
     {
         for (auto task: tasks) {
@@ -50,11 +50,11 @@ public:
             task->SwapIn();
         }
     }
-    BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
+    BenchSched(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSched() override { 
-        std::for_each(tasks.begin(), tasks.end(), [] (JAMScript::TaskInterface *t) { delete t; });
+        std::for_each(tasks.begin(), tasks.end(), [] (jamc::TaskInterface *t) { delete t; });
     }
-    std::vector<JAMScript::TaskInterface *> tasks;
+    std::vector<jamc::TaskInterface *> tasks;
 };
 
 uint64_t glbCount = 0;
@@ -78,8 +78,8 @@ int main(int argc, char *argv[])
     sch.sched_priority = 50;
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch);
 
-    bSched.tasks.push_back(new JAMScript::StandAloneStackTask(&bSched, 1024 * 256, []() {
-        JAMScript::ThisTask::Yield();
+    bSched.tasks.push_back(new jamc::StandAloneStackTask(&bSched, 1024 * 256, []() {
+        jamc::ctask::Yield();
         clock_gettime(CLOCK_MONOTONIC, &time2);
         // std::cout << "1 task ctx switch time: " << diff(time1, time2).tv_nsec << " ns" << std::endl;
     }));
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
     // allocate 1M coroutines, and swap in/out FIFO order
     for (int i = 0; i < 1000000; i++) {
-        bMSched.tasks.push_back(new JAMScript::SharedCopyStackTask(&bSched, [argv]() {
+        bMSched.tasks.push_back(new jamc::SharedCopyStackTask(&bSched, [argv]() {
             unsigned int stackSize = atoi(argv[1]);
             char arr[stackSize];
             int idx = rand() % stackSize;
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
             for (int i = 0; i < rand() % stackSize; i++) {
                 arr[i] = arr[rand() % stackSize] + rand() % 256;
             }
-            JAMScript::ThisTask::Yield();
+            jamc::ctask::Yield();
             clock_gettime(CLOCK_MONOTONIC, &time2);
             glbCount += diff(time1, time2).tv_nsec;
         }));

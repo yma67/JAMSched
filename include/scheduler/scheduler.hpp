@@ -21,7 +21,7 @@
 #define RT_MMAP_BUCKET_SIZE 200
 #endif
 
-namespace JAMScript
+namespace jamc
 {
 
     struct RealTimeSchedule
@@ -53,7 +53,7 @@ namespace JAMScript
         friend class Remote;
         friend class Timer;
 
-        friend void ThisTask::Yield();
+        friend void ctask::Yield();
 
         void ShutDown() override;
         void RunSchedulerMainLoop() override;
@@ -155,14 +155,14 @@ namespace JAMScript
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
                     Remote::callbackThreadPool.enqueue([execRemote, vReq { std::move(vReq) }] () mutable {
-                        std::unique_lock lk(Remote::mCallback);
+                        std::shared_lock lk(Remote::mCallback);
                         for (int i = 0; i < 3; i++)
                         {
                             if (Remote::isValidConnection.find(execRemote) != Remote::isValidConnection.end())
                             {
-                                lk.unlock();
                                 if (mqtt_publish(execRemote->mqttAdapter, const_cast<char *>("/replies/up"), nvoid_new(vReq.data(), vReq.size())))
                                 {
+                                    lk.unlock();
                                     break;
                                 }
                             }
@@ -409,7 +409,7 @@ namespace JAMScript
          * @param eName function of the task
          * @param eArgs arguments of tf
          * @return future of the value
-         * @ref JAMScript::RIBScheduler::CreateRealTimeTask
+         * @ref jamc::RIBScheduler::CreateRealTimeTask
          * @warning may throw exception if function is not registered
          */
         template <typename T, typename... Args>
@@ -659,7 +659,7 @@ namespace JAMScript
         
     };
 
-    namespace ThisTask {
+    namespace ctask {
         
         template <typename ...Args>
         TaskHandle CreateBatchTask(Args&&... args)
@@ -740,6 +740,6 @@ namespace JAMScript
 
     }
 
-} // namespace JAMScript
+} // namespace jamc
 
 #endif

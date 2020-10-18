@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace JAMScript
+namespace jamc
 {
 
     struct RTaskEntry
@@ -51,5 +51,5 @@ namespace JAMScript
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif
