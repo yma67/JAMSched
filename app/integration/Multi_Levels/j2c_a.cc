@@ -14,7 +14,7 @@ int funcABCD(int a, int b)
         reqStart = nw;
         reqCount = 0;
     }
-    printf("%d\n", reqCount.load());
+    // printf("%d\n", reqCount.load());
     // std::cout << "Sync Add of " << a << " + " << b << " = " << a + b << std::endl;
     // usleep(1000000);
     // std::this_thread::sleep_for(std::chrono::seconds(1));

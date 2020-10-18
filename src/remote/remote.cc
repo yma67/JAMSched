@@ -16,7 +16,6 @@ const std::string JAMScript::RExecDetails::HeartbeatFailureException::message_ =
 std::unordered_set<JAMScript::CloudFogInfo *> JAMScript::Remote::isValidConnection;
 JAMScript::Remote::RemoteLockType JAMScript::Remote::mCallback;
 ThreadPool JAMScript::Remote::callbackThreadPool(1);
-ThreadPool JAMScript::Remote::publishThreadPool(1);
 
 static void connected(void *a)
 {
@@ -63,14 +62,14 @@ void JAMScript::CloudFogInfo::Clear()
     {
         if (remote->ackLookup.find(id) != remote->ackLookup.end())
         {
-            remote->ackLookup[id]->set_value(false);
+            remote->ackLookup[id].set_value(false);
         }
     }
     for (auto id: rExecPending)
     {
         if (remote->rLookup.find(id) != remote->rLookup.end())
         {
-            remote->rLookup[id]->set_value(std::make_pair(false, nlohmann::json({})));
+            remote->rLookup[id].set_value(std::make_pair(false, nlohmann::json({})));
         }
     }
     mqtt_deleteserver(mqttAdapter);
@@ -164,6 +163,10 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
         this, hostName { std::move(hostName) }, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
         countCommon { std::move(countCommon) }, failureCountCommon { std::move(failureCountCommon) }, 
         timeOut { std::move(timeOut) }, successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
+        promise<bool> prAck;
+        promise<std::pair<bool, nlohmann::json>> pr;
+        auto futureAck = prAck.get_future();
+        auto fuExec = pr.get_future();
         std::unique_lock lk(Remote::mCallback);
         if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
         {
@@ -176,15 +179,13 @@ bool JAMScript::Remote::CreateRetryTaskSync(std::string hostName, Duration timeO
         }
         rexRequest.push_back({"opt", cloudFogInfo[hostName]->devId});
         rexRequest.push_back({"actid", eIdFactory});
-        auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
         auto tempEID = eIdFactory;
         eIdFactory++;
-        auto& prAck = ackLookup[tempEID] = std::make_unique<promise<bool>>();
-        auto futureAck = prAck->get_future();
-        auto& pr = rLookup[tempEID] = std::make_unique<promise<std::pair<bool, nlohmann::json>>>();
-        auto fuExec = pr->get_future();
+        ackLookup[tempEID] = std::move(prAck);
+        rLookup[tempEID] = std::move(pr);
         mainFogInfo->rExecPending.insert(tempEID);
         lk.unlock();
+        auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
         int retryNum = 0;
         while (retryNum < 3)
         {
@@ -268,6 +269,10 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
         this, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, countCommon { std::move(countCommon) }, 
         timeOut { std::move(timeOut) }, failureCountCommon { std::move(failureCountCommon) }, 
         successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
+        promise<bool> prAck;
+        promise<std::pair<bool, nlohmann::json>> pr;
+        auto futureAck = prAck.get_future();
+        auto fuExec = pr.get_future();
         std::unique_lock lk(Remote::mCallback);
         if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
         {
@@ -280,15 +285,13 @@ bool JAMScript::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rex
         }
         rexRequest.push_back({"opt", mainFogInfo->devId});
         rexRequest.push_back({"actid", eIdFactory});
-        auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
         auto tempEID = eIdFactory;
         eIdFactory++;
-        auto& prAck = ackLookup[tempEID] = std::make_unique<promise<bool>>();
-        auto futureAck = prAck->get_future();
-        auto& pr = rLookup[tempEID] = std::make_unique<promise<std::pair<bool, nlohmann::json>>>();
-        auto fuExec = pr->get_future();
+        ackLookup[tempEID] = std::move(prAck);
+        rLookup[tempEID] = std::move(pr);
         mainFogInfo->rExecPending.insert(tempEID);
         lk.unlock();
+        auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
         int retryNum = 0;
         while (retryNum < 3)
         {
@@ -652,7 +655,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     if (remote->ackLookup.find(actId) != remote->ackLookup.end()) 
                     {
                         auto& refRLookup = remote->ackLookup[actId];
-                        refRLookup->set_value(true);
+                        refRLookup.set_value(true);
                         remote->ackLookup.erase(actId);
                     }
                 }
@@ -683,7 +686,7 @@ int JAMScript::Remote::RemoteArrivedCallback(void *ctx, char *topicname, int top
                     if (remote->rLookup.find(actId) != remote->rLookup.end()) 
                     {
                         auto& refRLookup = remote->rLookup[actId];
-                        refRLookup->set_value(std::make_pair(true, rMsg["args"]));
+                        refRLookup.set_value(std::make_pair(true, rMsg["args"]));
                         cfINFO->rExecPending.erase(actId);
                         remote->rLookup.erase(actId);
                     }
