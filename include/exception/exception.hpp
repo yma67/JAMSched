@@ -3,7 +3,7 @@
 #include <string>
 #include <exception>
 
-namespace JAMScript
+namespace jamc
 {
 
     class InvalidArgumentException : public std::exception
@@ -16,5 +16,5 @@ namespace JAMScript
         virtual const char *what() const throw() { return message_.c_str(); }
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

@@ -3,7 +3,7 @@
 #include <boost/program_options.hpp>
 #include <boost/uuid/uuid.hpp>            
 
-namespace JAMScript
+namespace jamc
 {
     class Node
     {
@@ -24,5 +24,5 @@ namespace JAMScript
         std::string generateDevId(std::string path);
         void storeProcessId(std::string path);
     };
-} // namespace JAMScript
+} // namespace jamc
 #endif

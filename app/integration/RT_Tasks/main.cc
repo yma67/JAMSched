@@ -1,6 +1,6 @@
 #include <time.h>
 #include <future>
-#include <jamscript.hpp>
+#include <jamscript>
 #include <cstring>
 #include <nlohmann/json.hpp>
 
@@ -25,7 +25,7 @@ void hello3() {
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.SetSchedule({{std::chrono::microseconds(0), std::chrono::microseconds(50), 1}, {std::chrono::microseconds(50), std::chrono::microseconds(100), 2}, {std::chrono::microseconds(100), std::chrono::microseconds(150), 3}, {std::chrono::microseconds(200), std::chrono::microseconds(50000), 0}},
                              {{std::chrono::microseconds(0), std::chrono::microseconds(50), 1}, {std::chrono::microseconds(50), std::chrono::microseconds(100), 2}, {std::chrono::microseconds(100), std::chrono::microseconds(150), 3}, {std::chrono::microseconds(200), std::chrono::microseconds(50000), 0}});
                         

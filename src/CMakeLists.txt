@@ -21,6 +21,7 @@ set(JAMCOMPONENTS_SOURCES_LIST "")
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
     list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
 endforeach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
+list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/concurrency/spinrwlock.cc")
 
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 if (JAMSCRIPT_DEBUG_LINEINFO_OPT)

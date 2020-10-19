@@ -3,7 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
-#include <jamscript.hpp>
+#include <jamscript>
 #include <boost/intrusive_ptr.hpp>
 #define task_niter 300
 
@@ -47,22 +47,22 @@ TEST_CASE("C++ Thread", "[core]")
 }
 #endif
 
-class BenchSched : public JAMScript::SchedulerBase
+class BenchSched : public jamc::SchedulerBase
 {
 public:
 
-    void Enable(JAMScript::TaskInterface *toEnable) override {}
-    void EnableImmediately(JAMScript::TaskInterface *toEnable) override {}
+    void Enable(jamc::TaskInterface *toEnable) override {}
+    void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override
     {
         this->onlyTask->SwapIn();
     }
-    BenchSched(uint32_t stackSize) : JAMScript::SchedulerBase(stackSize) {}
+    BenchSched(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSched() { if (onlyTask != nullptr) delete onlyTask; }
-    JAMScript::TaskInterface *onlyTask = nullptr;
+    jamc::TaskInterface *onlyTask = nullptr;
 };
 
-TEST_CASE("JAMScript++", "[core]")
+TEST_CASE("jamc++", "[core]")
 {
     for (int i = 0; i < task_niter; i++)
     {
@@ -77,7 +77,7 @@ TEST_CASE("JAMScript++", "[core]")
         {
             int rex = 0;
             BenchSched bSched(1024 * 256);
-            bSched.onlyTask = new JAMScript::StandAloneStackTask(
+            bSched.onlyTask = new jamc::StandAloneStackTask(
                 &bSched, 1024 * 256, [i](int k) {
                     if (k < 2)
                         return ref[i] = 1;
@@ -101,7 +101,7 @@ TEST_CASE("JAMScript++", "[core]")
         {
             int rex = 0;
             BenchSched bSched3(1024 * 256);
-            bSched3.onlyTask = (new JAMScript::StandAloneStackTask(
+            bSched3.onlyTask = (new jamc::StandAloneStackTask(
                 &bSched3, 1024 * 256, [&](int k) {
                     if (k < 2)
                         return rex = 1;

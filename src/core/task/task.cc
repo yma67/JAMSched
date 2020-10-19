@@ -4,15 +4,15 @@
 #include "scheduler/tasklocal.hpp"
 #include "concurrency/notifier.hpp"
 
-JAMScript::TaskInterface::TaskInterface(SchedulerBase *scheduler)
+jamc::TaskInterface::TaskInterface(SchedulerBase *scheduler)
     : status(TASK_READY), isStealable(true), scheduler(scheduler),
       notifier(std::make_shared<Notifier>()), cvStatus(0), timeOut(std::make_unique<struct timeout>()),
       id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
 
-JAMScript::TaskInterface::~TaskInterface() {}
+jamc::TaskInterface::~TaskInterface() {}
 
-void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
+void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {
     TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
     task->Execute();
@@ -21,13 +21,13 @@ void JAMScript::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
     task->SwapOut();
 }
 
-JAMScript::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
+jamc::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
  : n(std::move(h))
 {
 
 }
 
-void JAMScript::TaskHandle::Join()
+void jamc::TaskHandle::Join()
 {
     if (n != nullptr)
     {
@@ -35,24 +35,24 @@ void JAMScript::TaskHandle::Join()
     }
 }
 
-void JAMScript::TaskHandle::Detach()
+void jamc::TaskHandle::Detach()
 {
     n = nullptr;
 }
 
-std::unordered_map<JAMScript::JTLSLocation, std::any> *
-JAMScript::TaskInterface::GetTaskLocalStoragePool()
+std::unordered_map<jamc::JTLSLocation, std::any> *
+jamc::TaskInterface::GetTaskLocalStoragePool()
 {
     return &taskLocalStoragePool;
 }
 
-JAMScript::TaskHandle::TaskHandle(JAMScript::TaskHandle &&other) : n(nullptr)
+jamc::TaskHandle::TaskHandle(jamc::TaskHandle &&other) : n(nullptr)
 {
     n = other.n;
     other.n = nullptr;
 }
 
-JAMScript::TaskHandle &JAMScript::TaskHandle::operator=(JAMScript::TaskHandle &&other) 
+jamc::TaskHandle &jamc::TaskHandle::operator=(jamc::TaskHandle &&other) 
 {
     if (this != &other) 
     {
@@ -63,7 +63,7 @@ JAMScript::TaskHandle &JAMScript::TaskHandle::operator=(JAMScript::TaskHandle &&
     return *this;
 }
 
-JAMScript::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
+jamc::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
     : sharedStackSizeActual(sharedStackSize), toContinue(true), sharedStackBegin(new uint8_t[sharedStackSize])
 {
     uintptr_t u_p = (uintptr_t)(sharedStackSizeActual - (sizeof(void *) << 1) +
@@ -85,7 +85,7 @@ JAMScript::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
 #endif
 }
 
-JAMScript::SchedulerBase::~SchedulerBase()
+jamc::SchedulerBase::~SchedulerBase()
 {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     VALGRIND_STACK_DEREGISTER(v_stack_id);
@@ -93,36 +93,36 @@ JAMScript::SchedulerBase::~SchedulerBase()
     delete[] sharedStackBegin;
 }
 
-JAMScript::TimePoint JAMScript::SchedulerBase::GetSchedulerStartTime() const 
+jamc::TimePoint jamc::SchedulerBase::GetSchedulerStartTime() const 
 { 
     return Clock::now(); 
 }
 
-JAMScript::TimePoint JAMScript::SchedulerBase::GetCycleStartTime() const 
+jamc::TimePoint jamc::SchedulerBase::GetCycleStartTime() const 
 {
     return Clock::now(); 
 }
 
-auto JAMScript::ThisTask::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName)
+auto jamc::ctask::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName)
 {
     BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
     return TaskInterface::Active()->GetRIBScheduler()->ConsumeOneFromBroadcastStream(nameSpace, variableName);
 }
 
-auto JAMScript::ThisTask::ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value)
+auto jamc::ctask::ProduceOneToLoggingStream(const std::string &nameSpace, const std::string &variableName, const nlohmann::json &value)
 {
     BOOST_ASSERT_MSG(TaskInterface::Active()->GetRIBScheduler() != nullptr, "must have an RIB scheduler");
     return TaskInterface::Active()->GetRIBScheduler()->ProduceOneToLoggingStream(nameSpace, variableName, value);
 }
 
-thread_local JAMScript::TaskInterface *JAMScript::TaskInterface::thisTask = nullptr;
+thread_local jamc::TaskInterface *jamc::TaskInterface::thisTask = nullptr;
 
-JAMScript::TaskInterface *JAMScript::TaskInterface::Active()
+jamc::TaskInterface *jamc::TaskInterface::Active()
 {
     return thisTask;
 }
 
-void JAMScript::ThisTask::Yield()
+void jamc::ctask::Yield()
 {
     auto thisTask = TaskInterface::Active();
     if (thisTask != nullptr && thisTask->status != TASK_FINISHED) 
@@ -132,7 +132,7 @@ void JAMScript::ThisTask::Yield()
     }
 }
 
-void JAMScript::ThisTask::Exit()
+void jamc::ctask::Exit()
 {
     auto* thisTask = TaskInterface::Active();
     thisTask->status = TASK_FINISHED;
@@ -140,48 +140,48 @@ void JAMScript::ThisTask::Exit()
     thisTask->SwapOut();
 }
 
-JAMScript::Duration JAMScript::ThisTask::GetTimeElapsedCycle()
+jamc::Duration jamc::ctask::GetTimeElapsedCycle()
 {
     return Clock::now() - TaskInterface::Active()->scheduler->GetCycleStartTime();
 }
         
-JAMScript::Duration JAMScript::ThisTask::GetTimeElapsedScheduler()
+jamc::Duration jamc::ctask::GetTimeElapsedScheduler()
 {
     return Clock::now() - TaskInterface::Active()->scheduler->GetSchedulerStartTime();
 }
 
-bool JAMScript::operator<(const TaskInterface &a, const TaskInterface &b) noexcept
+bool jamc::operator<(const TaskInterface &a, const TaskInterface &b) noexcept
 {
     if (a.deadline == b.deadline)
         return a.burst < b.burst;
     return a.deadline < b.deadline;
 }
 
-bool JAMScript::operator>(const TaskInterface &a, const TaskInterface &b) noexcept
+bool jamc::operator>(const TaskInterface &a, const TaskInterface &b) noexcept
 {
     if (a.deadline == b.deadline)
         return a.burst > b.burst;
     return a.deadline > b.deadline;
 }
 
-bool JAMScript::operator==(const TaskInterface &a, const TaskInterface &b) noexcept
+bool jamc::operator==(const TaskInterface &a, const TaskInterface &b) noexcept
 {
     return a.id == b.id;
 }
 
-std::size_t JAMScript::hash_value(const TaskInterface &value) noexcept
+std::size_t jamc::hash_value(const TaskInterface &value) noexcept
 {
     return std::size_t(value.id);
 }
 
-bool JAMScript::priority_order(const TaskInterface &a, const TaskInterface &b) noexcept
+bool jamc::priority_order(const TaskInterface &a, const TaskInterface &b) noexcept
 {
     if (a.deadline == b.deadline)
         return a.burst < b.burst;
     return a.deadline < b.deadline;
 }
 
-bool JAMScript::priority_inverse_order(const TaskInterface &a, const TaskInterface &b) noexcept
+bool jamc::priority_inverse_order(const TaskInterface &a, const TaskInterface &b) noexcept
 {
     if (a.deadline == b.deadline)
         return a.burst > b.burst;

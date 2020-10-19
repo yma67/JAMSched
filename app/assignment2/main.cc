@@ -30,8 +30,8 @@ struct ReaderWriterReadPriortized
 {
 private:
     int read_count, write_count;
-    JAMScript::Mutex lock;
-    JAMScript::ConditionVariable read_queue, write_queue;
+    jamc::Mutex lock;
+    jamc::ConditionVariable read_queue, write_queue;
 
 public:
     ReaderWriterReadPriortized() : read_count(0), write_count(0) {}
@@ -77,7 +77,7 @@ public:
 struct ReaderWriterFair
 {
 private:
-    JAMScript::Semaphore<1> qMutex, rwMutex, cMutex;
+    jamc::Semaphore<1> qMutex, rwMutex, cMutex;
     long rCount;
 
 public:
@@ -124,7 +124,7 @@ using ReadWriteLock = ReaderWriterFair;
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256);
+    jamc::RIBScheduler ribScheduler(1024 * 256);
     ribScheduler.RegisterRPCall("PrintResultWithGrade", PrintResultWithGrade);
     ribScheduler.RegisterRPCall("CompareCString", strcmp);
     ribScheduler.RegisterRPCall("CStringLength", strlen);
@@ -135,11 +135,11 @@ int main()
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     auto taskStackTrait = {false, 1024 * 2, false};
 #else
-    JAMScript::StackTraits taskStackTrait = {false, 1024 * 8, true};
+    jamc::StackTraits taskStackTrait = {false, 1024 * 8, true};
 #endif
     ribScheduler.CreateBatchTask({false, 1024 * 256, taskStackTrait.canSteal}, std::chrono::steady_clock::duration::max(), [&]() {
         ReadWriteLock rw;
-        std::vector<JAMScript::TaskHandle> rpool, wpool;
+        std::vector<jamc::TaskHandle> rpool, wpool;
         for (int i = 0; i < 500; i++)
         {
             rpool.push_back(ribScheduler.CreateBatchTask(
@@ -148,13 +148,13 @@ int main()
                     {
                         rw.ReadLock();
                         std::cout << "Read" << std::endl;
-                        JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
+                        jamc::ctask::SleepFor(std::chrono::microseconds(rand() % 1000));
                         std::cout << var << std::endl;
                         rw.ReadUnlock();
                     }
                 },
                 60));
-            if (i % 2) JAMScript::ThisTask::Yield();
+            if (i % 2) jamc::ctask::Yield();
         }
         for (int i = 0; i < 10; i++)
         {
@@ -166,13 +166,13 @@ int main()
                         syncVar++;
                         assert(syncVar <= 1);
                         std::cout << "Write" << std::endl;
-                        JAMScript::ThisTask::SleepFor(std::chrono::microseconds(rand() % 1000));
+                        jamc::ctask::SleepFor(std::chrono::microseconds(rand() % 1000));
                         var += 10;
                         syncVar--;
                         rw.WriteUnlock();
                     } },
                 30));
-            if (i % 2) JAMScript::ThisTask::Yield();
+            if (i % 2) jamc::ctask::Yield();
         }
         for (auto &x : rpool) x.Join();
         for (auto &x : wpool) x.Join();

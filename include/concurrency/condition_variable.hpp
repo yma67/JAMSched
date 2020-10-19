@@ -11,7 +11,7 @@
 #include "core/task/task.hpp"
 #include "concurrency/spinlock.hpp"
 
-namespace JAMScript
+namespace jamc
 {
 
     class ConditionVariableAny
@@ -161,5 +161,5 @@ namespace JAMScript
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

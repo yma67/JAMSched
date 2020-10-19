@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 
 int RPCFunctionJSync(int a, int b)
 {
@@ -31,7 +31,7 @@ int RPCFunctionJAsync(int a, int b)
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterLocalExecution("addNumbers", addNumbers);
     ribScheduler.RegisterLocalExecution("scaleNumber", scaleNumber);
     ribScheduler.RegisterLocalExecution("getTime", getTime);
@@ -47,9 +47,9 @@ int main()
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                                      
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             printf("==============================================\n");
-            JAMScript::ThisTask::CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            jamc::ctask::CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
         }
     });
                    
@@ -59,9 +59,9 @@ int main()
             ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}},
                                      {{std::chrono::milliseconds(0), std::chrono::milliseconds(100), 0}});
                                      
-            JAMScript::ThisTask::SleepFor(std::chrono::milliseconds(70));
+            jamc::ctask::SleepFor(std::chrono::milliseconds(70));
             printf(">>...........\n");
-            JAMScript::ThisTask::CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
+            jamc::ctask::CreateRemoteExecSync(std::string("hellofunc"), std::string(""), 0, 9, std::string("hello"), 0.4566, 1);
         }
     });
 

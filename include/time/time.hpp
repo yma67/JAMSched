@@ -9,7 +9,7 @@
 #include "timeout.h"
 #include "concurrency/spinlock.hpp"
 
-namespace JAMScript
+namespace jamc
 {
 
     using Clock = std::chrono::steady_clock;
@@ -61,5 +61,5 @@ namespace JAMScript
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 #endif

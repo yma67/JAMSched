@@ -2,12 +2,14 @@
 #define JAMSCRIPT_JAMSCRIPT_REMOTE_HH
 #include <boost/compute/detail/lru_cache.hpp>
 #include <remote/mqtt/mqtt_adapter.h>
+#include <concurrency/spinrwlock.hpp>
 #include <exception/exception.hpp>
 #include <concurrency/future.hpp>
 #include <remote/mqtt/nvoid.h>
 #include <nlohmann/json.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <shared_mutex>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -103,7 +105,7 @@ namespace std
     };
 }
 
-namespace JAMScript
+namespace jamc
 {
     namespace RExecDetails
     {
@@ -352,9 +354,9 @@ namespace JAMScript
             std::string message(int ev) const override;
         };
 
-        inline const JAMScript::RExecDetails::RemoteExecutionErrorCategory &GetRemoteExecutionErrorCategory()
+        inline const jamc::RExecDetails::RemoteExecutionErrorCategory &GetRemoteExecutionErrorCategory()
         {
-            static JAMScript::RExecDetails::RemoteExecutionErrorCategory c;
+            static jamc::RExecDetails::RemoteExecutionErrorCategory c;
             return c;
         }
 
@@ -396,7 +398,7 @@ namespace JAMScript
         friend class CloudFogInfo;
         friend class LogManager;
         friend class Time;
-        using RemoteLockType = SpinMutex;
+        using RemoteLockType = SharedSpinMutex;
         void CancelAllRExecRequests();
 
         bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> successCallback, 
@@ -405,6 +407,8 @@ namespace JAMScript
                                             std::shared_ptr<std::atomic_size_t> sharedFailure, 
                                             std::shared_ptr<std::once_flag> successCallOnce)
         {
+            promise<bool> pr;
+            auto futureAck = pr.get_future();
             std::unique_lock lk(Remote::mCallback);
             if (cloudFogInfo.find(hostName) == cloudFogInfo.end() || !cloudFogInfo[hostName]->isRegistered)
             {
@@ -419,8 +423,7 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<promise<bool>>();
-            auto futureAck = pr->get_future();
+            ackLookup[tempEID] = std::move(pr);
             cloudFogInfo[hostName]->rExecPending.insert(tempEID);
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
@@ -437,6 +440,8 @@ namespace JAMScript
                                             std::shared_ptr<std::atomic_size_t> sharedFailure, 
                                             std::shared_ptr<std::once_flag> successCallOnce)
         {
+            promise<bool> pr;
+            auto futureAck = pr.get_future();
             std::unique_lock lk(Remote::mCallback);
             if (mainFogInfo == nullptr || !mainFogInfo->isRegistered)
             {
@@ -451,8 +456,7 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<promise<bool>>();
-            auto futureAck = pr->get_future();
+            ackLookup[tempEID] = std::move(pr);
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             return CreateRetryTask(futureAck, vReq, tempEID, std::move(successCallback), std::move(failureCallback), 
@@ -464,6 +468,8 @@ namespace JAMScript
                                           std::function<void()> successCallback, 
                                           std::function<void(std::error_condition)> failureCallback, Args &&... eArgs)
         {
+            promise<bool> pr;
+            auto futureAck = pr.get_future();
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-ASY"},
                 {"actname", eName},
@@ -481,8 +487,7 @@ namespace JAMScript
             rexRequest.push_back({"actid", eIdFactory});
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& pr = ackLookup[tempEID] = std::make_unique<promise<bool>>();
-            auto futureAck = pr->get_future();
+            ackLookup[tempEID] = std::move(pr);
             lk.unlock();
             auto vReq = nlohmann::json::to_cbor(rexRequest.dump());            
             return CreateRetryTask(futureAck, vReq, tempEID, std::move(successCallback), std::move(failureCallback));
@@ -501,7 +506,7 @@ namespace JAMScript
                 {"cond", condstr},
                 {"condvec", condvec},
                 {"actarg", "-"}};
-            std::unique_lock lockGetAllHostNames(Remote::mCallback);
+            std::shared_lock lockGetAllHostNames(Remote::mCallback);
             std::vector<std::string> hostsAvailable;
             for (auto& [hostName, conn]: cloudFogInfo)
             {
@@ -535,16 +540,20 @@ namespace JAMScript
             auto failureCountCommon = std::make_shared<std::atomic_size_t>(0U);
             auto callOnceShared = std::make_shared<std::once_flag>();
             auto fuCommon = prCommon->get_future();
+            std::vector<std::string> hostsAvailable;
+            std::shared_lock lock(Remote::mCallback);
+            auto countCommon = cloudFogInfo.size();
+            for (auto& [hostName, conn]: cloudFogInfo)
             {
-                std::lock_guard lock(Remote::mCallback);
-                auto countCommon = cloudFogInfo.size();
-                CreateRetryTaskSync(timeOut, rexRequest, prCommon, countCommon, 
-                                    failureCountCommon, callOnceShared);
-                for (auto& [hostName, cfInfo]: cloudFogInfo)
-                {
-                    CreateRetryTaskSync(hostName, timeOut, rexRequest, prCommon, 
-                                        countCommon, failureCountCommon, callOnceShared);
-                }
+                hostsAvailable.push_back(hostName);
+            }
+            lock.unlock();
+            CreateRetryTaskSync(timeOut, rexRequest, prCommon, countCommon, 
+                                failureCountCommon, callOnceShared);
+            for (auto& hostName: hostsAvailable)
+            {
+                CreateRetryTaskSync(hostName, timeOut, rexRequest, prCommon, 
+                                    countCommon, failureCountCommon, callOnceShared);
             }
             return fuCommon.get().second;
         }
@@ -553,6 +562,10 @@ namespace JAMScript
         nlohmann::json CreateRExecSyncWithTimeout(const std::string &eName, const std::string &condstr, 
                                                   uint32_t condvec, Duration timeOut, Args &&... eArgs)
         {
+            promise<bool> prAck;
+            promise<std::pair<bool, nlohmann::json>> pr;
+            auto futureAck = prAck.get_future();
+            auto fuExec = pr.get_future();
             nlohmann::json rexRequest = {
                 {"cmd", "REXEC-SYN"},
                 {"actname", eName},
@@ -567,15 +580,13 @@ namespace JAMScript
             }
             rexRequest.push_back({"opt", mainFogInfo->devId});
             rexRequest.push_back({"actid", eIdFactory});
-            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             auto tempEID = eIdFactory;
             eIdFactory++;
-            auto& prAck = ackLookup[tempEID] = std::make_unique<promise<bool>>();
-            auto futureAck = prAck->get_future();
-            auto& pr = rLookup[tempEID] = std::make_unique<promise<std::pair<bool, nlohmann::json>>>();
-            auto fuExec = pr->get_future();
+            ackLookup[tempEID] = std::move(prAck);
+            rLookup[tempEID] = std::move(pr);
             mainFogInfo->rExecPending.insert(tempEID);
             lk.unlock();
+            auto vReq = nlohmann::json::to_cbor(rexRequest.dump());
             int retryNum = 0;
             while (retryNum < 3)
             {
@@ -654,7 +665,6 @@ namespace JAMScript
         static RemoteLockType mCallback;
         static std::unordered_set<CloudFogInfo *> isValidConnection;
         static ThreadPool callbackThreadPool;
-        static ThreadPool publishThreadPool;
         std::mutex mLoopSleep;
         std::condition_variable cvLoopSleep;
         std::uint32_t eIdFactory;
@@ -662,12 +672,12 @@ namespace JAMScript
         std::unique_ptr<CloudFogInfo> mainFogInfo;
         std::string devId, appId, hostAddr;
         boost::compute::detail::lru_cache<uint32_t, nlohmann::json> cache;
-        std::unordered_map<uint32_t, std::unique_ptr<promise<bool>>> ackLookup;
+        std::unordered_map<uint32_t, promise<bool>> ackLookup;
         std::unordered_map<std::string, std::unique_ptr<CloudFogInfo>> cloudFogInfo;
-        std::unordered_map<uint32_t, std::unique_ptr<promise<std::pair<bool, nlohmann::json>>>> rLookup;
+        std::unordered_map<uint32_t, promise<std::pair<bool, nlohmann::json>>> rLookup;
 
     };
 
-} // namespace JAMScript
+} // namespace jamc
 
 #endif

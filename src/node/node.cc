@@ -8,7 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-JAMScript::Node::Node(int argc, char *argv[])
+jamc::Node::Node(int argc, char *argv[])
     :   desc("C-side command line options")
 {
     desc.add_options()
@@ -34,42 +34,42 @@ JAMScript::Node::Node(int argc, char *argv[])
     storeProcessId(std::string("./") + getPort() + std::string("/cdevProcessId.") + std::to_string(getSeqNum()));
 }
 
-std::string JAMScript::Node::getAppId() {
+std::string jamc::Node::getAppId() {
     if (vm.count("app")) 
         return vm["app"].as<std::string>();
     else 
         return std::string("noname-app");
 }
 
-int JAMScript::Node::getSeqNum() {
+int jamc::Node::getSeqNum() {
     if (vm.count("num"))
         return vm["num"].as<int>();
     else 
         return 0;
 }
 
-std::string JAMScript::Node::getHostAddr() {
+std::string jamc::Node::getHostAddr() {
     if (vm.count("port"))
         return std::string("tcp://localhost:") + vm["port"].as<std::string>();
     else 
         return std::string("tcp://localhost:1883");
 }
 
-std::string JAMScript::Node::getPort() {
+std::string jamc::Node::getPort() {
     if (vm.count("port"))
         return vm["port"].as<std::string>();
     else 
         return std::string("1883");
 }
 
-std::string JAMScript::Node::getDevId() {
+std::string jamc::Node::getDevId() {
     return devId;
 }
 
-JAMScript::Node::~Node() {
+jamc::Node::~Node() {
 }
     
-void JAMScript::Node::dieIfNoDirectory(std::string path, int duration, std::string emsg)
+void jamc::Node::dieIfNoDirectory(std::string path, int duration, std::string emsg)
 {
     const boost::filesystem::path de(path);
     for (int i = 0; i < duration; i++) {
@@ -81,7 +81,7 @@ void JAMScript::Node::dieIfNoDirectory(std::string path, int duration, std::stri
     std::exit(1);
 }
         
-void JAMScript::Node::dieIfNoFile(std::string fname, int duration, std::string emsg)
+void jamc::Node::dieIfNoFile(std::string fname, int duration, std::string emsg)
 {
     const boost::filesystem::path de(fname);
     for (int i = 0; i < duration; i++) {
@@ -93,7 +93,7 @@ void JAMScript::Node::dieIfNoFile(std::string fname, int duration, std::string e
     std::exit(1);
 }
 
-std::string JAMScript::Node::generateDevId(std::string path)
+std::string jamc::Node::generateDevId(std::string path)
 {
     const boost::filesystem::path p(path);
     if (boost::filesystem::exists(p) && boost::filesystem::is_regular_file(p)) {
@@ -112,7 +112,7 @@ std::string JAMScript::Node::generateDevId(std::string path)
     }
 }
         
-void JAMScript::Node::storeProcessId(std::string path)
+void jamc::Node::storeProcessId(std::string path)
 {
     const boost::filesystem::path p(path);
     int pid = getpid();

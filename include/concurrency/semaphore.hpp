@@ -3,7 +3,7 @@
 #include "concurrency/condition_variable.hpp"
 #include <cstdint>
 
-namespace JAMScript
+namespace jamc
 {
     class ConditionVariable;
     class SpinMutex;
@@ -53,6 +53,6 @@ namespace JAMScript
         int count;
     };
 
-} // namespace JAMScript
+} // namespace jamc
 
 #endif

@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 
 const int kReqCount = 1000;
 std::atomic<int> reqCount = 0;
@@ -14,7 +14,7 @@ int funcABCD(int a, int b)
         reqStart = nw;
         reqCount = 0;
     }
-    printf("%d\n", reqCount.load());
+    // printf("%d\n", reqCount.load());
     // std::cout << "Sync Add of " << a << " + " << b << " = " << a + b << std::endl;
     // usleep(1000000);
     // std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -36,7 +36,7 @@ void testloop()
 
 int main()
 {
-    JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+    jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     ribScheduler.RegisterRPCall("addNumbers", addNumbers);
     ribScheduler.RegisterRPCall("testloop", testloop);
     ribScheduler.RegisterRPCall("funcABCD", funcABCD);    

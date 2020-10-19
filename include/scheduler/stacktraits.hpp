@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace JAMScript
+namespace jamc
 {
     struct StackTraits
     {

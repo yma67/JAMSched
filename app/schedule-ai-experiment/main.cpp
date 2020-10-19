@@ -11,9 +11,9 @@
 #include <vector>
 
 int nrounds, batch_count = 0, interactive_count = 0, rt_count = 0, preempt_tslice = 0, _bc, _ic;
-std::vector<JAMScript::RealTimeSchedule> normal_sched, greedy_sched;
+std::vector<jamc::RealTimeSchedule> normal_sched, greedy_sched;
 
-int RealTimeTaskFunction(JAMScript::RIBScheduler &jSched, std::vector<uint64_t> &tasks, int i)
+int RealTimeTaskFunction(jamc::RIBScheduler &jSched, std::vector<uint64_t> &tasks, int i)
 {
     auto tStart = std::chrono::steady_clock::now();
     std::cout << "RT TASK-" << i << " start" << std::endl;
@@ -21,7 +21,7 @@ int RealTimeTaskFunction(JAMScript::RIBScheduler &jSched, std::vector<uint64_t> 
     jSched
         .CreateRealTimeTask(
             {true, 0}, i,
-            std::function<int(JAMScript::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
+            std::function<int(jamc::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
             std::ref(jSched), std::ref(tasks), i)
         .Detach();
     while (std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         interactive_tasks;
     std::vector<std::pair<std::chrono::steady_clock::duration, std::chrono::steady_clock::duration>>
         batch_tasks;
-    std::vector<JAMScript::RealTimeSchedule> normal_sched, greedy_sched;
+    std::vector<jamc::RealTimeSchedule> normal_sched, greedy_sched;
     if (trace_file.is_open())
     {
         trace_file >> ntask;
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
             batch_tasks.push_back({std::chrono::steady_clock::duration(std::chrono::microseconds(arr)),
                                    std::chrono::steady_clock::duration(std::chrono::microseconds(burst))});
         }
-        JAMScript::RIBScheduler jRIBScheduler(1024 * 256);
+        jamc::RIBScheduler jRIBScheduler(1024 * 256);
         auto tuPeriod = std::chrono::microseconds(996);
         jRIBScheduler.CreateBatchTask({true, 0, true}, tuPeriod, [&]() {
             while (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() -
@@ -118,8 +118,8 @@ int main(int argc, char *argv[])
                     {
                         jRIBScheduler
                             .CreateInteractiveTask(
-                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0, false})
-                                                   : (JAMScript::StackTraits{false, 1024 * 128, false})),
+                                (((ax++) % 2 == 0) ? (jamc::StackTraits{true, 0, false})
+                                                   : (jamc::StackTraits{false, 1024 * 128, false})),
                                 deadline, burst, []() {},
                                 [&jRIBScheduler, cBurst]() {
                                     std::cout << "Interac Exec" << std::endl;
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 #ifndef JAMSCRIPT_SCHED_AI_EXP
                                     auto ct = std::chrono::steady_clock::now();
                                     auto delta = 1000;
-                                    JAMScript::ThisTask::SleepFor(std::chrono::microseconds(delta));
+                                    jamc::ctask::SleepFor(std::chrono::microseconds(delta));
                                     std::cout << "JSleep Jitter: "
                                               << std::chrono::duration_cast<std::chrono::microseconds>(
                                                      std::chrono::steady_clock::now() - ct)
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
                                            std::chrono::duration_cast<std::chrono::nanoseconds>(cBurst).count())
                                     {
                                         std::this_thread::sleep_for(std::chrono::nanoseconds(preempt_tslice));
-                                        JAMScript::ThisTask::Yield();
+                                        jamc::ctask::Yield();
                                     }
                                     return 8;
                                 })
@@ -160,8 +160,8 @@ int main(int argc, char *argv[])
                     {
                         jRIBScheduler
                             .CreateBatchTask(
-                                (((ax++) % 2 == 0) ? (JAMScript::StackTraits{true, 0, false})
-                                                   : (JAMScript::StackTraits{false, 1024 * 128, false})),
+                                (((ax++) % 2 == 0) ? (jamc::StackTraits{true, 0, false})
+                                                   : (jamc::StackTraits{false, 1024 * 128, false})),
                                 std::chrono::duration_cast<std::chrono::microseconds>(cBurst),
                                 [&jRIBScheduler, cBurst]() {
                                     auto tStart = std::chrono::steady_clock::now();
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
                                            std::chrono::duration_cast<std::chrono::nanoseconds>(cBurst).count())
                                     {
                                         std::this_thread::sleep_for(std::chrono::nanoseconds(preempt_tslice));
-                                        JAMScript::ThisTask::Yield();
+                                        jamc::ctask::Yield();
                                     }
                                     return 8;
                                 })
@@ -183,22 +183,22 @@ int main(int argc, char *argv[])
                     }
                 }
                 // std::this_thread::sleep_for(std::chrono::nanoseconds(250));
-                JAMScript::ThisTask::Yield();
+                jamc::ctask::Yield();
             }
             while (std::chrono::steady_clock::now() < jRIBScheduler.GetSchedulerStartTime() + nrounds * tuPeriod) {
                 // std::this_thread::sleep_for(std::chrono::nanoseconds(250));
-                JAMScript::ThisTask::Yield();
+                jamc::ctask::Yield();
             }
 #ifndef JAMSCRIPT_SCHED_AI_EXP
             auto sec3 = std::make_shared<std::string>();
-            auto p = std::make_shared<JAMScript::promise<std::string>>();
-            auto ep = std::make_shared<JAMScript::promise<bool>>();
+            auto p = std::make_shared<jamc::promise<std::string>>();
+            auto ep = std::make_shared<jamc::promise<bool>>();
             auto fx = jRIBScheduler.CreateInteractiveTask(
                 {true, 0}, std::chrono::nanoseconds(38000000), std::chrono::nanoseconds(99), []() {},
                 [p, ep, sec3]() {
                     *sec3 = "I don't like cpp";
                     std::cout << "Start Joining Task " << &sec3 << std::endl;
-                    ep->set_exception(std::make_exception_ptr(JAMScript::InvalidArgumentException("cancelled")));
+                    ep->set_exception(std::make_exception_ptr(jamc::InvalidArgumentException("cancelled")));
                     p->set_value("I like Java");
                     std::cout << "End Joining Task" << std::endl;
                 });
@@ -211,13 +211,13 @@ int main(int argc, char *argv[])
             {
                 ep->get_future().get();
             }
-            catch (const JAMScript::InvalidArgumentException &e)
+            catch (const jamc::InvalidArgumentException &e)
             {
                 std::cout << e.what() << std::endl;
             }
             // Test get_for, get_until
             // Success
-            JAMScript::promise<std::string> prCouldArrive;
+            jamc::promise<std::string> prCouldArrive;
             std::thread([&prCouldArrive](){
                 prCouldArrive.set_value("get_until Success! ");
             }).detach();
@@ -228,9 +228,9 @@ int main(int argc, char *argv[])
             auto couldArriveVal = fuCouldArrive.get();
             std::cout << couldArriveVal << std::endl;
             // Fail
-            JAMScript::promise<std::string> prNeverArrive;
+            jamc::promise<std::string> prNeverArrive;
             auto fuNeverArrive = prNeverArrive.get_future();
-            if (fuNeverArrive.wait_for(std::chrono::milliseconds(500)) == JAMScript::future_status::timeout) 
+            if (fuNeverArrive.wait_for(std::chrono::milliseconds(500)) == jamc::future_status::timeout) 
                 std::cout << "Timed Out" << std::endl;
 #endif
             jRIBScheduler.ShutDown();
@@ -240,8 +240,8 @@ int main(int argc, char *argv[])
         {
             jRIBScheduler
                 .CreateRealTimeTask(
-                    (((i) % 2 == 0) ? (JAMScript::StackTraits{true, 0}) : (JAMScript::StackTraits{false, 1024 * 128})),
-                    i, std::function<int(JAMScript::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
+                    (((i) % 2 == 0) ? (jamc::StackTraits{true, 0}) : (jamc::StackTraits{false, 1024 * 128})),
+                    i, std::function<int(jamc::RIBScheduler &, std::vector<uint64_t> &, int)>(RealTimeTaskFunction),
                     std::ref(jRIBScheduler), std::ref(tasks), i)
                 .Detach();
         }

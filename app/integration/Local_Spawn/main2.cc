@@ -1,5 +1,5 @@
-#include <jamscript.hpp>
-JAMScript::RIBScheduler *rbs;
+#include <jamscript>
+jamc::RIBScheduler *rbs;
 int count = 0;
 std::chrono::high_resolution_clock::time_point prevUS;
 [[clang::optnone]] int execincr(int x, float y){
@@ -18,7 +18,7 @@ int incr(int x, float y) {
       auto s = std::chrono::high_resolution_clock::now();
   rbs->CreateBatchTask({false, 1024 * 256}, std::chrono::milliseconds(10), std::function(execincr), x, y);
       // printf("Task Creation elapsed %ld ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - s).count());
-  //  JAMScript::ThisTask::Yield();
+  //  jamc::ctask::Yield();
   //  printf("End... of incr...\n");
  return 0;
 }
@@ -27,7 +27,7 @@ int execloop(){
   //  printf("IN exec loop \n");
   while (1) {
     incr(10, 4.5);
-    JAMScript::ThisTask::Yield();
+    jamc::ctask::Yield();
     //    printf("Exec Hello %d \n", count);
   }
   return 0;
@@ -51,7 +51,7 @@ int user_main(int argc, char **argv) {
    ribScheduler.RegisterLocalExecution("loop", execloop); \
 }
 int main(int argc, char **argv) {
-        JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+        jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
     rbs = &ribScheduler;
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}},
                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(1000), 0}});

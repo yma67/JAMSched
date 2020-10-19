@@ -1,6 +1,6 @@
 #include "concurrency/condition_variable.hpp"
 
-void JAMScript::ConditionVariableAny::notify_one()
+void jamc::ConditionVariableAny::notify_one()
 {
     std::unique_lock lk(wListLock);
     if (!waitList.empty())
@@ -21,7 +21,7 @@ void JAMScript::ConditionVariableAny::notify_one()
     }
 }
 
-void JAMScript::ConditionVariableAny::notify_all()
+void jamc::ConditionVariableAny::notify_all()
 {
     std::unique_lock lk(wListLock);
     while (!waitList.empty())
