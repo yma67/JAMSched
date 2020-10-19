@@ -7,33 +7,12 @@
     (std::string("aps[") + apId_ + "].ns[" + nameSpace_ + "].bcasts[" + varName_.c_str() + "]").c_str()
 
 jamc::LogManager::LogManager(Remote *remote, RedisState redisState) 
- : remote(remote), redisState(redisState), loggerEventLoop(event_base_new()),
-   redisContext(redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort))
-{
-    redisAsyncSetConnectCallback(redisContext, [](const redisAsyncContext *c, int status) {
-        if (status != REDIS_OK)
-        {
-            printf("JData Logger Connection Error: %s\n", c->errstr);
-            return;
-        }
-        printf("Connected... status: %d\n", status);
-    });
-    redisAsyncSetDisconnectCallback(redisContext, [](const redisAsyncContext *c, int status) {
-        if (status != REDIS_OK)
-        {
-            printf("JData Logger Disconnection Error: %s\n", c->errstr);
-            return;
-        }
-        printf("Disconnected...\n");
-    });
-    redisLibeventAttach(redisContext, loggerEventLoop);
-}
+ : remote(remote), redisState(redisState), rc(redisConnect(redisState.redisServer.c_str(), redisState.redisPort))
+{}
 
 jamc::LogManager::~LogManager()
 {
-    event_base_free(loggerEventLoop);
-    loggerEventLoop = nullptr;
-    redisAsyncDisconnect(redisContext);
+    redisFree(rc);
 }
 
 void jamc::LogManager::LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw)
@@ -47,51 +26,58 @@ void jamc::LogManager::LogRaw(const std::string &nameSpace, const std::string &v
     }
     auto appId = remote->mainFogInfo->appId;
     lk.unlock();
-    std::lock_guard lkAsyncBuffer(mAsyncBuffer);
-    asyncBufferEncoded.push_back(
-        new LogStreamObject(
-            ConvertToRedisKey(appId, nameSpace, varName), 
-            tv.tv_sec * 1000LL + tv.tv_usec / 1000,
-            nlohmann::json::to_cbor(streamObjectRaw.dump())
-        )
+    auto* lobj = new LogStreamObject(
+        ConvertToRedisKey(appId, nameSpace, varName), 
+        tv.tv_sec * 1000LL + tv.tv_usec / 1000,
+        nlohmann::json::to_cbor(streamObjectRaw.dump())
     );
-    cvAsyncBuffer.notify_one();
+    std::lock_guard lkAsyncBuffer(mAsyncBuffer);
+    asyncBufferEncoded.push_back(lobj);
+    if (asyncBufferEncoded.size() == 1) cvAsyncBuffer.notify_one();
 }
 
 void jamc::LogManager::RunLoggerMainLoop()
 {
-    std::thread tLoggerLibEvent([this] {
-        while (remote->scheduler->toContinue)
-        {
-            event_base_dispatch(loggerEventLoop);
-        }
-    });
-    while (remote->scheduler->toContinue)
+    std::deque<LogStreamObject *> localBuffer;
+    std::unique_lock l1(mAsyncBuffer);
+    while (remote->scheduler->toContinue || !asyncBufferEncoded.empty())
     {
-        std::unique_lock lock(mAsyncBuffer);
-        while (asyncBufferEncoded.empty())
+        l1.unlock();
         {
-            cvAsyncBuffer.wait(lock);
+            std::unique_lock lock(mAsyncBuffer);
+            while (asyncBufferEncoded.empty() && remote->scheduler->toContinue)
+            {
+                cvAsyncBuffer.wait(lock);
+            }
+            localBuffer = std::move(asyncBufferEncoded);
+            asyncBufferEncoded = std::deque<LogStreamObject *>();
         }
-        while (!asyncBufferEncoded.empty())
+        std::size_t rCount = 0;
+        redisReply *reply;
+        while (!localBuffer.empty())
         {
-            auto* ptrBufferEncoded = asyncBufferEncoded.front();
-            asyncBufferEncoded.pop_front();
-            redisAsyncCommand(
-                redisContext, 
-                [](redisAsyncContext *c, void *reply, void *privdata) {
-                    delete reinterpret_cast<LogStreamObject *>(privdata);
-                }, 
-                ptrBufferEncoded, "XADD %s %llu %b", 
+            auto ptrBufferEncoded = localBuffer.front();
+            localBuffer.pop_front();
+            redisAppendCommand(rc, "ZADD %s %llu %b", 
                 ptrBufferEncoded->logKey.c_str(),
                 ptrBufferEncoded->timeStamp, 
                 ptrBufferEncoded->encodedObject.data(), 
-                ptrBufferEncoded->encodedObject.size()
-            );
+                ptrBufferEncoded->encodedObject.size());
+            rCount++;
+            delete ptrBufferEncoded;
         }
+        while (rCount-- > 0)
+        {
+            redisGetReply(rc, (void **)&(reply));
+            freeReplyObject(reply);
+        }
+        l1.lock();
     }
-    event_base_loopbreak(loggerEventLoop);
-    tLoggerLibEvent.join();
+}
+
+void jamc::LogManager::StopLoggerMainLoop()
+{
+    cvAsyncBuffer.notify_one();
 }
 
 void jamc::BroadcastVariable::Append(char* data)
@@ -115,14 +101,14 @@ nlohmann::json jamc::BroadcastVariable::Get()
 
 jamc::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisState, std::vector<JAMDataKeyType> variableInfo)
  : remote(remote), redisState(redisState), bCastEventLoop(event_base_new()), 
-   redisContext(redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort))
+   rc(redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort))
 {
-    if (redisContext->err)
+    if (rc->err)
     {
         std::cerr << "Bad Redis Init for BCast" << std::endl;
         std::terminate();
     }
-    redisAsyncSetConnectCallback(redisContext, [](const redisAsyncContext *c, int status) {
+    redisAsyncSetConnectCallback(rc, [](const redisAsyncContext *c, int status) {
         if (status != REDIS_OK)
         {
             printf("JData Broadcaster Connection Error: %s\n", c->errstr);
@@ -130,7 +116,7 @@ jamc::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisState, 
         }
         printf("Connected... status: %d\n", status);
     });
-    redisAsyncSetDisconnectCallback(redisContext, [](const redisAsyncContext *c, int status) {
+    redisAsyncSetDisconnectCallback(rc, [](const redisAsyncContext *c, int status) {
         if (status != REDIS_OK)
         {
             printf("JData Broadcaster Disconnection Error: %s\n", c->errstr);
@@ -138,7 +124,7 @@ jamc::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisState, 
         }
         printf("Disconnected...\n");
     });
-    redisLibeventAttach(redisContext, bCastEventLoop);
+    redisLibeventAttach(rc, bCastEventLoop);
     for (auto& vInfo: variableInfo)
     {
         if (bCastVarStores.find(vInfo.first) == bCastVarStores.end())
@@ -159,7 +145,7 @@ jamc::BroadcastManager::BroadcastManager(Remote *remote, RedisState redisState, 
             auto& refBCastVar = *pBCVar;
             nameSpaceRef.emplace(vInfo.second, std::move(pBCVar));
             redisAsyncCommand(
-                redisContext, [](redisAsyncContext *c, void *r, void *privdata)
+                rc, [](redisAsyncContext *c, void *r, void *privdata)
                 {
                     auto* bCastManger = reinterpret_cast<jamc::BroadcastManager *>(privdata);
                     auto *reply = reinterpret_cast<redisReply *>(r);
@@ -184,20 +170,20 @@ jamc::BroadcastManager::~BroadcastManager()
 {
     event_base_free(bCastEventLoop);
     bCastEventLoop = nullptr;
-    redisAsyncDisconnect(redisContext);
+    redisAsyncDisconnect(rc);
 }
 
 void jamc::BroadcastManager::RunBroadcastMainLoop()
 {
     while (remote->scheduler->toContinue)
     {
-        event_base_dispatch(bCastEventLoop);
-    }
+        event_base_loop(bCastEventLoop, EVLOOP_ONCE | EVLOOP_NONBLOCK);
+    }   
 }
 
 void jamc::BroadcastManager::StopBroadcastMainLoop()
 {
-    event_base_loopbreak(bCastEventLoop);
+    event_base_loopexit(bCastEventLoop, NULL);
 }
 
 nlohmann::json jamc::BroadcastManager::Get(const std::string &nameSpace, const std::string &variableName)

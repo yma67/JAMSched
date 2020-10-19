@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 std::atomic_int count = 0;
 std::chrono::high_resolution_clock::time_point prevUS;
 constexpr bool isTaskStealable = true;

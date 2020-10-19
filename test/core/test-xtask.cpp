@@ -8,7 +8,7 @@
 #include <iostream>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive_ptr.hpp>
-#include <jamscript.hpp>
+#include <jamscript>
 using namespace std;
 int coro_count = 0, idbg;
 

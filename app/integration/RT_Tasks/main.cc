@@ -1,6 +1,6 @@
 #include <time.h>
 #include <future>
-#include <jamscript.hpp>
+#include <jamscript>
 #include <cstring>
 #include <nlohmann/json.hpp>
 

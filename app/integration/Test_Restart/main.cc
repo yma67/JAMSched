@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 
 int main()
 {

@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 
 #include <catch2/catch.hpp>
 

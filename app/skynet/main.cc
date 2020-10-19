@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 #include <functional>
 #include <queue>
 

@@ -588,6 +588,15 @@ namespace jamc
             this->thiefs = std::move(thiefs);
         }
 
+        LogManager& GetLoggerManager()
+        {
+            if (logManager != nullptr)
+            {
+                return *logManager;
+            }
+            throw InvalidArgumentException("no logger available\n");
+        }
+
         RIBScheduler *GetRIBScheduler() override { return this; }
 
         using JAMDataKeyType = std::pair<std::string, std::string>;
@@ -599,15 +608,6 @@ namespace jamc
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName, 
                      RedisState redisState, std::vector<JAMDataKeyType> variableInfo);
-        RIBScheduler(uint32_t sharedStackSize, 
-                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
-        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
-                     const std::string &appName, const std::string &devName, 
-                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
-        RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
-                     const std::string &appName, const std::string &devName, 
-                     RedisState redisState, std::vector<JAMDataKeyType> variableInfo, 
-                     std::vector<std::unique_ptr<StealScheduler>> thiefs);
         ~RIBScheduler() override;
 
     private:

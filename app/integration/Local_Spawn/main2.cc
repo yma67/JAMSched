@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 jamc::RIBScheduler *rbs;
 int count = 0;
 std::chrono::high_resolution_clock::time_point prevUS;

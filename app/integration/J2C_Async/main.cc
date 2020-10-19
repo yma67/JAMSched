@@ -1,4 +1,4 @@
-#include <jamscript.hpp>
+#include <jamscript>
 
 const int kReqCount = 1000;
 std::atomic<int> reqCount = 0;

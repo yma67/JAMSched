@@ -37,6 +37,7 @@ namespace jamc
     {
     public:
         void RunLoggerMainLoop();
+        void StopLoggerMainLoop();
         void LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw);
         template <typename... Args>
         void Log(const std::string &nameSpace, const std::string &varName, Args &&... eArgs)
@@ -48,10 +49,10 @@ namespace jamc
     private:
         Remote *remote;
         RedisState redisState;
-        redisAsyncContext *redisContext;
+        redisContext *rc;
         struct event_base *loggerEventLoop;
-        std::mutex mAsyncBuffer;
-        std::condition_variable cvAsyncBuffer;
+        SpinMutex mAsyncBuffer;
+        std::condition_variable_any cvAsyncBuffer;
         std::deque<LogStreamObject *> asyncBufferEncoded;
     };
 
@@ -85,7 +86,7 @@ namespace jamc
     private:
         Remote *remote;
         RedisState redisState;
-        redisAsyncContext *redisContext;
+        redisAsyncContext *rc;
         struct event_base *bCastEventLoop;
         std::size_t nameSpaceMaxLen, varNameMaxLen;
         std::unordered_map<std::string, std::unordered_map<std::string, std::unique_ptr<BroadcastVariable>>> bCastVarStores;

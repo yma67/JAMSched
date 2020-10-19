@@ -77,7 +77,7 @@
 Please return by a pointer to memory allocated on heap by malloc/calloc to avoid memory leak. 
 ### Example
 ```cpp
-JAMScript::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
+jamc::RIBScheduler ribScheduler(1024 * 256, "tcp://localhost:1883", "app-1", "dev-1");
 ribScheduler.RegisterRPCall("DuplicateCString", strdup);
 ribScheduler.RegisterRPCall("RPCFunctionJSync", [] (int a, int b) -> int {
     std::cout << "Sync Add of " << a << " + " << b << std::endl;
@@ -95,7 +95,7 @@ ribScheduler.RegisterRPCall("ConcatCString", [] (char *dest, const char *src) ->
 ## Named Local Invocation
 ### Example of Registration
 ```cpp
-JAMScript::RIBScheduler ribScheduler(1024 * 256);
+jamc::RIBScheduler ribScheduler(1024 * 256);
 ribScheduler.RegisterLocalExecution("TestExec", [] (int a, int b) -> int {
     return a + b;
 });

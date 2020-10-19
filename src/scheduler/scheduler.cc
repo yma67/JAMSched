@@ -42,29 +42,6 @@ jamc::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &ho
     broadcastManger = std::make_unique<BroadcastManager>(remote.get(), std::move(redisState), std::move(variableInfo));
 }
 
-jamc::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, std::vector<std::unique_ptr<StealScheduler>> thiefs)
-    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)), logManager(nullptr), 
-      decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), thiefs(std::move(thiefs)), broadcastManger(nullptr),
-      numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
-{}
-
-jamc::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
-                                      const std::string &appName, const std::string &devName, std::vector<std::unique_ptr<StealScheduler>> thiefs)
-    : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
-{
-    remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
-}
-
-jamc::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
-                                      const std::string &appName, const std::string &devName, RedisState redisState,
-                                      std::vector<JAMDataKeyType> variableInfo, std::vector<std::unique_ptr<StealScheduler>> thiefs)
-    : RIBScheduler(sharedStackSize, std::forward<decltype(thiefs)>(thiefs))
-{
-    logManager = std::make_unique<LogManager>(remote.get(), redisState);
-    broadcastManger = std::make_unique<BroadcastManager>(remote.get(), std::move(redisState), std::move(variableInfo));
-    remote = std::make_unique<Remote>(this, hostAddr, appName, devName);
-}
-
 jamc::RIBScheduler::~RIBScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
@@ -497,6 +474,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
     }
     if (broadcastManger != nullptr && logManager != nullptr)
     {
+        logManager->StopLoggerMainLoop();
         tLogManger.join();
         broadcastManger->StopBroadcastMainLoop();
         tBroadcastManager.join();
