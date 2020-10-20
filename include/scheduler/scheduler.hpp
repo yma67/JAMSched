@@ -588,15 +588,6 @@ namespace jamc
             this->thiefs = std::move(thiefs);
         }
 
-        LogManager& GetLoggerManager()
-        {
-            if (logManager != nullptr)
-            {
-                return *logManager;
-            }
-            throw InvalidArgumentException("no logger available\n");
-        }
-
         RIBScheduler *GetRIBScheduler() override { return this; }
 
         using JAMDataKeyType = std::pair<std::string, std::string>;
