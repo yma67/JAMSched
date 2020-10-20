@@ -49,7 +49,7 @@ namespace jamc
     private:
         Remote *remote;
         RedisState redisState;
-        redisContext *rc;
+        redisAsyncContext *rc;
         struct event_base *loggerEventLoop;
         SpinMutex mAsyncBuffer;
         std::condition_variable_any cvAsyncBuffer;

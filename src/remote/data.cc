@@ -6,13 +6,36 @@
 #define ConvertToRedisKey(apId_, nameSpace_, varName_) \
     (std::string("aps[") + apId_ + "].ns[" + nameSpace_ + "].bcasts[" + varName_.c_str() + "]").c_str()
 
+static void ConnectCallback(const redisAsyncContext *c, int status) {
+    if (status != REDIS_OK) {
+        printf("Error: %s\n", c->errstr);
+        return;
+    }
+    printf("Connected...\n");
+}
+
+static void DisConnectCallback(const redisAsyncContext *c, int status) {
+    if (status != REDIS_OK) {
+        printf("Error: %s\n", c->errstr);
+        return;
+    }
+    printf("Disconnected...\n");
+}
+
 jamc::LogManager::LogManager(Remote *remote, RedisState redisState) 
- : remote(remote), redisState(redisState), rc(redisConnect(redisState.redisServer.c_str(), redisState.redisPort))
-{}
+ : remote(remote), redisState(redisState), loggerEventLoop(event_base_new()), 
+   rc(redisAsyncConnect(redisState.redisServer.c_str(), redisState.redisPort))
+{
+    redisLibeventAttach(rc, loggerEventLoop);
+    redisAsyncSetConnectCallback(rc, ConnectCallback);
+    redisAsyncSetDisconnectCallback(rc, DisConnectCallback);
+    event_base_loop(loggerEventLoop, EVLOOP_NONBLOCK);
+}
 
 jamc::LogManager::~LogManager()
 {
-    redisFree(rc);
+    redisAsyncFree(rc);
+    event_base_free(loggerEventLoop);
 }
 
 void jamc::LogManager::LogRaw(const std::string &nameSpace, const std::string &varName, const nlohmann::json &streamObjectRaw)
@@ -38,45 +61,60 @@ void jamc::LogManager::LogRaw(const std::string &nameSpace, const std::string &v
 
 void jamc::LogManager::RunLoggerMainLoop()
 {
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+    int nacc = 0;
+#endif
     std::deque<LogStreamObject *> localBuffer;
     std::unique_lock l1(mAsyncBuffer);
-    while (remote->scheduler->toContinue || !asyncBufferEncoded.empty())
+    while (remote->scheduler->toContinue)
     {
         l1.unlock();
         {
             std::unique_lock lock(mAsyncBuffer);
-            while (asyncBufferEncoded.empty() && remote->scheduler->toContinue)
+            while (asyncBufferEncoded.size() < 200 && remote->scheduler->toContinue)
             {
                 cvAsyncBuffer.wait(lock);
             }
             localBuffer = std::move(asyncBufferEncoded);
             asyncBufferEncoded = std::deque<LogStreamObject *>();
         }
-        std::size_t rCount = 0;
-        redisReply *reply;
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+        long long dx = 0;
+        auto est = std::chrono::high_resolution_clock::now();
+#endif
         while (!localBuffer.empty())
         {
             auto ptrBufferEncoded = localBuffer.front();
             localBuffer.pop_front();
-            redisAppendCommand(rc, "ZADD %s %llu %b", 
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+            nacc++;
+            dx++;
+#endif
+            redisAsyncCommand(rc, 
+                [](redisAsyncContext *c, void *r, void *priv) {
+                    delete reinterpret_cast<LogStreamObject *>(priv);
+                }, 
+                ptrBufferEncoded,
+                "ZADD %s %llu %b", 
                 ptrBufferEncoded->logKey.c_str(),
                 ptrBufferEncoded->timeStamp, 
                 ptrBufferEncoded->encodedObject.data(), 
                 ptrBufferEncoded->encodedObject.size());
-            rCount++;
-            delete ptrBufferEncoded;
         }
-        while (rCount-- > 0)
-        {
-            redisGetReply(rc, (void **)&(reply));
-            freeReplyObject(reply);
-        }
+        event_base_loop(loggerEventLoop, EVLOOP_ONCE);
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+        auto dt = std::chrono::duration_cast<std::chrono::microseconds>((std::chrono::high_resolution_clock::now() - est)).count();
+        printf("reqs = %lld, elapsed = %lld, req per sec = %lf\n", dx, dt, double(dx) * 1000000.0f / double(dt));
+#endif
         l1.lock();
     }
+#ifdef JAMSCRIPT_SCHED_AI_EXP
+    printf("%d\n", nacc);
+#endif
 }
-
 void jamc::LogManager::StopLoggerMainLoop()
 {
+    event_base_loopbreak(loggerEventLoop);
     cvAsyncBuffer.notify_one();
 }
 
