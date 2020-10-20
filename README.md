@@ -146,13 +146,13 @@ Although there is std::invalid_argument, to appreciate Prof. Gunter Mussbacher g
 - free yourselves from gdb, cmake... commands
 - looks cool
 ### Build
-## Prereq
+#### Prereq
 - boost (>= 1.65, but preferred 1.73+)
 - paho-mqtt3a
 - hiredis
 - libevent
 - tcmalloc
-## Note
+#### Note
 - install CMake Tools, available from https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools
 - configure, and build all project using the top right buttons
 - supported compiler: Clang 6.0.0, Clang 9.0.0, Clang 11.0.0, GCC 9.3.0, GCC 10.1.0
