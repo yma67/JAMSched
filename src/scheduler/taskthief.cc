@@ -1,8 +1,6 @@
 #include "scheduler/taskthief.hpp"
 #include "scheduler/scheduler.hpp"
 #include <algorithm>
-#include <sys/time.h>
-#include <sys/resource.h>
 
 jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
     : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U) {}
@@ -141,13 +139,6 @@ void jamc::StealScheduler::SleepFor(TaskInterface* task, const Duration &dt, std
 void jamc::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<Mutex> &lk) 
 {
     return victim->SleepUntil(task, tp, lk);
-}
-
-void jamc::StealScheduler::PostCoreUsage()
-{
-    struct rusage Ru;
-    getrusage(RUSAGE_THREAD, &Ru);
-    upCPUTime.store(Ru.ru_utime.tv_usec + Ru.ru_stime.tv_usec);
 }
 
 void jamc::StealScheduler::RunSchedulerMainLoop()

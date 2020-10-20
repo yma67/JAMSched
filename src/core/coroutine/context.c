@@ -57,8 +57,8 @@ void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...)
 asm(".text                      \n\t"
     ".p2align 5                 \n\t"
 #ifdef __APPLE__
-    ".globl _swapcontext        \n\t"
-    "_swapcontext:              \n\t"
+    ".globl _SwapToContext      \n\t"
+    "_SwapToContext:            \n\t"
 #else
     ".globl SwapToContext       \n\t"
     "SwapToContext:             \n\t"

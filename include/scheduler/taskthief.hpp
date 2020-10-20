@@ -43,7 +43,6 @@ namespace jamc
 
     private:
 
-        void PostCoreUsage();
         std::atomic_uint64_t upCPUTime, sizeOfQueue;
         bool isRunning;
         RIBScheduler *victim;
