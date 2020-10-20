@@ -66,12 +66,12 @@ int main(int argc, char *argv[])
     if (argc != 2 || !is_number(std::string(argv[1]))) {
         return EXIT_FAILURE;
     }
-
+#ifndef __APPLE__
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(0, &cpuset);
     int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-
+#endif
     sched_param sch;
     int policy; 
     pthread_getschedparam(pthread_self(), &policy, &sch);

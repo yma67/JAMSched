@@ -11,6 +11,7 @@
 #include <cstring>
 #include <functional>
 #include <unordered_map>
+#include <condition_variable>
 #include <nlohmann/json.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/intrusive_ptr.hpp>

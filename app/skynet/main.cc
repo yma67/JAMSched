@@ -10,7 +10,7 @@ constexpr bool useImmediateExecutePolicy = true;
 jamc::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), 
                        stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 
-inline auto GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
+inline long GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
 {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::high_resolution_clock::now() - tp).count();
