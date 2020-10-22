@@ -701,12 +701,10 @@ END_COPYSTACK:
 
         bool Steal(SchedulerBase *scheduler) override
         {
-            // std::scoped_lock lk(mtxSteal);
             if (isStealable)
             {
                 this->scheduler = scheduler;
                 RefreshContext();
-                // isStealable = false;
                 return true;
             }
             return false;
@@ -792,7 +790,6 @@ END_COPYSTACK:
 
         bool Steal(SchedulerBase *scheduler) override
         {
-            // std::scoped_lock lk(mtxSteal);
             if (isStealable)
             {
                 this->scheduler = scheduler;

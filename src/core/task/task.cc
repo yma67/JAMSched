@@ -26,7 +26,6 @@ void jamc::TaskInterface::GarbageCollect()
 {
     if (prevTask != nullptr && thisTask != prevTask)
     {
-        // std::scoped_lock lk(prevTask->mtxSteal);
         prevTask->GetSchedulerValue()->EndTask(prevTask);
         prevTask = nullptr;
     }

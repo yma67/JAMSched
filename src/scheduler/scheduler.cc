@@ -432,7 +432,7 @@ bool jamc::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<declt
         {
             auto *pTop = &(*iEDFPriorityQueue.top());
             iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
-            if (!thiefs.empty() && pTop->isStealable)
+            if (!thiefs.empty() && pTop->isStealable && pTop->CanSteal())
             {
                 auto *pNextThief = GetMinThief();
                 if (pNextThief != nullptr)
