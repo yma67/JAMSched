@@ -261,7 +261,7 @@ namespace jamc
                     auto* ptrTaskCurrent = TaskInterface::Active();
                     if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
                     {
-                        pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->scheduler);
+                        pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->scheduler.load());
                     }
                     else if (pNextThief == nullptr || pNextThief->Size() > 0)
                     {
@@ -589,6 +589,8 @@ namespace jamc
         }
 
         RIBScheduler *GetRIBScheduler() override { return this; }
+        TaskInterface *GetNextTask() override;
+        void EndTask(TaskInterface *ptrCurrTask) override;
 
         using JAMDataKeyType = std::pair<std::string, std::string>;
 
@@ -626,10 +628,11 @@ namespace jamc
         std::thread tLogManger, tBroadcastManager;
         std::condition_variable cvReadyRTSchedule;
 
-        TimePoint currentTime, schedulerStartTime, cycleStartTime;
+        TimePoint currentTime, schedulerStartTime, cycleStartTime, taskStartTime;
 
         std::vector<std::unique_ptr<StealScheduler>> thiefs;
-        std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
+        std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy, currentSchedule;
+        std::size_t idxRealTimeTask;
 
         std::unordered_map<std::string, std::any> lexecFuncMap;
         std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
@@ -647,7 +650,6 @@ namespace jamc
         uint32_t GetThiefSizes();
         StealScheduler* GetMinThief();
         bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
-        
     };
 
     namespace ctask {

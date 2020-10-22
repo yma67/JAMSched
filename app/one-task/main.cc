@@ -44,17 +44,31 @@ public:
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override 
     {
-        for (auto task: tasks) {
-            task->SwapIn();
-            clock_gettime(CLOCK_MONOTONIC, &time1);
-            task->SwapIn();
+        auto x = GetNextTask();
+        clock_gettime(CLOCK_MONOTONIC, &time1);
+        if (x != nullptr) x->SwapFrom(nullptr);
+    }
+    jamc::TaskInterface *GetNextTask() override
+    {
+        if (idx < tasks.size()) 
+        {
+            return tasks[idx++];
         }
+        return nullptr;
+    }
+    void EndTask(jamc::TaskInterface *) override
+    {
+        
     }
     BenchSched(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSched() override { 
-        std::for_each(tasks.begin(), tasks.end(), [] (jamc::TaskInterface *t) { delete t; });
+        for (int i = 0; i < tasks.size(); i = i + 2)
+        {
+            delete tasks[i];
+        }
     }
     std::vector<jamc::TaskInterface *> tasks;
+    int idx = 0;
 };
 
 uint64_t glbCount = 0;
@@ -78,17 +92,18 @@ int main(int argc, char *argv[])
     sch.sched_priority = 50;
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch);
 
-    bSched.tasks.push_back(new jamc::StandAloneStackTask(&bSched, 1024 * 256, []() {
+    /*bSched.tasks.push_back(new jamc::StandAloneStackTask(&bSched, 1024 * 256, []() {
+        clock_gettime(CLOCK_MONOTONIC, &time1);
         jamc::ctask::Yield();
         clock_gettime(CLOCK_MONOTONIC, &time2);
         // std::cout << "1 task ctx switch time: " << diff(time1, time2).tv_nsec << " ns" << std::endl;
     }));
 
-    bSched.RunSchedulerMainLoop();
+    bSched.RunSchedulerMainLoop();*/
 
     // allocate 1M coroutines, and swap in/out FIFO order
     for (int i = 0; i < 1000000; i++) {
-        bMSched.tasks.push_back(new jamc::SharedCopyStackTask(&bSched, [argv]() {
+        auto fx = new jamc::SharedCopyStackTask(&bMSched, [argv]() {
             unsigned int stackSize = atoi(argv[1]);
             char arr[stackSize];
             int idx = rand() % stackSize;
@@ -97,11 +112,15 @@ int main(int argc, char *argv[])
             for (int i = 0; i < rand() % stackSize; i++) {
                 arr[i] = arr[rand() % stackSize] + rand() % 256;
             }
+            clock_gettime(CLOCK_MONOTONIC, &time1);
             jamc::ctask::Yield();
             clock_gettime(CLOCK_MONOTONIC, &time2);
             glbCount += diff(time1, time2).tv_nsec;
-        }));
+        });
+        bMSched.tasks.push_back(fx);
+        bMSched.tasks.push_back(fx);
     }
+    printf("%d\n", bMSched.tasks.size());
     bMSched.RunSchedulerMainLoop();
     std::cout << "Avg (1M): " << glbCount / 1000000 << "ns" << std::endl;
     nlohmann::json jx;

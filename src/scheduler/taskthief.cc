@@ -29,7 +29,7 @@ void jamc::StealScheduler::EnableImmediately(TaskInterface *toEnable)
     sizeOfQueue++;
     isReady.push_front(*toEnable);
     toEnable->status = TASK_READY;
-    cvQMutex.notify_one();
+    cvQMutex.notify_all();
 }
 
 
@@ -40,7 +40,7 @@ void jamc::StealScheduler::Enable(TaskInterface *toEnable)
     sizeOfQueue++;
     isReady.push_back(*toEnable);
     toEnable->status = TASK_READY;
-    cvQMutex.notify_one();
+    cvQMutex.notify_all();
 }
 
 size_t jamc::StealScheduler::StealFrom(StealScheduler *toSteal)
@@ -146,52 +146,62 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     srand(time(nullptr));
     while (toContinue)
     {
-        std::unique_lock lock(qMutex);
-        while (isReady.empty() && toContinue)
-        {
-            for (int retryStealCount = 0; retryStealCount < 2 && isReady.empty(); retryStealCount++)
-            {
-                lock.unlock();
-                // During time of Trigeminal Neuralgia...
-                size_t rStart = rand() % victim->thiefs.size();
-                for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
-                {
-                    auto* pVictim = victim->thiefs[(rStart - T_T + victim->thiefs.size()) % victim->thiefs.size()].get();
-                    if (pVictim != this && StealFrom(pVictim) > 0)
-                    {
-                        break;
-                    }
-                }
-                lock.lock();
-            }
-            if (!isReady.empty() || !toContinue)
-            {
-                break;
-            }
-            cvQMutex.wait(lock);
+        auto starter = GetNextTask();
+        if (starter != nullptr) {
+            starter->SwapFrom(nullptr);
+            TaskInterface::GarbageCollect();
         }
-        if (!toContinue) 
+    }
+    TaskInterface::ResetTaskInfos();
+}
+
+jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 
+{
+    std::unique_lock lock(qMutex);
+    while (isReady.empty() && toContinue)
+    {
+        for (int retryStealCount = 0; retryStealCount < 2 && isReady.empty(); retryStealCount++)
+        {
+            lock.unlock();
+            // During time of Trigeminal Neuralgia...
+            size_t rStart = rand() % victim->thiefs.size();
+            for (int T_T = 0; T_T < victim->thiefs.size(); T_T++) 
+            {
+                auto* pVictim = victim->thiefs[(rStart - T_T + victim->thiefs.size()) % victim->thiefs.size()].get();
+                if (pVictim != this && StealFrom(pVictim) > 0)
+                {
+                    break;
+                }
+            }
+            lock.lock();
+        }
+        if (!isReady.empty() || !toContinue)
         {
             break;
         }
-        while (!isReady.empty() && toContinue)
-        {
-            auto& pNext = isReady.front();
-            isReady.pop_front();
-            sizeOfQueue--;
-            pNext.isStealable = false;
-            pNext.status = TASK_RUNNING;
-            lock.unlock();
-            pNext.SwapIn();
-            lock.lock();
-            if (pNext.CanSteal()) 
-            {
-                pNext.isStealable = true;
-            }
-            if (pNext.status == TASK_FINISHED)
-            {
-                delete &(pNext);
-            }
-        }
+        cvQMutex.wait(lock);
+    }
+    if (!toContinue) 
+    {
+        return nullptr;
+    }
+    auto& pNext = isReady.front();
+    isReady.pop_front();
+    sizeOfQueue--;
+    pNext.isStealable = false;
+    pNext.status = TASK_RUNNING;
+    return &pNext;
+}
+
+void jamc::StealScheduler::EndTask(TaskInterface *ptrCurrTask) 
+{
+    // std::unique_lock lock(qMutex);
+    if (ptrCurrTask->CanSteal()) 
+    {
+        ptrCurrTask->isStealable = true;
+    }
+    if (ptrCurrTask->status == TASK_FINISHED)
+    {
+        delete ptrCurrTask;
     }
 }

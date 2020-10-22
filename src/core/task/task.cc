@@ -14,11 +14,27 @@ jamc::TaskInterface::~TaskInterface() {}
 
 void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {
+    GarbageCollect();
     TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
     task->Execute();
     task->status = TASK_FINISHED;
     task->notifier->Notify();
     task->SwapOut();
+}
+
+void jamc::TaskInterface::GarbageCollect()
+{
+    if (prevTask != nullptr && thisTask != prevTask)
+    {
+        // std::scoped_lock lk(prevTask->mtxSteal);
+        prevTask->GetSchedulerValue()->EndTask(prevTask);
+        prevTask = nullptr;
+    }
+}
+
+void jamc::TaskInterface::ResetTaskInfos()
+{
+    prevTask = thisTask = nullptr;
 }
 
 jamc::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
@@ -115,7 +131,7 @@ auto jamc::ctask::ProduceOneToLoggingStream(const std::string &nameSpace, const 
     return TaskInterface::Active()->GetRIBScheduler()->ProduceOneToLoggingStream(nameSpace, variableName, value);
 }
 
-thread_local jamc::TaskInterface *jamc::TaskInterface::thisTask = nullptr;
+thread_local jamc::TaskInterface *jamc::TaskInterface::thisTask = nullptr, *jamc::TaskInterface::prevTask = nullptr;
 
 jamc::TaskInterface *jamc::TaskInterface::Active()
 {
@@ -124,30 +140,37 @@ jamc::TaskInterface *jamc::TaskInterface::Active()
 
 void jamc::ctask::Yield()
 {
-    auto thisTask = TaskInterface::Active();
-    if (thisTask != nullptr && thisTask->status != TASK_FINISHED) 
+    auto thisTaskK = TaskInterface::Active();
+    if (thisTaskK != nullptr && thisTaskK->status != TASK_FINISHED) 
     {
-        thisTask->Enable();
-        thisTask->SwapOut();
+        thisTaskK->Enable();
+        thisTaskK->SwapOut();
     }
 }
 
 void jamc::ctask::Exit()
 {
-    auto* thisTask = TaskInterface::Active();
-    thisTask->status = TASK_FINISHED;
-    thisTask->notifier->Notify();
-    thisTask->SwapOut();
+    auto* thisTaskK = TaskInterface::Active();
+    thisTaskK->status = TASK_FINISHED;
+    thisTaskK->notifier->Notify();
+    thisTaskK->SwapOut();
 }
 
 jamc::Duration jamc::ctask::GetTimeElapsedCycle()
 {
-    return Clock::now() - TaskInterface::Active()->scheduler->GetCycleStartTime();
+    return Clock::now() - TaskInterface::Active()->GetSchedulerValue()->GetCycleStartTime();
 }
         
 jamc::Duration jamc::ctask::GetTimeElapsedScheduler()
 {
-    return Clock::now() - TaskInterface::Active()->scheduler->GetSchedulerStartTime();
+    return Clock::now() - TaskInterface::Active()->GetSchedulerValue()->GetSchedulerStartTime();
+}
+
+void jamc::TaskInterface::SwapOut()
+{
+    prevTask = this;
+    SwapTo(GetSchedulerValue()->GetNextTask());
+    GarbageCollect();
 }
 
 bool jamc::operator<(const TaskInterface &a, const TaskInterface &b) noexcept

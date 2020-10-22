@@ -42,11 +42,9 @@ void CreateContext(JAMScriptUserContext *ucp, void (*func)(void), int argc, ...)
     if (argc != 2)
         __builtin_trap();
     va_start(va, argc);
-    ucp->registers[14] = va_arg(va, int);
-    ucp->registers[15] = va_arg(va, int);
+    ucp->registers[8] = va_arg(va, int);
+    ucp->registers[9] = va_arg(va, int);
     va_end(va);
-    asm("fnstcw     0x40(%rdi)      \n\t"
-        "stmxcsr    0x44(%rdi)      \n\t");
     uintptr_t u_p =
         (uintptr_t)(ucp->uc_stack.ss_size - (sizeof(void *) << 1) + (uintptr_t)ucp->uc_stack.ss_sp);
     u_p = (u_p >> 4) << 4;
@@ -73,10 +71,8 @@ asm(".text                      \n\t"
     "movq       %rcx, 0x28(%rdi)\n\t"
     "movq       %rbx, 0x30(%rdi)\n\t"
     "movq       %rbp, 0x38(%rdi)\n\t"
-    "movq       %rdi, 0x70(%rdi)\n\t"
-    "movq       %rsi, 0x78(%rdi)\n\t"
-    "fnstcw     0x40(%rdi)      \n\t"
-    "stmxcsr    0x44(%rdi)      \n\t"
+    "movq       %rdi, 0x40(%rdi)\n\t"
+    "movq       %rsi, 0x48(%rdi)\n\t"
     "movq       0x0(%rsi),  %r12\n\t"
     "movq       0x8(%rsi),  %r13\n\t"
     "movq       0x10(%rsi), %r14\n\t"
@@ -85,10 +81,8 @@ asm(".text                      \n\t"
     "movq       0x28(%rsi), %rcx\n\t"
     "movq       0x30(%rsi), %rbx\n\t"
     "movq       0x38(%rsi), %rbp\n\t"
-    "fldcw      0x40(%rsi)      \n\t"
-    "ldmxcsr    0x44(%rsi)      \n\t"
-    "movq       0x70(%rsi), %rdi\n\t"
-    "movq       0x78(%rsi), %rsi\n\t"
+    "movq       0x40(%rsi), %rdi\n\t"
+    "movq       0x48(%rsi), %rsi\n\t"
     "movq       %rcx, %rsp      \n\t"
     "jmp        *%rax           \n\t");
 #elif defined(__aarch64__)

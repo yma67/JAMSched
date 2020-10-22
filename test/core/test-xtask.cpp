@@ -31,6 +31,8 @@ public:
                 reinterpret_cast<jamc::SchedulerBase *>(this), naive_fact, rand() % 1000));
             freeList.push_back(newTask);
             coro_count++;
+            if (coro_count >= 300)
+                return nullptr;
             return newTask;
         }
         catch (...)
@@ -46,23 +48,10 @@ public:
             try
             {
                 auto nextTask = NextTask();
-#if 1
                 if (nextTask != nullptr)
                 {
-                    nextTask->SwapIn();
+                    nextTask->SwapFrom(nullptr);
                 }
-                if (coro_count >= 300)
-                    ShutDown();
-#else
-                if (nextTask != nullptr)
-                {
-                    nextTask->SwapIn();
-                }
-                else
-                {
-                    ShutDown();
-                }
-#endif
             }
             catch (...)
             {

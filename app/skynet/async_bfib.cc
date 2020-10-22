@@ -27,6 +27,9 @@
 
 #include "barrier.hpp"
 
+#include <unistd.h>
+#include <sys/wait.h>
+
 using clock_type = std::chrono::steady_clock;
 using duration_type = clock_type::duration;
 using time_point_type = clock_type::time_point;
@@ -67,42 +70,50 @@ void thread( std::uint32_t thread_count) {
     BOOST_ASSERT( done);
 }
 
-int main() {
-    try {
-        // count of logical cpus
-        std::uint32_t thread_count = std::thread::hardware_concurrency();
-        std::size_t size{ 1000000 };
-        std::size_t div{ 10 };
-        allocator_type salloc{ 2*allocator_type::traits_type::page_size() };
-        std::uint64_t result{ 0 };
-        channel_type rc{ 2 };
-        std::vector< std::thread > threads;
-        for ( std::uint32_t i = 1 /* count main-thread */; i < thread_count; ++i) {
-            // spawn thread
-            threads.emplace_back( thread, thread_count);
+int main(int argc, char* argv[]) {
+    for (int xtry = 0; xtry < 5; xtry++)
+    {
+        auto pid = fork();
+        if (pid == 0)
+        {
+            try {
+                // count of logical cpus
+                std::uint32_t thread_count = std::atoi(argv[1]);
+                std::size_t size{ 1000000 };
+                std::size_t div{ 10 };
+                allocator_type salloc{ 2*allocator_type::traits_type::page_size() };
+                std::uint64_t result{ 0 };
+                channel_type rc{ 2 };
+                std::vector< std::thread > threads;
+                for ( std::uint32_t i = 1 /* count main-thread */; i < thread_count; ++i) {
+                    // spawn thread
+                    threads.emplace_back( thread, thread_count);
+                }
+                // main-thread registers itself at work-stealing scheduler
+                boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >( thread_count);
+                time_point_type start{ clock_type::now() };
+                skynet( salloc, rc, 0, size, div);
+                result = rc.value_pop();
+                if ( 499999500000 != result) {
+                    throw std::runtime_error("invalid result");
+                }
+                auto duration = clock_type::now() - start;
+                lock_type lk( mtx);
+                done = true;
+                lk.unlock();
+                cnd.notify_all();
+                for ( std::thread & t : threads) {
+                    t.join();
+                }
+                std::cout << "duration: " << duration.count() / 1000000 << " ms" << std::endl;
+            } catch ( std::exception const& e) {
+                std::cerr << "exception: " << e.what() << std::endl;
+            } catch (...) {
+                std::cerr << "unhandled exception" << std::endl;
+            }
+            exit(0);
         }
-        // main-thread registers itself at work-stealing scheduler
-        boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >( thread_count);
-        time_point_type start{ clock_type::now() };
-        skynet( salloc, rc, 0, size, div);
-        result = rc.value_pop();
-        if ( 499999500000 != result) {
-            throw std::runtime_error("invalid result");
-        }
-        auto duration = clock_type::now() - start;
-        lock_type lk( mtx);
-        done = true;
-        lk.unlock();
-        cnd.notify_all();
-        for ( std::thread & t : threads) {
-            t.join();
-        }
-        std::cout << "duration: " << duration.count() / 1000000 << " ms" << std::endl;
-        return EXIT_SUCCESS;
-    } catch ( std::exception const& e) {
-        std::cerr << "exception: " << e.what() << std::endl;
-    } catch (...) {
-        std::cerr << "unhandled exception" << std::endl;
+        wait(nullptr);
     }
-	return EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }

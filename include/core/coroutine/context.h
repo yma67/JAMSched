@@ -17,7 +17,7 @@ extern "C"
     struct JAMScriptUContext
     {
 #if defined(__x86_64__)
-        uintptr_t registers[16];
+        uintptr_t registers[10];
 #elif defined(__aarch64__)
     uintptr_t registers[25];
 #elif defined(__arm__)

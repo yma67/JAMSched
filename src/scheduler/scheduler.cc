@@ -13,7 +13,7 @@
 #endif
 
 jamc::RIBScheduler::RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs)
-    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)),
+    : SchedulerBase(sharedStackSize), timer(this), vClockI(std::chrono::nanoseconds(0)), idxRealTimeTask(0), 
       decider(this), cThief(0), vClockB(std::chrono::nanoseconds(0)), logManager(nullptr), broadcastManger(nullptr),
       numberOfPeriods(0), rtRegisterTable(JAMStorageTypes::RealTimeIdMultiMapType::bucket_traits(bucket, RT_MMAP_BUCKET_SIZE))
 {
@@ -218,116 +218,6 @@ void jamc::RIBScheduler::ProduceOneToLoggingStream(const std::string &nameSpace,
     }
 }
 
-bool jamc::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock) {
-    if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
-    {
-        return false;
-    }
-    else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
-    {
-        goto DECISION_BATCH;
-    }
-    else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty()))
-    {
-        goto DECISION_INTERACTIVE;
-    }
-    else
-    {
-        if (vClockB > vClockI)
-            goto DECISION_INTERACTIVE;
-        else
-            goto DECISION_BATCH;
-    }
-    DECISION_BATCH:
-    {
-        if (bQueue.empty())
-        {
-            goto END_LOOP;
-        }
-        auto currentBatchIter = bQueue.begin();
-        auto *cBatchPtr = &(*currentBatchIter);
-        bQueue.erase(currentBatchIter);
-        lock.unlock();
-        auto tStart = Clock::now();
-        cBatchPtr->SwapIn();
-        lock.lock();
-        vClockB += Clock::now() - tStart;
-        if (cBatchPtr->status == TASK_FINISHED)
-        {
-            delete cBatchPtr;
-        }
-        goto END_LOOP;
-    }
-    DECISION_INTERACTIVE:
-    {
-        while (!iEDFPriorityQueue.empty() && iEDFPriorityQueue.top()->deadline -
-                                                        iEDFPriorityQueue.top()->burst +
-                                                        schedulerStartTime <
-                                                        currentTime)
-        {
-            auto *pTop = &(*iEDFPriorityQueue.top());
-            iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
-            if (!thiefs.empty() && pTop->isStealable)
-            {
-                auto *pNextThief = GetMinThief();
-                if (pNextThief != nullptr)
-                {
-                    pTop->Steal(pNextThief);
-                    pNextThief->EnableImmediately(pTop);
-                }
-            }
-            else
-            {
-                iCancelStack.push_front(*pTop);
-            }
-        }
-        while (iCancelStack.size() > 3)
-        {
-            auto *pItEdf = &(iCancelStack.back());
-            iCancelStack.pop_back();
-            pItEdf->onCancel();
-            pItEdf->notifier->Notify();
-            delete pItEdf;
-        }
-        if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
-        {
-            auto currentInteractiveIter = iCancelStack.begin();
-            auto *cIPtr = &(*currentInteractiveIter);
-            iCancelStack.erase(currentInteractiveIter);
-            lock.unlock();
-            auto tStart = Clock::now();
-            cIPtr->SwapIn();
-            lock.lock();
-            auto tDelta = Clock::now() - tStart;
-            vClockI += tDelta;
-            cIPtr->burst -= tDelta;
-            if (cIPtr->status == TASK_FINISHED)
-            {
-                delete cIPtr;
-            }
-        }
-        else if (!iEDFPriorityQueue.empty())
-        {
-            auto currentInteractiveIter = iEDFPriorityQueue.top();
-            iEDFPriorityQueue.erase(currentInteractiveIter);
-            auto *cInteracPtr = &(*currentInteractiveIter);
-            lock.unlock();
-            auto tStart = Clock::now();
-            cInteracPtr->SwapIn();
-            lock.lock();
-            auto tDelta = Clock::now() - tStart;
-            vClockI += tDelta;
-            cInteracPtr->burst -= tDelta;
-            if (cInteracPtr->status == TASK_FINISHED)
-            {
-                delete cInteracPtr;
-            }
-        }
-        goto END_LOOP;
-    }
-    END_LOOP: return true;
-}
-
 void jamc::RIBScheduler::RunSchedulerMainLoop()
 {
     schedulerStartTime = Clock::now();
@@ -405,11 +295,12 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
                     auto currentRTIter = rtRegisterTable.find(rtItem.taskId);
                     lockRT.unlock();
                     eStats.jitters.push_back((currentTime - cycleStartTime) - rtItem.sTime);
-                    currentRTIter->SwapIn();
+                    TaskInterface::prevTask = nullptr;
+                    currentRTIter->SwapFrom(nullptr);
                     lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
+                    if (rtItem.eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                     {
                         cvQMutex.wait_until(
                             lockRT,
@@ -426,7 +317,8 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
                 else
                 {
                     lockRT.unlock();
-                    while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime)
+                    while (toContinue && Clock::now() - cycleStartTime <= 
+                           rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                     {
                         currentTime = Clock::now();
                         std::unique_lock lockIBTask(qMutex);
@@ -451,6 +343,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
             }
         }
         numberOfPeriods++;
+#define JAMSCRIPT_SCHED_AI_EXP 1
 #ifdef JAMSCRIPT_SCHED_AI_EXP
         if (!eStats.jitters.empty())
         {
@@ -467,6 +360,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
         }
 #endif
     }
+    TaskInterface::ResetTaskInfos();
     for (int i = 0; i < thiefs.size(); i++) 
     {
         thiefs[i]->StopSchedulerMainLoop();
@@ -485,4 +379,128 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
         remoteCheckers[0].join();
     }
     tTimer.join();
+}
+
+bool jamc::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock) 
+{
+    if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+    {
+        return false;
+    }
+    else if (!bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
+    {
+        goto DECISION_BATCH;
+    }
+    else if (bQueue.empty() && (!iEDFPriorityQueue.empty() || !iCancelStack.empty()))
+    {
+        goto DECISION_INTERACTIVE;
+    }
+    else
+    {
+        if (vClockB > vClockI)
+            goto DECISION_INTERACTIVE;
+        else
+            goto DECISION_BATCH;
+    }
+    DECISION_BATCH:
+    {
+        if (bQueue.empty())
+        {
+            goto END_LOOP;
+        }
+        auto currentBatchIter = bQueue.begin();
+        auto *cBatchPtr = &(*currentBatchIter);
+        bQueue.erase(currentBatchIter);
+        lock.unlock();
+        auto tStart = Clock::now();
+        TaskInterface::prevTask = nullptr;
+        cBatchPtr->SwapFrom(nullptr);
+        lock.lock();
+        vClockB += Clock::now() - tStart;
+        if (cBatchPtr->status == TASK_FINISHED)
+        {
+            delete cBatchPtr;
+        }
+        goto END_LOOP;
+    }
+    DECISION_INTERACTIVE:
+    {
+        while (!iEDFPriorityQueue.empty() && iEDFPriorityQueue.top()->deadline -
+                                                        iEDFPriorityQueue.top()->burst +
+                                                        schedulerStartTime <
+                                                        currentTime)
+        {
+            auto *pTop = &(*iEDFPriorityQueue.top());
+            iEDFPriorityQueue.erase(iEDFPriorityQueue.top());
+            if (!thiefs.empty() && pTop->isStealable)
+            {
+                auto *pNextThief = GetMinThief();
+                if (pNextThief != nullptr)
+                {
+                    pTop->Steal(pNextThief);
+                    pNextThief->EnableImmediately(pTop);
+                }
+            }
+            else
+            {
+                iCancelStack.push_front(*pTop);
+            }
+        }
+        while (iCancelStack.size() > 3)
+        {
+            auto *pItEdf = &(iCancelStack.back());
+            iCancelStack.pop_back();
+            pItEdf->onCancel();
+            pItEdf->notifier->Notify();
+            delete pItEdf;
+        }
+        if (iEDFPriorityQueue.empty() && !iCancelStack.empty())
+        {
+            auto currentInteractiveIter = iCancelStack.begin();
+            auto *cIPtr = &(*currentInteractiveIter);
+            iCancelStack.erase(currentInteractiveIter);
+            lock.unlock();
+            auto tStart = Clock::now();
+            TaskInterface::prevTask = nullptr;
+            cIPtr->SwapFrom(nullptr);
+            lock.lock();
+            auto tDelta = Clock::now() - tStart;
+            vClockI += tDelta;
+            cIPtr->burst -= tDelta;
+            if (cIPtr->status == TASK_FINISHED)
+            {
+                delete cIPtr;
+            }
+        }
+        else if (!iEDFPriorityQueue.empty())
+        {
+            auto currentInteractiveIter = iEDFPriorityQueue.top();
+            iEDFPriorityQueue.erase(currentInteractiveIter);
+            auto *cInteracPtr = &(*currentInteractiveIter);
+            lock.unlock();
+            auto tStart = Clock::now();
+            TaskInterface::prevTask = nullptr;
+            cInteracPtr->SwapFrom(nullptr);
+            lock.lock();
+            auto tDelta = Clock::now() - tStart;
+            vClockI += tDelta;
+            cInteracPtr->burst -= tDelta;
+            if (cInteracPtr->status == TASK_FINISHED)
+            {
+                delete cInteracPtr;
+            }
+        }
+        goto END_LOOP;
+    }
+    END_LOOP: return true;
+}
+
+jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
+{
+    return nullptr;
+}
+
+void jamc::RIBScheduler::EndTask(TaskInterface *ptrCurrTask)
+{
+
 }
