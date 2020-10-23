@@ -57,7 +57,7 @@ void jamc::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::
     {
         return;
     }
-    std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
+    std::unique_lock lScheduleReady(sReadyRTSchedule);
     rtScheduleNormal = std::move(normal);
     rtScheduleGreedy = std::move(greedy);
     decider.NotifyChangeOfSchedule(rtScheduleNormal, rtScheduleGreedy);
@@ -124,19 +124,12 @@ void jamc::RIBScheduler::ShutDown()
 
 void jamc::RIBScheduler::Enable(TaskInterface *toEnable)
 {
+    BOOST_ASSERT_MSG(toEnable != nullptr, "Should not duplicate ready stack");
     std::lock_guard lock(qMutex);
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
-        if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
-        {
-            BOOST_ASSERT_MSG(!toEnable->riStackHook.is_linked(), "Should not duplicate ready stack");
-            iCancelStack.push_front(*toEnable);
-        }
-        else
-        {
-            BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
-            iEDFPriorityQueue.insert(*toEnable);
-        }
+        BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
+        iEDFPriorityQueue.insert(*toEnable);
     }
     if (toEnable->taskType == BATCH_TASK_T)
     {
@@ -149,19 +142,12 @@ void jamc::RIBScheduler::Enable(TaskInterface *toEnable)
 
 void jamc::RIBScheduler::EnableImmediately(TaskInterface *toEnable)
 {
+    BOOST_ASSERT_MSG(toEnable != nullptr, "Should not duplicate ready stack");
     std::lock_guard lock(qMutex);
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
-        if (toEnable->deadline - toEnable->burst + schedulerStartTime > Clock::now())
-        {
-            BOOST_ASSERT_MSG(!toEnable->riStackHook.is_linked(), "Should not duplicate ready stack");
-            iCancelStack.push_front(*toEnable);
-        }
-        else
-        {
-            BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
-            iEDFPriorityQueue.insert(*toEnable);
-        }
+        BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
+        iEDFPriorityQueue.insert(*toEnable);
     }
     if (toEnable->taskType == BATCH_TASK_T)
     {
@@ -250,7 +236,6 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
         if (starter != nullptr) 
         {
             starter->SwapFrom(nullptr);
-
             TaskInterface::GarbageCollect();
             TaskInterface::ResetTaskInfos();
         }
@@ -407,6 +392,7 @@ jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
                     auto ceTime = currentSchedule[idxRealTimeTask].eTime;
                     lockRT.unlock();
                     while (Clock::now() - cycleStartTime < ceTime);
+                    idxRealTimeTask++;
                     break;
                 }
                 case (TaskType::INTERACTIVE_TASK_T): 
@@ -536,22 +522,25 @@ jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
 
 void jamc::RIBScheduler::EndTask(TaskInterface *ptrCurrTask)
 {
-    switch (ptrCurrTask->taskType)
+    if (ptrCurrTask != nullptr)
     {
-        case (TaskType::REAL_TIME_TASK_T): 
+        switch (ptrCurrTask->taskType)
         {
-            delete ptrCurrTask;
-            break;
-        }
-        case (TaskType::BATCH_TASK_T): 
-        case (TaskType::INTERACTIVE_TASK_T): 
-        {
-            if (ptrCurrTask->status == TASK_FINISHED)
+            case (TaskType::REAL_TIME_TASK_T): 
             {
                 delete ptrCurrTask;
+                break;
             }
-            break;
+            case (TaskType::BATCH_TASK_T): 
+            case (TaskType::INTERACTIVE_TASK_T): 
+            {
+                if (ptrCurrTask->status == TASK_FINISHED)
+                {
+                    delete ptrCurrTask;
+                }
+                break;
+            }
+            default: break;
         }
-        default: break;
     }
 }

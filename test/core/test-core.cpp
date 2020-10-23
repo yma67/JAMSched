@@ -55,6 +55,7 @@ public:
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override
     {
+        jamc::TaskInterface::ResetTaskInfos();
         onlyTask->SwapFrom(nullptr);
     }
     jamc::TaskInterface *GetNextTask() override

@@ -161,9 +161,12 @@ void jamc::ctask::Yield()
 void jamc::ctask::Exit()
 {
     auto* thisTaskK = TaskInterface::Active();
-    thisTaskK->status = TASK_FINISHED;
-    thisTaskK->notifier->Notify();
-    thisTaskK->SwapOut();
+    if (thisTaskK != nullptr)
+    {
+        thisTaskK->status = TASK_FINISHED;
+        thisTaskK->notifier->Notify();
+        thisTaskK->SwapOut();
+    }
 }
 
 jamc::Duration jamc::ctask::GetTimeElapsedCycle()

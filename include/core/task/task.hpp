@@ -510,6 +510,8 @@ namespace jamc
 
         const TaskType GetTaskType() const { return taskType; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
+        static void GarbageCollect();
+        static void ResetTaskInfos();
 
         std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         std::unordered_map<JTLSLocation, std::any> *GetTaskLocalStoragePool();
@@ -528,8 +530,6 @@ namespace jamc
 
         static TaskInterface* Active();
         static thread_local TaskInterface *thisTask, *prevTask;
-        static void GarbageCollect();
-        static void ResetTaskInfos();
 
         SchedulerBase *GetSchedulerValue() { return scheduler.load(); }
 
@@ -639,10 +639,6 @@ namespace jamc
 
         void SwapTo(TaskInterface *tNext) override
         {
-            if (tNext == this) 
-            {
-                return;
-            }
             auto tScheduler = GetSchedulerValue();
             void *tos = nullptr;
 #ifdef __x86_64__
