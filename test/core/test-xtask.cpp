@@ -41,7 +41,7 @@ public:
                 if (coro_count >= 300) break;
                 if (newTask != nullptr)
                 {
-                    nextTask->SwapFrom(nullptr);
+                    newTask->SwapFrom(nullptr);
                 }
                 else
                 {
