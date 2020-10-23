@@ -55,18 +55,14 @@ public:
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override
     {
-        GetNextTask()->SwapFrom(nullptr);
+        onlyTask->SwapFrom(nullptr);
     }
     jamc::TaskInterface *GetNextTask() override
     {
-        auto v = onlyTask;
-        onlyTask = nullptr;
-        return v;
+        onlyTask->SwapTo(nullptr);
+        return nullptr;
     }
-    void EndTask(jamc::TaskInterface *) override
-    {
-        
-    }
+    void EndTask(jamc::TaskInterface *tx) override {}
     BenchSched(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSched() { if (onlyTask != nullptr) delete onlyTask; }
     jamc::TaskInterface *onlyTask = nullptr;

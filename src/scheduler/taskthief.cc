@@ -144,15 +144,16 @@ void jamc::StealScheduler::SleepUntil(TaskInterface* task, const TimePoint &tp, 
 void jamc::StealScheduler::RunSchedulerMainLoop()
 {
     srand(time(nullptr));
+    TaskInterface::ResetTaskInfos();
     while (toContinue)
     {
         auto starter = GetNextTask();
         if (starter != nullptr) {
             starter->SwapFrom(nullptr);
             TaskInterface::GarbageCollect();
+            TaskInterface::ResetTaskInfos();
         }
     }
-    TaskInterface::ResetTaskInfos();
 }
 
 jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 
@@ -195,7 +196,6 @@ jamc::TaskInterface *jamc::StealScheduler::GetNextTask()
 
 void jamc::StealScheduler::EndTask(TaskInterface *ptrCurrTask) 
 {
-    // std::unique_lock lock(qMutex);
     if (ptrCurrTask->CanSteal()) 
     {
         ptrCurrTask->isStealable = true;

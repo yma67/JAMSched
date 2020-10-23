@@ -649,7 +649,7 @@ namespace jamc
         void ShutDownRunOnce();
         uint32_t GetThiefSizes();
         StealScheduler* GetMinThief();
-        bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
+        TaskInterface *GetAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
     };
 
     namespace ctask {

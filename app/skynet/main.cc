@@ -7,7 +7,7 @@ constexpr std::size_t kNumberOfChild = 10;
 constexpr bool kWaitInGroup = true;
 constexpr bool useImmediateExecutePolicy = true;
 
-jamc::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), 
+jamc::StackTraits stCommon(false, 4096 * 2, true, useImmediateExecutePolicy), 
                        stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 
 inline long GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 {
     long totalNS = 0, totalFutureNS = 0;
     std::printf("Channel + WaitGroup Version\n");
-    for (int i = 0; i < 10; i++)
+    /*for (int i = 0; i < 10; i++)
     {
         jamc::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
@@ -122,10 +122,10 @@ int main(int argc, char *argv[])
             ribScheduler.ShutDown();
         });
         ribScheduler.RunSchedulerMainLoop();
-    }
+    }*/
     std::printf("avg over 10 = %ld ms\n", totalNS / 10000000);
     std::printf("Future Version\n");
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 20; i++)
     {
         jamc::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},

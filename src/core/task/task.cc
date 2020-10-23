@@ -16,6 +16,7 @@ void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {
     GarbageCollect();
     TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
+    thisTask = task;
     task->Execute();
     task->status = TASK_FINISHED;
     task->notifier->Notify();
@@ -24,16 +25,26 @@ void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 
 void jamc::TaskInterface::GarbageCollect()
 {
-    if (prevTask != nullptr && thisTask != prevTask)
+    if (thisTask != nullptr)
     {
-        prevTask->GetSchedulerValue()->EndTask(prevTask);
-        prevTask = nullptr;
+       thisTask->GetSchedulerValue()->EndTask(thisTask);
     }
 }
 
 void jamc::TaskInterface::ResetTaskInfos()
 {
     prevTask = thisTask = nullptr;
+}
+
+void jamc::TaskInterface::SwapOut()
+{
+    auto nextTask = GetSchedulerValue()->GetNextTask();
+    if (nextTask != this)
+    {
+        SwapTo(nextTask);
+        GarbageCollect();
+        thisTask = this;
+    }
 }
 
 jamc::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
@@ -163,13 +174,6 @@ jamc::Duration jamc::ctask::GetTimeElapsedCycle()
 jamc::Duration jamc::ctask::GetTimeElapsedScheduler()
 {
     return Clock::now() - TaskInterface::Active()->GetSchedulerValue()->GetSchedulerStartTime();
-}
-
-void jamc::TaskInterface::SwapOut()
-{
-    prevTask = this;
-    SwapTo(GetSchedulerValue()->GetNextTask());
-    GarbageCollect();
 }
 
 bool jamc::operator<(const TaskInterface &a, const TaskInterface &b) noexcept

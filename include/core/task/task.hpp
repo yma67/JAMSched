@@ -627,8 +627,6 @@ namespace jamc
         {
             auto tScheduler = GetSchedulerValue();
             memcpy(tScheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
-            TaskInterface::thisTask = this;
-            tScheduler->taskRunning = this;
             if (tNext != nullptr && tNext != this)
             {
                 SwapToContext(&(tNext->uContext), &uContext);
@@ -678,8 +676,6 @@ namespace jamc
                         // TODO: Exit task
                         status = TASK_FINISHED;
                         tScheduler->ShutDown();
-                        TaskInterface::thisTask = nullptr;
-                        tScheduler->taskRunning = nullptr;
                         SwapToContext(&uContext, &tScheduler->schedulerContext);
                     }
                 }
@@ -687,8 +683,6 @@ namespace jamc
 END_COPYSTACK:
                 if (tNext == nullptr)
                 {
-                    TaskInterface::thisTask = tNext;
-                    tScheduler->taskRunning = tNext;
                     SwapToContext(&uContext, &tScheduler->schedulerContext);
                 }
                 else
@@ -759,9 +753,7 @@ END_COPYSTACK:
 
         void SwapFrom(TaskInterface *tNext) override
         {
-            TaskInterface::thisTask = this;
             auto tScheduler = GetSchedulerValue();
-            tScheduler->taskRunning = this;
             if (tNext != nullptr && tNext != this)
             {
                 SwapToContext(&(tNext->uContext), &uContext);
@@ -778,8 +770,6 @@ END_COPYSTACK:
             else if (tNext == nullptr)
             {
                 auto tScheduler = GetSchedulerValue();
-                TaskInterface::thisTask = tNext;
-                tScheduler->taskRunning = tNext;
                 SwapToContext(&uContext, &tScheduler->schedulerContext);
             }
             else
