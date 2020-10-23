@@ -23,7 +23,7 @@ public:
     std::vector<jamc::TaskInterface *> freeList;
     void Enable(jamc::TaskInterface *toEnable) override {}
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
-    jamc::TaskInterface *NextTask()
+    jamc::TaskInterface *GetNextTask() override
     {
         try
         {
@@ -47,7 +47,7 @@ public:
         {
             try
             {
-                auto nextTask = NextTask();
+                auto nextTask = GetNextTask();
                 if (nextTask != nullptr)
                 {
                     nextTask->SwapFrom(nullptr);
@@ -59,6 +59,7 @@ public:
             }
         }
     }
+    void EndTask(jamc::TaskInterface *ptrCurrTask) override {}
     // jamc::JAMStorageTypes::BatchQueueType freeList;
     BenchSchedXS(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSchedXS()
