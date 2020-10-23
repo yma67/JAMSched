@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 {
     long totalNS = 0, totalFutureNS = 0;
     std::printf("Channel + WaitGroup Version\n");
-    /*for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++)
     {
         jamc::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
@@ -122,10 +122,10 @@ int main(int argc, char *argv[])
             ribScheduler.ShutDown();
         });
         ribScheduler.RunSchedulerMainLoop();
-    }*/
+    }
     std::printf("avg over 10 = %ld ms\n", totalNS / 10000000);
     std::printf("Future Version\n");
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 10; i++)
     {
         jamc::RIBScheduler ribScheduler(1024 * 256);
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},

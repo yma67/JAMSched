@@ -500,7 +500,6 @@ jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
             idxRealTimeTask = 0;
             cycleStartTime = Clock::now();
         }
-#define JAMSCRIPT_SCHED_AI_EXP 1
 #ifdef JAMSCRIPT_SCHED_AI_EXP
         if (!eStats.jitters.empty())
         {
