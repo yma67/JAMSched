@@ -25,42 +25,37 @@ public:
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     jamc::TaskInterface *GetNextTask() override
     {
-        try
-        {
-            auto *newTask = (new jamc::SharedCopyStackTask(
-                reinterpret_cast<jamc::SchedulerBase *>(this), naive_fact, rand() % 1000));
-            freeList.push_back(newTask);
-            coro_count++;
-            if (coro_count >= 300)
-                return nullptr;
-            return newTask;
-        }
-        catch (...)
-        {
-            ShutDown();
-            return nullptr;
-        }
+        return nullptr;
     }
     void RunSchedulerMainLoop() override
     {
+        jamc::TaskInterface::ResetTaskInfos();
         while (toContinue)
         {
             try
             {
-                auto nextTask = GetNextTask();
-                if (nextTask != nullptr)
+                auto *newTask = (new jamc::SharedCopyStackTask(
+                reinterpret_cast<jamc::SchedulerBase *>(this), naive_fact, rand() % 1000));
+                freeList.push_back(newTask);
+                coro_count++;
+                if (coro_count >= 300) break;
+                if (newTask != nullptr)
                 {
                     nextTask->SwapFrom(nullptr);
+                }
+                else
+                {
+                    break;
                 }
             }
             catch (...)
             {
                 ShutDown();
+                break;
             }
         }
     }
     void EndTask(jamc::TaskInterface *ptrCurrTask) override {}
-    // jamc::JAMStorageTypes::BatchQueueType freeList;
     BenchSchedXS(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSchedXS()
     {
