@@ -57,7 +57,7 @@ void jamc::RIBScheduler::SetSchedule(std::vector<RealTimeSchedule> normal, std::
     {
         return;
     }
-    std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
+    std::unique_lock lScheduleReady(sReadyRTSchedule);
     rtScheduleNormal = std::move(normal);
     rtScheduleGreedy = std::move(greedy);
     decider.NotifyChangeOfSchedule(rtScheduleNormal, rtScheduleGreedy);
@@ -409,7 +409,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
                     lockRT.lock();
                     rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (currentSchedule.back().eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
+                    if (rtItem.eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                     {
                         cvQMutex.wait_until(
                             lockRT,
@@ -426,7 +426,8 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
                 else
                 {
                     lockRT.unlock();
-                    while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime)
+                    while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime  - 
+                           std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                     {
                         currentTime = Clock::now();
                         std::unique_lock lockIBTask(qMutex);
