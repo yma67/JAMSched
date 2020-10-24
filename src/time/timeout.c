@@ -39,9 +39,6 @@
 
 #include "time/timeout.h"
 
-#if TIMEOUT_DEBUG - 0
-#include "timeout-debug.h"
-#endif
 
 #ifdef TIMEOUT_DISABLE_RELATIVE_ACCESS
 #define TO_SET_TIMEOUTS(to, T) ((void)0)
@@ -90,36 +87,6 @@
 	    (var) && ((tvar) = TAILQ_NEXT(var, field), 1);              \
 	    (var) = (tvar))
 #endif
-
-
-/*
- * B I T  M A N I P U L A T I O N  R O U T I N E S
- *
- * The macros and routines below implement wheel parameterization. The
- * inputs are:
- *
- *   WHEEL_BIT - The number of value bits mapped in each wheel. The
- *               lowest-order WHEEL_BIT bits index the lowest-order (highest
- *               resolution) wheel, the next group of WHEEL_BIT bits the
- *               higher wheel, etc.
- *
- *   WHEEL_NUM - The number of wheels. WHEEL_BIT * WHEEL_NUM = the number of
- *               value bits used by all the wheels. For the default of 6 and
- *               4, only the low 24 bits are processed. Any timeout value
- *               larger than this will cycle through again.
- *
- * The implementation uses bit fields to remember which slot in each wheel
- * is populated, and to generate masks of expiring slots according to the
- * current update interval (i.e. the "tickless" aspect). The slots to
- * process in a wheel are (populated-set & interval-mask).
- *
- * WHEEL_BIT cannot be larger than 6 bits because 2^6 -> 64 is the largest
- * number of slots which can be tracked in a uint64_t integer bit field.
- * WHEEL_BIT cannot be smaller than 3 bits because of our rotr and rotl
- * routines, which only operate on all the value bits in an integer, and
- * there's no integer smaller than uint8_t.
- *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #if !defined WHEEL_BIT
 #define WHEEL_BIT 6
@@ -406,32 +373,11 @@ TIMEOUT_PUBLIC void timeouts_update(struct timeouts *T, abstime_t curtime) {
 	 */
 	for (wheel = 0; wheel < WHEEL_NUM; wheel++) {
 		wheel_t pending;
-
-		/*
-		 * Calculate the slots expiring in this wheel
-		 *
-		 * If the elapsed time is greater than the maximum period of
-		 * the wheel, mark every position as expiring.
-		 *
-		 * Otherwise, to determine the expired slots fill in all the
-		 * bits between the last slot processed and the current
-		 * slot, inclusive of the last slot. We'll bitwise-AND this
-		 * with our pending set below.
-		 *
-		 * If a wheel rolls over, force a tick of the next higher
-		 * wheel.
-		 */
 		if ((elapsed >> (wheel * WHEEL_BIT)) > WHEEL_MAX) {
 			pending = (wheel_t)~WHEEL_C(0);
 		} else {
 			wheel_t _elapsed = WHEEL_MASK & (elapsed >> (wheel * WHEEL_BIT));
 			int oslot, nslot;
-
-			/*
-			 * TODO: It's likely that at least one of the
-			 * following three bit fill operations is redundant
-			 * or can be replaced with a simpler operation.
-			 */
 			oslot = WHEEL_MASK & (T->curtime >> (wheel * WHEEL_BIT));
 			pending = rotl(((UINT64_C(1) << _elapsed) - 1), oslot);
 
@@ -490,23 +436,6 @@ TIMEOUT_PUBLIC bool timeouts_expired(struct timeouts *T) {
 	return !TAILQ_EMPTY(&T->expired);
 } /* timeouts_expired() */
 
-
-/*
- * Calculate the interval before needing to process any timeouts pending on
- * any wheel.
- *
- * (This is separated from the public API routine so we can evaluate our
- * wheel invariant assertions irrespective of the expired queue.)
- *
- * This might return a timeout value sooner than any installed timeout if
- * only higher-order wheels have timeouts pending. We can only know when to
- * process a wheel, not precisely when a timeout is scheduled. Our timeout
- * accuracy could be off by 2^(N*M)-1 units where N is the wheel number and
- * M is WHEEL_BIT. Only timeouts which have fallen through to wheel 0 can be
- * known exactly.
- *
- * We should never return a timeout larger than the lowest actual timeout.
- */
 static timeout_t timeouts_int(struct timeouts *T) {
 	timeout_t timeout = ~TIMEOUT_C(0), _timeout;
 	timeout_t relmask;
