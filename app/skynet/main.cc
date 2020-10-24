@@ -7,7 +7,7 @@ constexpr std::size_t kNumberOfChild = 10;
 constexpr bool kWaitInGroup = true;
 constexpr bool useImmediateExecutePolicy = true;
 
-jamc::StackTraits stCommon(true, 0, true, useImmediateExecutePolicy), 
+jamc::StackTraits stCommon(false, 4096 * 2, true, useImmediateExecutePolicy), 
                        stCommonNode(false, 4096 * 2, true, useImmediateExecutePolicy);
 
 inline long GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 

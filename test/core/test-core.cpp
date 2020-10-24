@@ -55,8 +55,15 @@ public:
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override
     {
-        this->onlyTask->SwapIn();
+        jamc::TaskInterface::ResetTaskInfos();
+        onlyTask->SwapFrom(nullptr);
     }
+    jamc::TaskInterface *GetNextTask() override
+    {
+        onlyTask->SwapTo(nullptr);
+        return nullptr;
+    }
+    void EndTask(jamc::TaskInterface *tx) override {}
     BenchSched(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSched() { if (onlyTask != nullptr) delete onlyTask; }
     jamc::TaskInterface *onlyTask = nullptr;
@@ -78,12 +85,11 @@ TEST_CASE("jamc++", "[core]")
             int rex = 0;
             BenchSched bSched(1024 * 256);
             bSched.onlyTask = new jamc::StandAloneStackTask(
-                &bSched, 1024 * 256, [i](int k) {
-                    if (k < 2)
+                &bSched, 1024 * 256, [i] {
+                    if (i < 2)
                         return ref[i] = 1;
-                    return ref[i] = k * test_task(k - 1);
-                },
-                int(i));
+                    return ref[i] = i * test_task(i - 1);
+                });
             bSched.RunSchedulerMainLoop();
         }
 #if defined(CATCH_CONFIG_ENABLE_BENCHMARKING)

@@ -108,6 +108,7 @@ TEST_CASE("Performance future", "[future]")
         ribScheduler.RunSchedulerMainLoop();
     }
     pthread_barrier_destroy(barrier);
+    free(barrier);
     WARN("AVG Latency: " << std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count() / nIter << "ns");
 }
 

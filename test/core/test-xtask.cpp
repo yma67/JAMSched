@@ -23,54 +23,39 @@ public:
     std::vector<jamc::TaskInterface *> freeList;
     void Enable(jamc::TaskInterface *toEnable) override {}
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
-    jamc::TaskInterface *NextTask()
+    jamc::TaskInterface *GetNextTask() override
     {
-        try
-        {
-            auto *newTask = (new jamc::SharedCopyStackTask(
-                reinterpret_cast<jamc::SchedulerBase *>(this), naive_fact, rand() % 1000));
-            freeList.push_back(newTask);
-            coro_count++;
-            return newTask;
-        }
-        catch (...)
-        {
-            ShutDown();
-            return nullptr;
-        }
+        return nullptr;
     }
     void RunSchedulerMainLoop() override
     {
+        jamc::TaskInterface::ResetTaskInfos();
         while (toContinue)
         {
             try
             {
-                auto nextTask = NextTask();
-#if 1
-                if (nextTask != nullptr)
+                auto *newTask = (new jamc::SharedCopyStackTask(
+                reinterpret_cast<jamc::SchedulerBase *>(this), naive_fact, rand() % 1000));
+                freeList.push_back(newTask);
+                coro_count++;
+                if (coro_count >= 300) break;
+                if (newTask != nullptr)
                 {
-                    nextTask->SwapIn();
-                }
-                if (coro_count >= 300)
-                    ShutDown();
-#else
-                if (nextTask != nullptr)
-                {
-                    nextTask->SwapIn();
+                    newTask->SwapFrom(nullptr);
                 }
                 else
                 {
-                    ShutDown();
+                    break;
                 }
-#endif
             }
             catch (...)
             {
                 ShutDown();
+                break;
             }
         }
     }
-    // jamc::JAMStorageTypes::BatchQueueType freeList;
+    void EndTask(jamc::TaskInterface *ptrCurrTask) override {}
     BenchSchedXS(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSchedXS()
     {

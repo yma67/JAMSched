@@ -24,6 +24,8 @@ namespace jamc
         void ShutDown() override;
         void RunSchedulerMainLoop() override;
         virtual void StopSchedulerMainLoop();
+        virtual TaskInterface *GetNextTask() override;
+        virtual void EndTask(TaskInterface *ptrCurrTask) override;
         
         void Enable(TaskInterface *toEnable) override;
         void EnableImmediately(TaskInterface *toSteal) override;

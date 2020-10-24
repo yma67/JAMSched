@@ -14,11 +14,37 @@ jamc::TaskInterface::~TaskInterface() {}
 
 void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {
+    CleanupPreviousTask();
     TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
+    thisTask = task;
     task->Execute();
     task->status = TASK_FINISHED;
     task->notifier->Notify();
     task->SwapOut();
+}
+
+void jamc::TaskInterface::CleanupPreviousTask()
+{
+    if (thisTask != nullptr)
+    {
+       thisTask->GetSchedulerValue()->EndTask(thisTask);
+    }
+}
+
+void jamc::TaskInterface::ResetTaskInfos()
+{
+    thisTask = nullptr;
+}
+
+void jamc::TaskInterface::SwapOut()
+{
+    auto nextTask = GetSchedulerValue()->GetNextTask();
+    if (nextTask != this)
+    {
+        SwapTo(nextTask);
+        CleanupPreviousTask();
+        thisTask = this;
+    }
 }
 
 jamc::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
@@ -124,30 +150,33 @@ jamc::TaskInterface *jamc::TaskInterface::Active()
 
 void jamc::ctask::Yield()
 {
-    auto thisTask = TaskInterface::Active();
-    if (thisTask != nullptr && thisTask->status != TASK_FINISHED) 
+    auto thisTaskK = TaskInterface::Active();
+    if (thisTaskK != nullptr && thisTaskK->status != TASK_FINISHED) 
     {
-        thisTask->Enable();
-        thisTask->SwapOut();
+        thisTaskK->Enable();
+        thisTaskK->SwapOut();
     }
 }
 
 void jamc::ctask::Exit()
 {
-    auto* thisTask = TaskInterface::Active();
-    thisTask->status = TASK_FINISHED;
-    thisTask->notifier->Notify();
-    thisTask->SwapOut();
+    auto* thisTaskK = TaskInterface::Active();
+    if (thisTaskK != nullptr)
+    {
+        thisTaskK->status = TASK_FINISHED;
+        thisTaskK->notifier->Notify();
+        thisTaskK->SwapOut();
+    }
 }
 
 jamc::Duration jamc::ctask::GetTimeElapsedCycle()
 {
-    return Clock::now() - TaskInterface::Active()->scheduler->GetCycleStartTime();
+    return Clock::now() - TaskInterface::Active()->GetSchedulerValue()->GetCycleStartTime();
 }
         
 jamc::Duration jamc::ctask::GetTimeElapsedScheduler()
 {
-    return Clock::now() - TaskInterface::Active()->scheduler->GetSchedulerStartTime();
+    return Clock::now() - TaskInterface::Active()->GetSchedulerValue()->GetSchedulerStartTime();
 }
 
 bool jamc::operator<(const TaskInterface &a, const TaskInterface &b) noexcept

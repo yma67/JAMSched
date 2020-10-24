@@ -156,6 +156,7 @@ Although there is std::invalid_argument, to appreciate Prof. Gunter Mussbacher g
 - install CMake Tools, available from https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools
 - configure, and build all project using the top right buttons
 - supported compiler: Clang 6.0.0, Clang 9.0.0, Clang 11.0.0, GCC 9.3.0, GCC 10.1.0
+- on macos, use ```cmake -D CMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang -D CMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ ../```
 ### Debug
 - Goto ```Run``` tab, and choose which app you would like to add/debug
 - To debug testcases, run VSCode task ```"clang-9 - test-debug"```

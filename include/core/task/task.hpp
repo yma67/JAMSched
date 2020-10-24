@@ -163,6 +163,10 @@ namespace jamc
         virtual void RunSchedulerMainLoop() = 0;
         virtual void Enable(TaskInterface *toEnable) = 0;
         virtual void EnableImmediately(TaskInterface *toEnable) = 0;
+
+        virtual TaskInterface *GetNextTask() = 0;
+        virtual void EndTask(TaskInterface *ptrCurrTask) = 0;
+
         virtual RIBScheduler *GetRIBScheduler() { return nullptr; }
 
         TaskInterface *GetTaskRunning() { return taskRunning; }
@@ -463,28 +467,28 @@ namespace jamc
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt) 
         {
-            scheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt));
+            GetSchedulerValue()->SleepFor(this, std::chrono::duration_cast<Duration>(dt));
         }
 
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp) 
         {
-            scheduler->SleepUntil(this, convert(tp));
+            GetSchedulerValue()->SleepUntil(this, convert(tp));
         }
 
         template <typename _Clock, typename _Dur>
         void SleepFor(const std::chrono::duration<_Clock, _Dur> &dt, std::unique_lock<SpinMutex> &lk) 
         {
-            scheduler->SleepFor(this, std::chrono::duration_cast<Duration>(dt), lk);
+            GetSchedulerValue()->SleepFor(this, std::chrono::duration_cast<Duration>(dt), lk);
         }
 
         template <typename _Clock, typename _Dur>
         void SleepUntil(const std::chrono::time_point<_Clock, _Dur> &tp, std::unique_lock<SpinMutex> &lk)
         {
-            scheduler->SleepUntil(this, convert(tp), lk);
+            GetSchedulerValue()->SleepUntil(this, convert(tp), lk);
         }
 
-        RIBScheduler *GetRIBScheduler() { return scheduler->GetRIBScheduler(); }
+        RIBScheduler *GetRIBScheduler() { return GetSchedulerValue()->GetRIBScheduler(); }
 
         jamc::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
         jamc::JAMHookTypes::ReadyInteractiveStackHook riStackHook;
@@ -494,19 +498,21 @@ namespace jamc
         jamc::JAMHookTypes::ThiefQueueHook trHook;
         jamc::JAMHookTypes::ThiefSetHook twHook;
 
-        virtual void SwapOut() = 0;
-        virtual void SwapIn() = 0;
         virtual void Execute() = 0;
+        virtual void SwapTo(TaskInterface *) = 0;
+        virtual void SwapFrom(TaskInterface *) = 0;
         virtual bool Steal(SchedulerBase *scheduler) = 0;
         
         virtual const bool CanSteal() const { return false; }
-        void Enable() { scheduler->Enable(this); }
-        void EnableImmediately() { scheduler->EnableImmediately(this); }
+        void Enable() { GetSchedulerValue()->Enable(this); }
+        void EnableImmediately() { GetSchedulerValue()->EnableImmediately(this); }
+        void SwapOut();
 
         const TaskType GetTaskType() const { return taskType; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
+        static void CleanupPreviousTask();
+        static void ResetTaskInfos();
 
-        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         std::unordered_map<JTLSLocation, std::any> *GetTaskLocalStoragePool();
 
         TaskInterface(SchedulerBase *scheduler);
@@ -524,18 +530,20 @@ namespace jamc
         static TaskInterface* Active();
         static thread_local TaskInterface *thisTask;
 
-        SchedulerBase *scheduler;
+        SchedulerBase *GetSchedulerValue() { return scheduler.load(); }
+
+        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
+        std::atomic<SchedulerBase *> scheduler;
         std::atomic<TaskType> taskType;
         std::atomic<TaskStatus> status;
         std::atomic_bool isStealable;
         std::atomic_intptr_t cvStatus;
-        uint32_t id;
-        long references;
+        JAMScriptUserContext uContext;
         std::shared_ptr<Notifier> notifier;
         std::unique_ptr<struct timeout> timeOut;
         Duration deadline, burst;
         std::function<void()> onCancel;
-        JAMScriptUserContext uContext;
+        uint32_t id;
 
     };
 
@@ -613,9 +621,24 @@ namespace jamc
     public:
 
         const bool CanSteal() const override { return false; }
-
-        void SwapOut() override
+        
+        void SwapFrom(TaskInterface *tNext) override
         {
+            auto tScheduler = GetSchedulerValue();
+            memcpy(tScheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
+            if (tNext != nullptr)
+            {
+                SwapToContext(&(tNext->uContext), &uContext);
+            }
+            else
+            {
+                SwapToContext(&tScheduler->schedulerContext, &uContext);
+            }
+        }
+
+        void SwapTo(TaskInterface *tNext) override
+        {
+            auto tScheduler = GetSchedulerValue();
             void *tos = nullptr;
 #ifdef __x86_64__
             asm("movq %%rsp, %0"
@@ -626,12 +649,12 @@ namespace jamc
 #else
 #error "not supported"
 #endif
-            if ((uintptr_t)(tos) <= (uintptr_t)scheduler->sharedStackAlignedEndAct &&
-                ((uintptr_t)(scheduler->sharedStackAlignedEnd) - (uintptr_t)(scheduler->sharedStackSizeActual)) <=
+            if ((uintptr_t)(tos) <= (uintptr_t)tScheduler->sharedStackAlignedEndAct &&
+                ((uintptr_t)(tScheduler->sharedStackAlignedEnd) - (uintptr_t)(tScheduler->sharedStackSizeActual)) <=
                 (uintptr_t)(tos))
             {
                 if (status == TASK_FINISHED) goto END_COPYSTACK;
-                privateStackSize = (uintptr_t)(scheduler->sharedStackAlignedEndAct) - (uintptr_t)(tos);
+                privateStackSize = (uintptr_t)(tScheduler->sharedStackAlignedEndAct) - (uintptr_t)(tos);
                 if (privateStackSizeUpperBound < privateStackSize)
                 {
                     if (privateStack != nullptr) {
@@ -645,27 +668,24 @@ namespace jamc
                     }
                     catch (...)
                     {
+                        // TODO: Exit task
                         status = TASK_FINISHED;
-                        scheduler->ShutDown();
-                        TaskInterface::thisTask = nullptr;
-                        SwapToContext(&uContext, &scheduler->schedulerContext);
+                        tScheduler->ShutDown();
+                        SwapToContext(&uContext, &tScheduler->schedulerContext);
                     }
                 }
                 memcpy(privateStack, tos, privateStackSize);
 END_COPYSTACK:
-                TaskInterface::thisTask = nullptr;
-                scheduler->taskRunning = nullptr;
-                SwapToContext(&uContext, &scheduler->schedulerContext);
+                if (tNext == nullptr)
+                {
+                    SwapToContext(&uContext, &tScheduler->schedulerContext);
+                }
+                else
+                {
+                    tNext->SwapFrom(this);
+                }
                 return;
             }
-        }
-
-        void SwapIn() override
-        {
-            memcpy(scheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
-            TaskInterface::thisTask = this;
-            scheduler->taskRunning = this;
-            SwapToContext(&scheduler->schedulerContext, &uContext);
         }
 
         bool Steal(SchedulerBase *scheduler) override
@@ -674,7 +694,6 @@ END_COPYSTACK:
             {
                 this->scheduler = scheduler;
                 RefreshContext();
-                // isStealable = false;
                 return true;
             }
             return false;
@@ -703,10 +722,11 @@ END_COPYSTACK:
 
         void RefreshContext()
         {
+            auto tScheduler = GetSchedulerValue();
             memset(&uContext, 0, sizeof(uContext));
             auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
-            uContext.uc_stack.ss_sp = scheduler->sharedStackBegin;
-            uContext.uc_stack.ss_size = scheduler->sharedStackSizeActual;
+            uContext.uc_stack.ss_sp = tScheduler->sharedStackBegin;
+            uContext.uc_stack.ss_size = tScheduler->sharedStackSizeActual;
             CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC), 2,
                           uint32_t(valueThisPtr), uint32_t((valueThisPtr >> 16) >> 16));
         }
@@ -726,18 +746,30 @@ END_COPYSTACK:
 
         const bool CanSteal() const override { return true; }
 
-        void SwapOut() override
+        void SwapFrom(TaskInterface *tNext) override
         {
-            TaskInterface::thisTask = nullptr;
-            scheduler->taskRunning = nullptr;
-            SwapToContext(&uContext, &scheduler->schedulerContext);
+            auto tScheduler = GetSchedulerValue();
+            if (tNext != nullptr)
+            {
+                SwapToContext(&(tNext->uContext), &uContext);
+            }
+            else
+            {
+                SwapToContext(&tScheduler->schedulerContext, &uContext);
+            }
         }
 
-        void SwapIn() override
+        void SwapTo(TaskInterface *tNext) override
         {
-            TaskInterface::thisTask = this;
-            scheduler->taskRunning = this;
-            SwapToContext(&scheduler->schedulerContext, &uContext);
+            if (tNext == nullptr)
+            {
+                auto tScheduler = GetSchedulerValue();
+                SwapToContext(&uContext, &tScheduler->schedulerContext);
+            }
+            else
+            {
+                tNext->SwapFrom(this);
+            }
         }
 
         bool Steal(SchedulerBase *scheduler) override
