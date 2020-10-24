@@ -14,7 +14,7 @@ jamc::TaskInterface::~TaskInterface() {}
 
 void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
 {
-    GarbageCollect();
+    CleanupPreviousTask();
     TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
     thisTask = task;
     task->Execute();
@@ -23,7 +23,7 @@ void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
     task->SwapOut();
 }
 
-void jamc::TaskInterface::GarbageCollect()
+void jamc::TaskInterface::CleanupPreviousTask()
 {
     if (thisTask != nullptr)
     {
@@ -33,7 +33,7 @@ void jamc::TaskInterface::GarbageCollect()
 
 void jamc::TaskInterface::ResetTaskInfos()
 {
-    prevTask = thisTask = nullptr;
+    thisTask = nullptr;
 }
 
 void jamc::TaskInterface::SwapOut()
@@ -42,7 +42,7 @@ void jamc::TaskInterface::SwapOut()
     if (nextTask != this)
     {
         SwapTo(nextTask);
-        GarbageCollect();
+        CleanupPreviousTask();
         thisTask = this;
     }
 }
@@ -141,7 +141,7 @@ auto jamc::ctask::ProduceOneToLoggingStream(const std::string &nameSpace, const 
     return TaskInterface::Active()->GetRIBScheduler()->ProduceOneToLoggingStream(nameSpace, variableName, value);
 }
 
-thread_local jamc::TaskInterface *jamc::TaskInterface::thisTask = nullptr, *jamc::TaskInterface::prevTask = nullptr;
+thread_local jamc::TaskInterface *jamc::TaskInterface::thisTask = nullptr;
 
 jamc::TaskInterface *jamc::TaskInterface::Active()
 {

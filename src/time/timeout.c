@@ -134,7 +134,15 @@
 #define WHEEL_MASK (WHEEL_LEN - 1)
 #define TIMEOUT_MAX ((TIMEOUT_C(1) << (WHEEL_BIT * WHEEL_NUM)) - 1)
 
-#include "timeout-bitops.c"
+#define ctz64(n) __builtin_ctzll(n)
+#define clz64(n) __builtin_clzll(n)
+#if LONG_BITS == 32
+#define ctz32(n) __builtin_ctzl(n)
+#define clz32(n) __builtin_clzl(n)
+#else
+#define ctz32(n) __builtin_ctz(n)
+#define clz32(n) __builtin_clz(n)
+#endif
 
 #if WHEEL_BIT == 6
 #define ctz(n) ctz64(n)

@@ -510,10 +510,9 @@ namespace jamc
 
         const TaskType GetTaskType() const { return taskType; }
         static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
-        static void GarbageCollect();
+        static void CleanupPreviousTask();
         static void ResetTaskInfos();
 
-        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         std::unordered_map<JTLSLocation, std::any> *GetTaskLocalStoragePool();
 
         TaskInterface(SchedulerBase *scheduler);
@@ -529,22 +528,22 @@ namespace jamc
         TaskInterface &operator=(TaskInterface &&) = delete;
 
         static TaskInterface* Active();
-        static thread_local TaskInterface *thisTask, *prevTask;
+        static thread_local TaskInterface *thisTask;
 
         SchedulerBase *GetSchedulerValue() { return scheduler.load(); }
 
+        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         std::atomic<SchedulerBase *> scheduler;
         std::atomic<TaskType> taskType;
         std::atomic<TaskStatus> status;
         std::atomic_bool isStealable;
         std::atomic_intptr_t cvStatus;
-        uint32_t id;
-        long references;
+        JAMScriptUserContext uContext;
         std::shared_ptr<Notifier> notifier;
         std::unique_ptr<struct timeout> timeOut;
         Duration deadline, burst;
         std::function<void()> onCancel;
-        JAMScriptUserContext uContext;
+        uint32_t id;
 
     };
 
@@ -627,11 +626,11 @@ namespace jamc
         {
             auto tScheduler = GetSchedulerValue();
             memcpy(tScheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
-            if (tNext != nullptr && tNext != this)
+            if (tNext != nullptr)
             {
                 SwapToContext(&(tNext->uContext), &uContext);
             }
-            else if (tNext == nullptr)
+            else
             {
                 SwapToContext(&tScheduler->schedulerContext, &uContext);
             }
@@ -750,11 +749,11 @@ END_COPYSTACK:
         void SwapFrom(TaskInterface *tNext) override
         {
             auto tScheduler = GetSchedulerValue();
-            if (tNext != nullptr && tNext != this)
+            if (tNext != nullptr)
             {
                 SwapToContext(&(tNext->uContext), &uContext);
             }
-            else if (tNext == nullptr)
+            else
             {
                 SwapToContext(&tScheduler->schedulerContext, &uContext);
             }
@@ -762,8 +761,7 @@ END_COPYSTACK:
 
         void SwapTo(TaskInterface *tNext) override
         {
-            if (tNext == this) return;
-            else if (tNext == nullptr)
+            if (tNext == nullptr)
             {
                 auto tScheduler = GetSchedulerValue();
                 SwapToContext(&uContext, &tScheduler->schedulerContext);

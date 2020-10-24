@@ -150,7 +150,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
         auto starter = GetNextTask();
         if (starter != nullptr) {
             starter->SwapFrom(nullptr);
-            TaskInterface::GarbageCollect();
+            TaskInterface::CleanupPreviousTask();
             TaskInterface::ResetTaskInfos();
         }
     }

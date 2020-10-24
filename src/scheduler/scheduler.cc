@@ -236,7 +236,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
         if (starter != nullptr) 
         {
             starter->SwapFrom(nullptr);
-            TaskInterface::GarbageCollect();
+            TaskInterface::CleanupPreviousTask();
             TaskInterface::ResetTaskInfos();
         }
     }
@@ -359,10 +359,10 @@ jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
 {
     while (toContinue) 
     {
-        if (TaskInterface::thisTask != nullptr)
+        if (TaskInterface::Active() != nullptr)
         {
             std::unique_lock lockRT(qMutex);
-            switch (TaskInterface::thisTask->taskType)
+            switch (TaskInterface::Active()->taskType)
             {
                 case (TaskType::BATCH_TASK_T): 
                 {
@@ -399,7 +399,7 @@ jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
                 {
                     auto tDelta = Clock::now() - taskStartTime;
                     vClockI += tDelta;
-                    TaskInterface::thisTask->burst -= tDelta;
+                    TaskInterface::Active()->burst -= tDelta;
                     return nullptr;
                     break;
                 }
@@ -531,6 +531,13 @@ void jamc::RIBScheduler::EndTask(TaskInterface *ptrCurrTask)
                 break;
             }
             case (TaskType::BATCH_TASK_T): 
+            {
+                if (ptrCurrTask->status == TASK_FINISHED)
+                {
+                    delete ptrCurrTask;
+                }
+                break;
+            }
             case (TaskType::INTERACTIVE_TASK_T): 
             {
                 if (ptrCurrTask->status == TASK_FINISHED)
