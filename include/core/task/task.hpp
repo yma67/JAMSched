@@ -509,7 +509,6 @@ namespace jamc
         void SwapOut();
 
         const TaskType GetTaskType() const { return taskType; }
-        static void ExecuteC(uint32_t tsLower, uint32_t tsHigher);
         static void CleanupPreviousTask();
         static void ResetTaskInfos();
 
@@ -529,6 +528,7 @@ namespace jamc
 
         static TaskInterface* Active();
         static thread_local TaskInterface *thisTask;
+        static void ExecuteC(void *lpTaskHandle);
 
         SchedulerBase *GetSchedulerValue() { return scheduler.load(); }
 
@@ -628,11 +628,11 @@ namespace jamc
             memcpy(tScheduler->sharedStackAlignedEndAct - privateStackSize, privateStack, privateStackSize);
             if (tNext != nullptr)
             {
-                SwapToContext(&(tNext->uContext), &uContext);
+                SwapToContext(&(tNext->uContext), &uContext, this);
             }
             else
             {
-                SwapToContext(&tScheduler->schedulerContext, &uContext);
+                SwapToContext(&tScheduler->schedulerContext, &uContext, this);
             }
         }
 
@@ -671,14 +671,14 @@ namespace jamc
                         // TODO: Exit task
                         status = TASK_FINISHED;
                         tScheduler->ShutDown();
-                        SwapToContext(&uContext, &tScheduler->schedulerContext);
+                        SwapToContext(&uContext, &tScheduler->schedulerContext, this);
                     }
                 }
                 memcpy(privateStack, tos, privateStackSize);
 END_COPYSTACK:
                 if (tNext == nullptr)
                 {
-                    SwapToContext(&uContext, &tScheduler->schedulerContext);
+                    SwapToContext(&uContext, &tScheduler->schedulerContext, this);
                 }
                 else
                 {
@@ -727,8 +727,7 @@ END_COPYSTACK:
             auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
             uContext.uc_stack.ss_sp = tScheduler->sharedStackBegin;
             uContext.uc_stack.ss_size = tScheduler->sharedStackSizeActual;
-            CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC), 2,
-                          uint32_t(valueThisPtr), uint32_t((valueThisPtr >> 16) >> 16));
+            CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC));
         }
 
         SharedCopyStackTask() = delete;
@@ -751,11 +750,11 @@ END_COPYSTACK:
             auto tScheduler = GetSchedulerValue();
             if (tNext != nullptr)
             {
-                SwapToContext(&(tNext->uContext), &uContext);
+                SwapToContext(&(tNext->uContext), &uContext, this);
             }
             else
             {
-                SwapToContext(&tScheduler->schedulerContext, &uContext);
+                SwapToContext(&tScheduler->schedulerContext, &uContext, this);
             }
         }
 
@@ -764,7 +763,7 @@ END_COPYSTACK:
             if (tNext == nullptr)
             {
                 auto tScheduler = GetSchedulerValue();
-                SwapToContext(&uContext, &tScheduler->schedulerContext);
+                SwapToContext(&uContext, &tScheduler->schedulerContext, this);
             }
             else
             {
@@ -797,8 +796,7 @@ END_COPYSTACK:
             v_stack_id = VALGRIND_STACK_REGISTER(
                 uContext.uc_stack.ss_sp, (void *)((uintptr_t)uContext.uc_stack.ss_sp + uContext.uc_stack.ss_size));
 #endif
-            CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC), 2,
-                          uint32_t(valueThisPtr), uint32_t((valueThisPtr >> 16) >> 16));
+            CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC));
         }
 
         StandAloneStackTask(SchedulerBase *sched, uint32_t stackSize, Fn &&tf, Args... args)
