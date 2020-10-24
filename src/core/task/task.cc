@@ -12,10 +12,10 @@ jamc::TaskInterface::TaskInterface(SchedulerBase *scheduler)
 
 jamc::TaskInterface::~TaskInterface() {}
 
-void jamc::TaskInterface::ExecuteC(uint32_t tsLower, uint32_t tsHigher)
+void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
 {
     CleanupPreviousTask();
-    TaskInterface *task = reinterpret_cast<TaskInterface *>(tsLower | ((static_cast<uint64_t>(tsHigher) << 16) << 16));
+    TaskInterface *task = reinterpret_cast<TaskInterface *>(lpTaskHandle);
     thisTask = task;
     task->Execute();
     task->status = TASK_FINISHED;

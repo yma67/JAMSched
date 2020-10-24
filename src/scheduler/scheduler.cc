@@ -367,7 +367,6 @@ jamc::TaskInterface *jamc::RIBScheduler::GetNextTask()
                 case (TaskType::BATCH_TASK_T): 
                 {
                     vClockB += Clock::now() - taskStartTime;
-                    return nullptr;
                     break;
                 }
                 case (TaskType::REAL_TIME_TASK_T): 
