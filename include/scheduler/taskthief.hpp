@@ -11,7 +11,9 @@
 
 namespace jamc
 {
+#ifdef __APPLE__
     class IOCPAgent;
+#endif
 
     class StealScheduler : public SchedulerBase
     {

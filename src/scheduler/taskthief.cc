@@ -4,13 +4,19 @@
 #include <algorithm>
 
 jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
-    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U), evm(new IOCPAgent()) {}
+    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U)
+#ifdef __APPLE__
+    ,evm(new IOCPAgent())
+#endif
+    {}
 
 jamc::StealScheduler::~StealScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
     isReady.clear_and_dispose(dTaskInf);
+#ifdef __APPLE__
     delete evm;
+#endif
 }
 
 void jamc::StealScheduler::StopSchedulerMainLoop()

@@ -35,7 +35,9 @@ namespace jamc
 {
 
     class TaskInterface;
+#ifdef __APPLE__
     class IOCPAgent;
+#endif
     class Notifier;
     class RIBScheduler;
     class StealScheduler;
@@ -171,7 +173,10 @@ namespace jamc
         virtual void EndTask(TaskInterface *ptrCurrTask) = 0;
 
         virtual RIBScheduler *GetRIBScheduler() { return nullptr; }
+
+#ifdef __APPLE__
         virtual IOCPAgent *GetIOCPAgent() { return nullptr; }
+#endif
 
         TaskInterface *GetTaskRunning() { return taskRunning; }
         SchedulerBase(uint32_t sharedStackSize);
@@ -513,7 +518,11 @@ namespace jamc
         void SwapOut();
 
         const TaskType GetTaskType() const { return taskType; }
+
+#ifdef __APPLE__
         static IOCPAgent *GetIOCPAgent();
+#endif
+
         static void CleanupPreviousTask();
         static void ResetTaskInfos();
 
