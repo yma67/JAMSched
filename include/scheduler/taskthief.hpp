@@ -53,7 +53,9 @@ namespace jamc
         std::atomic_uint64_t upCPUTime, sizeOfQueue;
         bool isRunning;
         RIBScheduler *victim;
+#ifdef __APPLE__
         IOCPAgent *evm;
+#endif
         JAMStorageTypes::ThiefQueueType isReady;
 
     };

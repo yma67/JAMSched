@@ -24,6 +24,7 @@ void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
     task->SwapOut();
 }
 
+#ifdef __APPLE__
 jamc::IOCPAgent *jamc::TaskInterface::GetIOCPAgent()
 {
     if (thisTask != nullptr)
@@ -36,6 +37,7 @@ jamc::IOCPAgent *jamc::TaskInterface::GetIOCPAgent()
     }
     return nullptr;
 }
+#endif
 
 void jamc::TaskInterface::CleanupPreviousTask()
 {

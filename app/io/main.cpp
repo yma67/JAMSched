@@ -14,7 +14,7 @@ int main(int argc, char const *argv[])
 {
     jamc::RIBScheduler ribScheduler(1024 * 256);
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 3; i++)
         vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
     ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true),
