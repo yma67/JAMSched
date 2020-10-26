@@ -11,6 +11,7 @@
 
 namespace jamc
 {
+    class IOCPAgent;
 
     class StealScheduler : public SchedulerBase
     {
@@ -29,7 +30,9 @@ namespace jamc
         
         void Enable(TaskInterface *toEnable) override;
         void EnableImmediately(TaskInterface *toSteal) override;
-
+#ifdef __APPLE__
+        IOCPAgent *GetIOCPAgent() override { return evm; }
+#endif
         TimePoint GetSchedulerStartTime() const override;
         TimePoint GetCycleStartTime() const override;
         void SleepFor(TaskInterface* task, const Duration &dt) override;
@@ -48,6 +51,7 @@ namespace jamc
         std::atomic_uint64_t upCPUTime, sizeOfQueue;
         bool isRunning;
         RIBScheduler *victim;
+        IOCPAgent *evm;
         JAMStorageTypes::ThiefQueueType isReady;
 
     };

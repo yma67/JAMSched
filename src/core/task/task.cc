@@ -1,5 +1,6 @@
 #include "core/task/task.hpp"
 #include "time/timeout.h"
+#include "io/iocp_wrapper.h"
 #include "scheduler/scheduler.hpp"
 #include "scheduler/tasklocal.hpp"
 #include "concurrency/notifier.hpp"
@@ -21,6 +22,19 @@ void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
     task->status = TASK_FINISHED;
     task->notifier->Notify();
     task->SwapOut();
+}
+
+jamc::IOCPAgent *jamc::TaskInterface::GetIOCPAgent()
+{
+    if (thisTask != nullptr)
+    {
+        auto* cSched = thisTask->GetSchedulerValue();
+        if (cSched != nullptr)
+        {
+            return cSched->GetIOCPAgent();
+        }
+    }
+    return nullptr;
 }
 
 void jamc::TaskInterface::CleanupPreviousTask()

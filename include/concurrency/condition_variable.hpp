@@ -88,7 +88,7 @@ namespace jamc
             return wait_until(lt, std::chrono::steady_clock::now() + timeout_duration, pred);
         }
 
-        template <typename Tl, typename _Clock, typename _Dur, typename Tp>
+        template <typename Tl, typename _Clock, typename _Dur>
         std::cv_status wait_for(Tl &lt, std::chrono::duration<_Clock, _Dur> const &timeout_duration)
         {
             return wait_until(lt, std::chrono::steady_clock::now() + timeout_duration);

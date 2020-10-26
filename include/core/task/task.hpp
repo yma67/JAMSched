@@ -29,10 +29,13 @@
 #include <valgrind/valgrind.h>
 #endif
 
+#include <poll.h>
+
 namespace jamc
 {
 
     class TaskInterface;
+    class IOCPAgent;
     class Notifier;
     class RIBScheduler;
     class StealScheduler;
@@ -168,6 +171,7 @@ namespace jamc
         virtual void EndTask(TaskInterface *ptrCurrTask) = 0;
 
         virtual RIBScheduler *GetRIBScheduler() { return nullptr; }
+        virtual IOCPAgent *GetIOCPAgent() { return nullptr; }
 
         TaskInterface *GetTaskRunning() { return taskRunning; }
         SchedulerBase(uint32_t sharedStackSize);
@@ -509,6 +513,7 @@ namespace jamc
         void SwapOut();
 
         const TaskType GetTaskType() const { return taskType; }
+        static IOCPAgent *GetIOCPAgent();
         static void CleanupPreviousTask();
         static void ResetTaskInfos();
 

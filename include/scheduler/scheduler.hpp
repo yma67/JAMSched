@@ -259,7 +259,8 @@ namespace jamc
                 {
                     pNextThief = GetMinThief();
                     auto* ptrTaskCurrent = TaskInterface::Active();
-                    if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler && pNextThief->Size() > 0)
+                    if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler &&
+                        pNextThief != nullptr && pNextThief->Size() > 0)
                     {
                         pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->scheduler.load());
                     }

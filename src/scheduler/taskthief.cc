@@ -1,14 +1,16 @@
 #include "scheduler/taskthief.hpp"
 #include "scheduler/scheduler.hpp"
+#include "io/iocp_wrapper.h"
 #include <algorithm>
 
 jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
-    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U) {}
+    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U), evm(new IOCPAgent()) {}
 
 jamc::StealScheduler::~StealScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
     isReady.clear_and_dispose(dTaskInf);
+    delete evm;
 }
 
 void jamc::StealScheduler::StopSchedulerMainLoop()
@@ -145,6 +147,15 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
 {
     srand(time(nullptr));
     TaskInterface::ResetTaskInfos();
+#ifdef __APPLE__
+    auto* tIOManager = new StandAloneStackTask(this, 4096 * 2, [this] {
+        while (toContinue) this->evm->Run();
+    });
+    tIOManager->taskType = BATCH_TASK_T;
+    tIOManager->isStealable = false;
+    tIOManager->status = TASK_READY;
+    isReady.push_front(*tIOManager);
+#endif
     while (toContinue)
     {
         auto starter = GetNextTask();
@@ -154,6 +165,9 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
             TaskInterface::ResetTaskInfos();
         }
     }
+#ifdef __APPLE__
+    delete tIOManager;
+#endif
 }
 
 jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 
