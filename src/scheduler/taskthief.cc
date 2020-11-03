@@ -6,7 +6,7 @@
 jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
     : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U)
 #ifdef __APPLE__
-    ,evm(new IOCPAgent())
+    ,evm(new IOCPAgent(this))
 #endif
     {}
 
@@ -33,7 +33,6 @@ void jamc::StealScheduler::StopSchedulerMainLoop()
 void jamc::StealScheduler::EnableImmediately(TaskInterface *toEnable)
 {
     std::scoped_lock lk(qMutex);
-    BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
     sizeOfQueue++;
     isReady.push_front(*toEnable);
     toEnable->status = TASK_READY;
@@ -44,7 +43,6 @@ void jamc::StealScheduler::EnableImmediately(TaskInterface *toEnable)
 void jamc::StealScheduler::Enable(TaskInterface *toEnable)
 {
     std::scoped_lock lk(qMutex);
-    BOOST_ASSERT_MSG(!toEnable->trHook.is_linked(), "Should not duplicate ready worksteal");
     sizeOfQueue++;
     isReady.push_back(*toEnable);
     toEnable->status = TASK_READY;
@@ -99,7 +97,7 @@ size_t jamc::StealScheduler::StealFrom(StealScheduler *toSteal)
     return tasksToSteal.size();
 }
 
-const uint64_t jamc::StealScheduler::Size() const
+uint64_t jamc::StealScheduler::Size() const
 {
     return sizeOfQueue;
 }
@@ -154,13 +152,18 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     srand(time(nullptr));
     TaskInterface::ResetTaskInfos();
 #ifdef __APPLE__
-    auto* tIOManager = new StandAloneStackTask(this, 4096 * 2, [this] {
-        while (toContinue) this->evm->Run();
+    auto* tIOManager = new SharedCopyStackTask(this, [this]
+    {
+        while (toContinue)
+        {
+            this->evm->Run();
+        }
     });
     tIOManager->taskType = BATCH_TASK_T;
     tIOManager->isStealable = false;
     tIOManager->status = TASK_READY;
-    isReady.push_front(*tIOManager);
+    tIOManager->id = 0;
+    tIOManager->Enable();
 #endif
     while (toContinue)
     {
@@ -171,9 +174,6 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
             TaskInterface::ResetTaskInfos();
         }
     }
-#ifdef __APPLE__
-    delete tIOManager;
-#endif
 }
 
 jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 

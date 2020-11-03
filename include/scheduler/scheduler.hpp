@@ -262,7 +262,7 @@ namespace jamc
                     if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler &&
                         pNextThief != nullptr && pNextThief->Size() > 0)
                     {
-                        pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->scheduler.load());
+                        pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->GetSchedulerValue());
                     }
                     else if (pNextThief == nullptr || pNextThief->Size() > 0)
                     {

@@ -44,16 +44,15 @@ public:
     void EnableImmediately(jamc::TaskInterface *toEnable) override {}
     void RunSchedulerMainLoop() override 
     {
-        auto x = GetNextTask();
-        clock_gettime(CLOCK_MONOTONIC, &time1);
-        if (x != nullptr) x->SwapFrom(nullptr);
+        while (idx < tasks.size())
+        {
+            tasks[idx]->SwapFrom(nullptr);
+            clock_gettime(CLOCK_MONOTONIC, &time1);
+            tasks[idx++]->SwapFrom(nullptr);
+        }
     }
     jamc::TaskInterface *GetNextTask() override
     {
-        if (idx < tasks.size()) 
-        {
-            return tasks[idx++];
-        }
         return nullptr;
     }
     void EndTask(jamc::TaskInterface *) override
@@ -62,7 +61,7 @@ public:
     }
     BenchSched(uint32_t stackSize) : jamc::SchedulerBase(stackSize) {}
     ~BenchSched() override { 
-        for (int i = 0; i < tasks.size(); i = i + 2)
+        for (int i = 0; i < tasks.size(); i = i + 1)
         {
             delete tasks[i];
         }
@@ -117,7 +116,6 @@ int main(int argc, char *argv[])
             clock_gettime(CLOCK_MONOTONIC, &time2);
             glbCount += diff(time1, time2).tv_nsec;
         });
-        bMSched.tasks.push_back(fx);
         bMSched.tasks.push_back(fx);
     }
     printf("%d\n", bMSched.tasks.size());

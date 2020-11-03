@@ -21,7 +21,7 @@ namespace jamc
 
         friend class RIBScheduler;
 
-        virtual const uint64_t Size() const;
+        virtual uint64_t Size() const;
         virtual size_t StealFrom(StealScheduler *toSteal);
 
         void ShutDown() override;

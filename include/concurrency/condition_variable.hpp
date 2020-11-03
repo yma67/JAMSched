@@ -26,14 +26,12 @@ namespace jamc
         {
             std::unique_lock lkList(wListLock);
             TaskInterface *taskToSleep = TaskInterface::Active();
-            BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
             taskToSleep->cvStatus.store(static_cast<std::intptr_t>(0), std::memory_order_seq_cst);
             lkList.unlock();
             li.unlock();
             taskToSleep->SwapOut();
             li.lock();
-            BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting after?\n");
         }
 
         template <typename Tl, typename Tp>
@@ -52,7 +50,6 @@ namespace jamc
             TimePoint timeoutTime = std::move(convert(timeoutTime_));
             std::unique_lock lk(wListLock);
             TaskInterface *taskToSleep = TaskInterface::Active();
-            BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting before?\n");
             waitList.push_back(*taskToSleep);
             taskToSleep->cvStatus.store(reinterpret_cast<std::intptr_t>(this), std::memory_order_seq_cst);
             lt.unlock();
@@ -65,7 +62,6 @@ namespace jamc
                 isTimeout = std::cv_status::timeout;
             }
             lt.lock();
-            BOOST_ASSERT_MSG(!taskToSleep->wsHook.is_linked(), "Maybe this task is waiting after?\n");
             return isTimeout;
         }
 

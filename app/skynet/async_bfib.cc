@@ -71,7 +71,7 @@ void thread( std::uint32_t thread_count) {
 }
 
 int main(int argc, char* argv[]) {
-    for (int xtry = 0; xtry < 5; xtry++)
+    for (int xtry = 0; xtry < 20; xtry++)
     {
         auto pid = fork();
         if (pid == 0)

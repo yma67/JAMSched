@@ -16,7 +16,7 @@ jamc::TaskInterface::~TaskInterface() {}
 void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
 {
     CleanupPreviousTask();
-    TaskInterface *task = reinterpret_cast<TaskInterface *>(lpTaskHandle);
+    auto *task = reinterpret_cast<TaskInterface *>(lpTaskHandle);
     thisTask = task;
     task->Execute();
     task->status = TASK_FINISHED;
@@ -108,7 +108,7 @@ jamc::TaskHandle &jamc::TaskHandle::operator=(jamc::TaskHandle &&other)
 jamc::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
     : sharedStackSizeActual(sharedStackSize), toContinue(true), sharedStackBegin(new uint8_t[sharedStackSize])
 {
-    uintptr_t u_p = (uintptr_t)(sharedStackSizeActual - (sizeof(void *) << 1) +
+    auto u_p = (uintptr_t)(sharedStackSizeActual - (sizeof(void *) << 1) +
                                 (uintptr_t) reinterpret_cast<uintptr_t>(sharedStackBegin));
     u_p = (u_p >> 4) << 4;
     sharedStackAlignedEnd = reinterpret_cast<uint8_t *>(u_p);

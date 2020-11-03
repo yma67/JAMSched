@@ -177,7 +177,7 @@ namespace jamc
 #ifdef __APPLE__
         virtual IOCPAgent *GetIOCPAgent() { return nullptr; }
 #endif
-
+        bool Running() { return toContinue; }
         TaskInterface *GetTaskRunning() { return taskRunning; }
         SchedulerBase(uint32_t sharedStackSize);
         virtual ~SchedulerBase();
@@ -499,20 +499,14 @@ namespace jamc
 
         RIBScheduler *GetRIBScheduler() { return GetSchedulerValue()->GetRIBScheduler(); }
 
-        jamc::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
-        jamc::JAMHookTypes::ReadyInteractiveStackHook riStackHook;
-        jamc::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
-        boost::intrusive::unordered_set_member_hook<> rtHook;
-        jamc::JAMHookTypes::WaitSetHook wsHook;
-        jamc::JAMHookTypes::ThiefQueueHook trHook;
-        jamc::JAMHookTypes::ThiefSetHook twHook;
-
         virtual void Execute() = 0;
         virtual void SwapTo(TaskInterface *) = 0;
         virtual void SwapFrom(TaskInterface *) = 0;
         virtual bool Steal(SchedulerBase *scheduler) = 0;
-        
         virtual const bool CanSteal() const { return false; }
+
+
+
         void Enable() { GetSchedulerValue()->Enable(this); }
         void EnableImmediately() { GetSchedulerValue()->EnableImmediately(this); }
         void SwapOut();
@@ -544,20 +538,26 @@ namespace jamc
         static thread_local TaskInterface *thisTask;
         static void ExecuteC(void *lpTaskHandle);
 
-        SchedulerBase *GetSchedulerValue() { return scheduler.load(); }
+        inline SchedulerBase *GetSchedulerValue() { return scheduler; }
 
-        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
-        std::atomic<SchedulerBase *> scheduler;
-        std::atomic<TaskType> taskType;
-        std::atomic<TaskStatus> status;
-        std::atomic_bool isStealable;
-        std::atomic_intptr_t cvStatus;
         JAMScriptUserContext uContext;
-        std::shared_ptr<Notifier> notifier;
-        std::unique_ptr<struct timeout> timeOut;
+        SchedulerBase *scheduler;
+    public:
+        jamc::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
+        jamc::JAMHookTypes::WaitQueueHook waitQueueHook;
+        jamc::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
+        boost::intrusive::unordered_set_member_hook<> rtHook;
+    private:
+        uint32_t id;
+        std::atomic_bool isStealable;
+        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
+        TaskType taskType;
+        TaskStatus status;
         Duration deadline, burst;
         std::function<void()> onCancel;
-        uint32_t id;
+        std::shared_ptr<Notifier> notifier;
+        std::unique_ptr<struct timeout> timeOut;
+        std::atomic_intptr_t cvStatus;
 
     };
 
@@ -874,8 +874,8 @@ END_COPYSTACK:
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface,
-                JAMHookTypes::ReadyInteractiveStackHook,
-                &TaskInterface::riStackHook>, boost::intrusive::constant_time_size< false >>
+                JAMHookTypes::ReadyBatchQueueHook,
+                &TaskInterface::rbQueueHook>, boost::intrusive::constant_time_size< false >>
             InteractiveReadyStackType;
 
         // Wait Queue
@@ -883,8 +883,8 @@ END_COPYSTACK:
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface, 
-                JAMHookTypes::WaitSetHook, 
-                &TaskInterface::wsHook
+                JAMHookTypes::WaitQueueHook,
+                &TaskInterface::waitQueueHook
             >,
             boost::intrusive::constant_time_size< false >>
             WaitListType;
@@ -893,21 +893,9 @@ END_COPYSTACK:
             TaskInterface,
             boost::intrusive::member_hook<
                 TaskInterface,
-                jamc::JAMHookTypes::ThiefQueueHook,
-                &TaskInterface::trHook>, boost::intrusive::constant_time_size< false >>
+                jamc::JAMHookTypes::ReadyBatchQueueHook,
+                &TaskInterface::rbQueueHook>, boost::intrusive::constant_time_size< false >>
             ThiefQueueType;
-        
-        typedef boost::intrusive::set<
-            TaskInterface,
-            boost::intrusive::member_hook<
-                TaskInterface, 
-                JAMHookTypes::ThiefSetHook, 
-                &TaskInterface::twHook
-            >,
-            boost::intrusive::constant_time_size< false >,
-            boost::intrusive::key_of_value<BIIdKeyType>>
-            ThiefSetType;
-        
 
     } // namespace JAMStorageTypes
 

@@ -128,12 +128,10 @@ void jamc::RIBScheduler::Enable(TaskInterface *toEnable)
     std::lock_guard lock(qMutex);
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
-        BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
         iEDFPriorityQueue.insert(*toEnable);
     }
     if (toEnable->taskType == BATCH_TASK_T)
     {
-        BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
         bQueue.push_back(*toEnable);
     }
     toEnable->status = TASK_READY;
@@ -146,12 +144,10 @@ void jamc::RIBScheduler::EnableImmediately(TaskInterface *toEnable)
     std::lock_guard lock(qMutex);
     if (toEnable->taskType == INTERACTIVE_TASK_T)
     {
-        BOOST_ASSERT_MSG(!toEnable->riEdfHook.is_linked(), "Should not duplicate ready edf");
         iEDFPriorityQueue.insert(*toEnable);
     }
     if (toEnable->taskType == BATCH_TASK_T)
     {
-        BOOST_ASSERT_MSG(!toEnable->rbQueueHook.is_linked(), "Should not duplicate ready batch");
         bQueue.push_front(*toEnable);
     }
     toEnable->status = TASK_READY;
@@ -260,8 +256,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
     tTimer.join();
 }
 
-jamc::TaskInterface *
-jamc::RIBScheduler::GetAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock) 
+jamc::TaskInterface *jamc::RIBScheduler::GetAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock)
 {
     if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
     {

@@ -2,12 +2,13 @@
 // Created by Yuxiang Ma on 2020-10-25.
 //
 #ifdef __APPLE__
+#include "scheduler/taskthief.hpp"
 #include "concurrency/future.hpp"
 #include "io/iocp_wrapper.h"
 #include <sys/event.h>
 #include <poll.h>
 
-jamc::IOCPAgent::IOCPAgent()
+jamc::IOCPAgent::IOCPAgent(SchedulerBase *s) : scheduler(s)
 {
     kqFileDescriptor = kqueue();
 }
@@ -84,7 +85,7 @@ bool jamc::IOCPAgent::Cancel(void* uData)
 
 void jamc::IOCPAgent::Run()
 {
-    const int cEvent = 1024;
+    const std::size_t cEvent = 1024;
     struct kevent kev[cEvent];
     struct timespec timeout{};
     timeout.tv_sec = 0;
@@ -93,6 +94,10 @@ void jamc::IOCPAgent::Run()
         std::unique_lock lk(m);
         // note: i don't mid getting spurious wakeup since i'd like to process io anyways
         cv.wait_for(lk, std::chrono::milliseconds (50));
+        if (!scheduler->Running())
+        {
+            return;
+        }
         int n = kevent(kqFileDescriptor, nullptr, 0, kev, cEvent, &timeout);
         std::unordered_map<void*, std::unordered_map<int, short int>> wakeupMap;
         for (int i = 0; i < n; ++i)
