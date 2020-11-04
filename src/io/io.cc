@@ -41,7 +41,6 @@ int PollImpl(struct pollfd *fds, nfds_t nfds, int timeout)
     evm->Add(vecMergedFd, evPollResult.get());
     if (timeout < 0)
     {
-        printf("waiting for io...\n");
         evPollResultFuture.wait();
     }
     else
@@ -167,33 +166,39 @@ int jamc::Connect(int socket, const struct sockaddr *address, socklen_t address_
 
 ssize_t jamc::Read(int fildes, void *buf, size_t nbyte, int timeoutMS)
 {
-    return CallWrapper(fildes, POLLIN, timeoutMS, read, fildes, buf, nbyte);
+    return CallWrapper(fildes, std::uint16_t(POLLIN) | std::uint16_t(POLLHUP),
+                       timeoutMS, read, fildes, buf, nbyte);
 }
 
 ssize_t jamc::Write(int fildes, const void *buf, size_t nbyte, int timeoutMS)
 {
-    return CallWrapper(fildes, POLLOUT, timeoutMS, write, fildes, buf, nbyte);
+    return CallWrapper(fildes, std::uint16_t(POLLOUT) | std::uint16_t(POLLHUP),
+                       timeoutMS, write, fildes, buf, nbyte);
 }
 
 ssize_t jamc::Send(int socket, const void *buffer, size_t length, int flags, int timeoutMS)
 {
-    return CallWrapper(socket, POLLOUT, timeoutMS, send, socket, buffer, length, flags);
+    return CallWrapper(socket, std::uint16_t(POLLOUT) | std::uint16_t(POLLHUP),
+                       timeoutMS, send, socket, buffer, length, flags);
 }
 
 ssize_t jamc::Send(int socket, const void *message, size_t length, int flags,
                    const struct sockaddr *dest_addr, socklen_t dest_len, int timeoutMS)
 {
-    return CallWrapper(socket, POLLOUT, timeoutMS, sendto, socket, message, length, flags, dest_addr, dest_len);
+    return CallWrapper(socket, std::uint16_t(POLLOUT) | std::uint16_t(POLLHUP),
+                       timeoutMS, sendto, socket, message, length, flags, dest_addr, dest_len);
 }
 
 ssize_t jamc::Recv(int socket, void *buffer, size_t length, int flags,
                    struct sockaddr *address, socklen_t *address_len, int timeoutMS)
 {
-    return CallWrapper(socket, POLLIN, timeoutMS, recvfrom, socket, buffer, length, flags, address, address_len);
+    return CallWrapper(socket, std::uint16_t(POLLIN) | std::uint16_t(POLLHUP),
+                       timeoutMS, recvfrom, socket, buffer, length, flags, address, address_len);
 }
 
 ssize_t jamc::Recv(int socket, void *buffer, size_t length, int flags, int timeoutMS)
 {
-    return CallWrapper(socket, POLLIN, timeoutMS, recv, socket, buffer, length, flags);
+    return CallWrapper(socket, std::uint16_t(POLLIN) | std::uint16_t(POLLHUP),
+                       timeoutMS, recv, socket, buffer, length, flags);
 }
 #endif

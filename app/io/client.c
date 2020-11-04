@@ -18,9 +18,8 @@ int main(int argc, char const *argv[]) {
     int port = 4576;
     char *server_ip = "127.0.0.1";
     char buffer[1024] = "yo_yyx\n";
-    if (argc == 3) {
-        server_ip = argv[1];
-        port = atoi(argv[2]);
+    if (argc == 2) {
+        port = atoi(argv[1]);
     }
     serverFd = socket(AF_INET, SOCK_STREAM, 0);
     if (serverFd < 0) {

@@ -48,7 +48,7 @@ namespace jamc
         Semaphore() : count(SemaphoreSize) {}
 
     private:
-        SpinMutex mutex;
+        SpinOnlyMutex mutex;
         ConditionVariable queue;
         int count;
     };

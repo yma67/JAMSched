@@ -743,7 +743,9 @@ END_COPYSTACK:
     {
     public:
 
-        bool CanSteal() const override { return true; }
+        bool CanSteal() const override { return actualSteal; }
+
+        void ToggleNonSteal() { actualSteal = false; }
 
         void SwapFrom(TaskInterface *tNext) override
         {
@@ -799,7 +801,7 @@ END_COPYSTACK:
         }
 
         StandAloneStackTask(SchedulerBase *sched, uint32_t stackSize, Fn &&tf, Args... args)
-            : TaskInterface(sched), valueStore(std::forward<Fn>(tf), std::forward<Args>(args)...)
+            : TaskInterface(sched), valueStore(std::forward<Fn>(tf), std::forward<Args>(args)...), actualSteal(true)
         {
             InitStack(stackSize);
         }
@@ -813,7 +815,7 @@ END_COPYSTACK:
         }
 
     private:
-
+        bool actualSteal;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
         uint64_t v_stack_id;
 #endif

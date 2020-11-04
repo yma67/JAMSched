@@ -7,6 +7,8 @@
 #include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
 
+constexpr std::chrono::nanoseconds kTimerSampleDelta(5000);
+
 jamc::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
 {
     int err;
@@ -30,7 +32,7 @@ void jamc::Timer::RunTimerLoop()
     while (scheduler->toContinue) 
     {
         NotifyAllTimeouts();
-        std::this_thread::sleep_for(std::chrono::nanoseconds(500));
+        std::this_thread::sleep_for(kTimerSampleDelta);
 #ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
         if (printCount++ == 1000)
         {

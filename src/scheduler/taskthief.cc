@@ -152,7 +152,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     srand(time(nullptr));
     TaskInterface::ResetTaskInfos();
 #ifdef __APPLE__
-    auto* tIOManager = new SharedCopyStackTask(this, [this]
+    auto* tIOManager = new StandAloneStackTask(this, 1024 * 4 * 4, [this]
     {
         while (toContinue)
         {
@@ -163,6 +163,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     tIOManager->isStealable = false;
     tIOManager->status = TASK_READY;
     tIOManager->id = 0;
+    tIOManager->ToggleNonSteal();
     tIOManager->Enable();
 #endif
     while (toContinue)

@@ -8,6 +8,9 @@
 #include <sys/event.h>
 #include <poll.h>
 
+// this value makes CPU usage relatively low
+constexpr std::chrono::microseconds kSleepPerIO(5000);
+
 jamc::IOCPAgent::IOCPAgent(SchedulerBase *s) : scheduler(s)
 {
     kqFileDescriptor = kqueue();
@@ -43,7 +46,10 @@ bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& eves
         }
         ret = ret && (kevent(kqFileDescriptor, kev, n, nullptr, 0, nullptr) == 0);
     }
-    cv.notify_one();
+    {
+        std::scoped_lock lk(m);
+        cv.notify_one();
+    }
     return ret;
 }
 
@@ -93,7 +99,7 @@ void jamc::IOCPAgent::Run()
     {
         std::unique_lock lk(m);
         // note: i don't mid getting spurious wakeup since i'd like to process io anyways
-        cv.wait_for(lk, std::chrono::milliseconds (50));
+        cv.wait_for(lk, kSleepPerIO);
         if (!scheduler->Running())
         {
             return;
@@ -142,5 +148,6 @@ void jamc::IOCPAgent::Run()
             prom->set_value(fdMap);
         }
     }
+    //jamc::ctask::SleepFor(kSleepPerIO);
 }
 #endif
