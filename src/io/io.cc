@@ -12,7 +12,7 @@
 template <bool PreValidate = true>
 int PollImpl(struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    if constexpr (PreValidate)
+    if constexpr(PreValidate)
     {
         auto preValidationRes = poll(fds, nfds, 0);
         if (timeout == 0 || preValidationRes != 0)
@@ -20,9 +20,9 @@ int PollImpl(struct pollfd *fds, nfds_t nfds, int timeout)
             return preValidationRes;
         }
     }
-    auto evPollResult = std::make_unique<jamc::promise<std::unordered_map<int, short int>>>();
+    auto evPollResult = std::make_unique<jamc::promise<std::unordered_map<int, std::uint16_t>>>();
     auto evPollResultFuture = evPollResult->get_future();
-    std::vector<std::pair<int, short int>> vecMergedFd;
+    std::vector<std::pair<int, std::uint16_t>> vecMergedFd;
     std::unordered_map<int, nfds_t> fd2poll;
     for (nfds_t i = 0; i < nfds; i++)
     {
@@ -34,7 +34,7 @@ int PollImpl(struct pollfd *fds, nfds_t nfds, int timeout)
         }
         else
         {
-            vecMergedFd[it->second].second |= fds[i].events;
+            vecMergedFd[it->second].second |= std::uint16_t(fds[i].events);
         }
     }
     auto* evm = jamc::TaskInterface::GetIOCPAgent();
@@ -60,7 +60,7 @@ int PollImpl(struct pollfd *fds, nfds_t nfds, int timeout)
             auto it = mapPollResult.find(fds[i].fd);
             if (it != mapPollResult.end())
             {
-                fds[i].revents = it->second & fds[i].events;
+                fds[i].revents = std::int16_t(it->second & std::uint16_t(fds[i].events));
                 if (fds[i].revents > 0)
                 {
                     ret++;
@@ -135,9 +135,9 @@ int jamc::Connect(int socket, const struct sockaddr *address, socklen_t address_
         return connect(socket, address, address_len);
     }
     int isNonBlocking = fcntl(socket, F_GETFL, 0);
-    fcntl(socket, F_SETFL, isNonBlocking | O_NONBLOCK);
+    fcntl(socket, unsigned(F_SETFL), unsigned(isNonBlocking) | unsigned(O_NONBLOCK));
     int res = connect(socket, address, address_len);
-    fcntl(socket, F_SETFL, isNonBlocking);
+    fcntl(socket, unsigned(F_SETFL), isNonBlocking);
     if (res == -1 && errno == EINPROGRESS)
     {
         struct pollfd pfd{};

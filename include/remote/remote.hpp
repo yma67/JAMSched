@@ -185,43 +185,29 @@ namespace jamc
             return true;
         }
 
-        struct RoutineInterface
+        template <typename TR, typename ...Args>
+        std::function<nlohmann::json(nlohmann::json)> CreateRemoteRoutine(std::function<TR(Args...)>&& fn)
         {
-            virtual nlohmann::json Invoke(const nlohmann::json &vaList) const = 0;
-            virtual ~RoutineInterface() {}
-        };
-
-        template <typename T>
-        struct RoutineRemote;
-
-        template <typename R, typename... Args>
-        struct RoutineRemote<std::function<R(Args...)>> : public RoutineInterface
-        {
-            RoutineRemote(std::function<R(Args...)> f) : fn(std::move(f)) {}
-            ~RoutineRemote() override {}
-            nlohmann::json Invoke(const nlohmann::json &vaList) const override
+            return [fn = std::forward<std::function<TR(Args...)>>(fn)] (const nlohmann::json &vaList) mutable
             {
                 try
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     nlohmann::json jxr = nlohmann::json::object({{"args", std::apply(fn, vaTuple)}});
-                    std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
+                    std::apply([](auto &&... args) { ArgumentGC(args...); }, std::move(vaTuple));
                     return jxr;
                 }
                 catch (const std::exception &e)
                 {
                     return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
-            }
-            std::function<R(Args...)> fn;
-        };
+            };
+        }
 
-        template <typename... Args>
-        struct RoutineRemote<std::function<void(Args...)>> : public RoutineInterface
+        template <typename ...Args>
+        std::function<nlohmann::json(nlohmann::json)> CreateRemoteRoutine(std::function<void(Args...)>&& fn)
         {
-            RoutineRemote(std::function<void(Args...)> f) : fn(std::move(f)) {}
-            ~RoutineRemote() override {}
-            nlohmann::json Invoke(const nlohmann::json &vaList) const override
+            return [fn = std::forward<std::function<void(Args...)>>(fn)] (const nlohmann::json &vaList) mutable
             {
                 try
                 {
@@ -234,16 +220,13 @@ namespace jamc
                 {
                     return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
-            }
-            std::function<void(Args...)> fn;
-        };
+            };
+        }
 
-        template <typename... Args>
-        struct RoutineRemote<std::function<char *(Args...)>> : public RoutineInterface
+        template <typename ...Args>
+        std::function<nlohmann::json(nlohmann::json)> CreateRemoteRoutine(std::function<char *(Args...)>&& fn)
         {
-            RoutineRemote(std::function<char *(Args...)> f) : fn(std::move(f)) {}
-            ~RoutineRemote() override {}
-            nlohmann::json Invoke(const nlohmann::json &vaList) const override
+            return [fn = std::forward<std::function<char *(Args...)>>(fn)] (const nlohmann::json &vaList) mutable
             {
                 try
                 {
@@ -258,23 +241,18 @@ namespace jamc
                 {
                     return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
-            }
-            std::function<char *(Args...)> fn;
-        };
+            };
+        }
 
-        template <typename... Args>
-        struct RoutineRemote<std::function<const char *(Args...)>> : public RoutineInterface
+        template <typename ...Args>
+        std::function<nlohmann::json(nlohmann::json)> CreateRemoteRoutine(std::function<const char *(Args...)>&& fn)
         {
-            RoutineRemote(std::function<const char *(Args...)> f) : fn(std::move(f)) {}
-            ~RoutineRemote() override {}
-            nlohmann::json Invoke(const nlohmann::json &vaList) const override
+            return [fn = std::forward<std::function<const char *(Args...)>>(fn)] (const nlohmann::json &vaList) mutable
             {
                 try
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
-                    char* cString = std::apply(fn, vaTuple);
-                    nlohmann::json jxr = nlohmann::json::object({{"args", std::string(cString)}});
-                    free(const_cast<char*>(cString));
+                    nlohmann::json jxr = nlohmann::json::object({{"args", std::string(std::apply(fn, vaTuple))}});
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return jxr;
                 }
@@ -282,22 +260,19 @@ namespace jamc
                 {
                     return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
-            }
-            std::function<const char *(Args...)> fn;
-        };
+            };
+        }
 
-        template <typename... Args>
-        struct RoutineRemote<std::function<nvoid_t *(Args...)>> : public RoutineInterface
+        template <typename ...Args>
+        std::function<nlohmann::json(nlohmann::json)> CreateRemoteRoutine(std::function<nvoid_t *(Args...)>&& fn)
         {
-            RoutineRemote(std::function<nvoid_t *(Args...)> f) : fn(std::move(f)) {}
-            ~RoutineRemote() override {}
-            nlohmann::json Invoke(const nlohmann::json &vaList) const override
+            return [fn = std::forward<std::function<nvoid_t *(Args...)>>(fn)] (const nlohmann::json &vaList) mutable
             {
                 try
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     nvoid_t* nVoid = std::apply(fn, vaTuple);
-                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), 
+                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data),
                                              reinterpret_cast<char *>(nVoid->data) + nVoid->len);
                     nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
                     nvoid_free(nVoid);
@@ -308,25 +283,21 @@ namespace jamc
                 {
                     return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
-            }
-            std::function<nvoid_t *(Args...)> fn;
-        };
+            };
+        }
 
-        template <typename... Args>
-        struct RoutineRemote<std::function<const nvoid_t *(Args...)>> : public RoutineInterface
+        template <typename ...Args>
+        std::function<nlohmann::json(nlohmann::json)> CreateRemoteRoutine(std::function<const nvoid_t *(Args...)>&& fn)
         {
-            RoutineRemote(std::function<const nvoid_t *(Args...)> f) : fn(std::move(f)) {}
-            ~RoutineRemote() override {}
-            nlohmann::json Invoke(const nlohmann::json &vaList) const override
+            return [fn = std::forward<std::function<const nvoid_t *(Args...)>>(fn)] (const nlohmann::json &vaList) mutable
             {
                 try
                 {
                     auto vaTuple = vaList.get<std::tuple<Args...>>();
                     const nvoid_t* nVoid = std::apply(fn, vaTuple);
-                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data), 
+                    std::vector<char> bArray(reinterpret_cast<char *>(nVoid->data),
                                              reinterpret_cast<char *>(nVoid->data) + nVoid->len);
                     nlohmann::json jxr = nlohmann::json::object({{"args", bArray }});
-                    nvoid_free(const_cast<nvoid_t*>(nVoid));
                     std::apply([](auto &&... xarg) { ArgumentGC(xarg...); }, std::move(vaTuple));
                     return jxr;
                 }
@@ -334,9 +305,8 @@ namespace jamc
                 {
                     return nlohmann::json::object({{"args", {"exception", std::string(e.what())}}});
                 }
-            }
-            std::function<const nvoid_t *(Args...)> fn;
-        };
+            };
+        }
 
         class HeartbeatFailureException : public std::exception
         {
@@ -345,13 +315,13 @@ namespace jamc
             static const std::string message_;
 
         public:
-            virtual const char *what() const throw() override { return message_.c_str(); }
+            [[nodiscard]] const char *what() const throw() override { return message_.c_str(); }
         };
 
         struct RemoteExecutionErrorCategory : std::error_category
         {
-            const char* name() const noexcept override;
-            std::string message(int ev) const override;
+            [[nodiscard]] const char* name() const noexcept override;
+            [[nodiscard]] std::string message(int ev) const override;
         };
 
         inline const jamc::RExecDetails::RemoteExecutionErrorCategory &GetRemoteExecutionErrorCategory()
@@ -401,7 +371,7 @@ namespace jamc
         using RemoteLockType = SharedSpinMutex;
         void CancelAllRExecRequests();
 
-        bool CreateRExecAsyncWithCallbackNT(std::string hostName, std::function<void()> successCallback, 
+        bool CreateRExecAsyncWithCallbackNT(const std::string& hostName, std::function<void()> successCallback,
                                             std::function<void(std::error_condition)> failureCallback, 
                                             nlohmann::json rexRequest, std::size_t sharedCountReference,
                                             std::shared_ptr<std::atomic_size_t> sharedFailure, 

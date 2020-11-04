@@ -207,7 +207,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
     std::vector<std::thread> remoteCheckers;
     if (remote != nullptr)
     {
-        remoteCheckers.push_back(std::thread { [this] { remote->CheckExpire(); }});
+        remoteCheckers.emplace_back([this] { remote->CheckExpire(); });
     }
     if (broadcastManger != nullptr && logManager != nullptr)
     {
@@ -221,9 +221,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
     std::vector<std::thread> tThiefs;
     for (auto& thief: thiefs) 
     {
-        tThiefs.push_back(std::thread {
-            [&thief] { thief->RunSchedulerMainLoop(); }
-        });
+        tThiefs.emplace_back([&thief] { thief->RunSchedulerMainLoop(); });
     }
     TaskInterface::ResetTaskInfos();
     while (toContinue)
@@ -524,14 +522,7 @@ void jamc::RIBScheduler::EndTask(TaskInterface *ptrCurrTask)
                 delete ptrCurrTask;
                 break;
             }
-            case (TaskType::BATCH_TASK_T): 
-            {
-                if (ptrCurrTask->status == TASK_FINISHED)
-                {
-                    delete ptrCurrTask;
-                }
-                break;
-            }
+            case (TaskType::BATCH_TASK_T):
             case (TaskType::INTERACTIVE_TASK_T): 
             {
                 if (ptrCurrTask->status == TASK_FINISHED)

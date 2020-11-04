@@ -12,13 +12,13 @@ namespace jamc
         ConditionVariableAny cv;
         int kqFileDescriptor;
         SchedulerBase *scheduler;
-        std::unordered_map<void*, std::vector<std::pair<int, short int>>> pendingEvents;
-        bool CancelOne(int fd, short int cancelEvent, void* uData) const;
+        std::unordered_map<uintptr_t, std::vector<std::pair<int, std::uint16_t>>> pendingEvents;
+        bool CancelOne(int fd, std::uint16_t cancelEvent, void* uData) const;
         bool CancelByData(void* uData);
     public:
-        IOCPAgent(SchedulerBase *);
+        explicit IOCPAgent(SchedulerBase *);
         ~IOCPAgent();
-        bool Add(const std::vector<std::pair<int, short int>>& evesToAdd, void* uData);
+        bool Add(const std::vector<std::pair<int, std::uint16_t>>& evesToAdd, void* uData);
         bool Cancel(void* uData);
         void Run();
     };

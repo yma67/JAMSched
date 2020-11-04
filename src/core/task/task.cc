@@ -11,8 +11,6 @@ jamc::TaskInterface::TaskInterface(SchedulerBase *scheduler)
       id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
 
-jamc::TaskInterface::~TaskInterface() {}
-
 void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
 {
     CleanupPreviousTask();
@@ -88,29 +86,12 @@ jamc::TaskInterface::GetTaskLocalStoragePool()
     return &taskLocalStoragePool;
 }
 
-jamc::TaskHandle::TaskHandle(jamc::TaskHandle &&other) : n(nullptr)
-{
-    n = other.n;
-    other.n = nullptr;
-}
-
-jamc::TaskHandle &jamc::TaskHandle::operator=(jamc::TaskHandle &&other) 
-{
-    if (this != &other) 
-    {
-        Detach();
-        n = other.n;
-        other.n = nullptr;
-    }
-    return *this;
-}
-
 jamc::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
     : sharedStackSizeActual(sharedStackSize), toContinue(true), sharedStackBegin(new uint8_t[sharedStackSize])
 {
-    auto u_p = (uintptr_t)(sharedStackSizeActual - (sizeof(void *) << 1) +
+    auto u_p = (uintptr_t)(sharedStackSizeActual - (sizeof(void *) << unsigned(1)) +
                                 (uintptr_t) reinterpret_cast<uintptr_t>(sharedStackBegin));
-    u_p = (u_p >> 4) << 4;
+    u_p = (u_p >> unsigned(4)) << 4;
     sharedStackAlignedEnd = reinterpret_cast<uint8_t *>(u_p);
 #ifdef __x86_64__
     sharedStackAlignedEndAct = reinterpret_cast<uint8_t *>((u_p - sizeof(void *)));
@@ -120,7 +101,7 @@ jamc::SchedulerBase::SchedulerBase(uint32_t sharedStackSize)
 #else
 #error "not supported"
 #endif
-    sharedStackSizeAligned = sharedStackSizeActual - 16 - (sizeof(void *) << 1);
+    sharedStackSizeAligned = sharedStackSizeActual - 16 - (sizeof(void *) << unsigned(1));
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
     v_stack_id =
         VALGRIND_STACK_REGISTER(sharedStackBegin, (void *)((uintptr_t)sharedStackBegin + sharedStackSizeActual));

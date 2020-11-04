@@ -4,7 +4,7 @@
 #include <algorithm>
 
 jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
-    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U)
+    : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U), isRunning(true)
 #ifdef __APPLE__
     ,evm(new IOCPAgent(this))
 #endif

@@ -2,7 +2,7 @@
 #include "scheduler/decider.hpp"
 #include <algorithm>
 
-jamc::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule)
+jamc::Decider::Decider(RIBScheduler *schedule) : scheduler(schedule), period(0)
 {
 #ifdef JAMSCRIPT_SCHED_AI_EXP
     srand(0);
@@ -20,16 +20,16 @@ void jamc::Decider::NotifyChangeOfSchedule(const std::vector<RealTimeSchedule> &
     {
         if (x.taskId == 0)
         {
-            normalSSSlot.push_back({std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
-                                    std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count()});
+            normalSSSlot.emplace_back(std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
+                                      std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count());
         }
     }
     for (const auto &x : greedy)
     {
         if (x.taskId == 0)
         {
-            greedySSSlot.push_back({std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
-                                    std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count()});
+            greedySSSlot.emplace_back(std::chrono::duration_cast<std::chrono::microseconds>(x.sTime).count(),
+                                      std::chrono::duration_cast<std::chrono::microseconds>(x.eTime).count());
         }
     }
     period = std::chrono::duration_cast<std::chrono::microseconds>(normal.back().eTime).count();
@@ -46,7 +46,7 @@ uint64_t jamc::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
         std::cout << "(" << r.arrival << ", " << r.burst << ", " << r.deadline << ")" << std::endl;
     }
 #endif
-    std::priority_queue<QType, std::deque<QType>, std::greater<QType>> edfPQueue;
+    std::priority_queue<QType, std::deque<QType>, std::greater<>> edfPQueue;
     for (auto &slot : schedule)
     {
         while (!tRecord.empty())
@@ -72,7 +72,7 @@ uint64_t jamc::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
                 break;
             }
         }
-        long tSlot = slot.second - slot.first;
+        std::int64_t tSlot = std::int64_t(slot.second) - slot.first;
         while (tSlot > 0 && !edfPQueue.empty())
         {
             if (edfPQueue.top().second <= tSlot)
@@ -100,11 +100,11 @@ uint64_t jamc::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
 
 void jamc::Decider::RecordInteractiveJobArrival(const ITaskEntry &aInteractiveTaskRecord)
 {
-    interactiveTaskRecord.push_back({aInteractiveTaskRecord.deadline - scheduler->numberOfPeriods * period, aInteractiveTaskRecord.burst,
+    interactiveTaskRecord.emplace_back(aInteractiveTaskRecord.deadline - scheduler->numberOfPeriods * period, aInteractiveTaskRecord.burst,
                                      std::chrono::duration_cast<std::chrono::microseconds>(
                                          std::chrono::steady_clock::now() -
                                          scheduler->GetCycleStartTime())
-                                         .count()});
+                                         .count());
 }
 
 bool jamc::Decider::DecideNextScheduleToRun()

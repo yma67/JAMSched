@@ -179,16 +179,16 @@ namespace jamc
 #endif
         bool Running() { return toContinue; }
         TaskInterface *GetTaskRunning() { return taskRunning; }
-        SchedulerBase(uint32_t sharedStackSize);
+        explicit SchedulerBase(uint32_t sharedStackSize);
         virtual ~SchedulerBase();
 
-    protected:
-
+    public:
         SchedulerBase(SchedulerBase const &) = delete;
         SchedulerBase(SchedulerBase &&) = delete;
         SchedulerBase &operator=(SchedulerBase const &) = delete;
         SchedulerBase &operator=(SchedulerBase &&) = delete;
 
+    protected:
         mutable SpinOnlyMutex qMutex;
         std::condition_variable_any cvQMutex;
         std::atomic<bool> toContinue;
@@ -241,10 +241,10 @@ namespace jamc
         void Join();
         void Detach();
         
-        TaskHandle(std::shared_ptr<Notifier> h);
+        explicit TaskHandle(std::shared_ptr<Notifier> h);
 
-        TaskHandle(TaskHandle &&other);
-        TaskHandle &operator=(TaskHandle &&other);
+        TaskHandle(TaskHandle &&other) = default;
+        TaskHandle &operator=(TaskHandle &&other) = default;
         TaskHandle &operator=(TaskHandle const &) = delete;
         TaskHandle(TaskHandle const &) = delete;
 
@@ -503,15 +503,13 @@ namespace jamc
         virtual void SwapTo(TaskInterface *) = 0;
         virtual void SwapFrom(TaskInterface *) = 0;
         virtual bool Steal(SchedulerBase *scheduler) = 0;
-        virtual const bool CanSteal() const { return false; }
-
-
+        virtual bool CanSteal() const { return false; }
 
         void Enable() { GetSchedulerValue()->Enable(this); }
         void EnableImmediately() { GetSchedulerValue()->EnableImmediately(this); }
         void SwapOut();
 
-        const TaskType GetTaskType() const { return taskType; }
+        TaskType GetTaskType() const { return taskType; }
 
 #ifdef __APPLE__
         static IOCPAgent *GetIOCPAgent();
@@ -522,11 +520,10 @@ namespace jamc
 
         std::unordered_map<JTLSLocation, std::any> *GetTaskLocalStoragePool();
 
-        TaskInterface(SchedulerBase *scheduler);
-        virtual ~TaskInterface();
+        explicit TaskInterface(SchedulerBase *scheduler);
+        virtual ~TaskInterface() = default;
 
-    private:
-
+    public:
         TaskInterface() = delete;
 
         TaskInterface(TaskInterface const &) = delete;
@@ -534,13 +531,14 @@ namespace jamc
         TaskInterface &operator=(TaskInterface const &) = delete;
         TaskInterface &operator=(TaskInterface &&) = delete;
 
+    private:
         static TaskInterface* Active();
         static thread_local TaskInterface *thisTask;
         static void ExecuteC(void *lpTaskHandle);
 
         inline SchedulerBase *GetSchedulerValue() { return scheduler; }
 
-        JAMScriptUserContext uContext;
+        JAMScriptUserContext uContext{};
         SchedulerBase *scheduler;
     public:
         jamc::JAMHookTypes::ReadyBatchQueueHook rbQueueHook;
@@ -592,7 +590,7 @@ namespace jamc
     struct RealTimeIdKeyType
     {
         typedef uint32_t type;
-        const type operator()(const TaskInterface &v) const
+        type operator()(const TaskInterface &v) const
         {
             return v.id;
         }
@@ -601,7 +599,7 @@ namespace jamc
     struct BIIdKeyType
     {
         typedef uintptr_t type;
-        const type operator()(const TaskInterface &v) const
+        type operator()(const TaskInterface &v) const
         {
             return reinterpret_cast<uintptr_t>(&v);
         }
@@ -617,13 +615,13 @@ namespace jamc
         template <typename Fna, typename... Argsa>
         friend class StandAloneStackTask;
         friend class RIBScheduler;
-        TaskAttr(Fn &&tf, Args... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
-        virtual ~TaskAttr() {}
+        explicit TaskAttr(Fn &&tf, Args... args) : tFunction(std::forward<Fn>(tf)), tArgs(std::forward<Args>(args)...) {}
+        virtual ~TaskAttr() = default;
 
-    private:
-
+    public:
         TaskAttr() = delete;
 
+    private:
         typename std::decay<Fn>::type tFunction;
         std::tuple<Args...> tArgs;
 
@@ -634,7 +632,7 @@ namespace jamc
     {
     public:
 
-        const bool CanSteal() const override { return false; }
+        bool CanSteal() const override { return false; }
         
         void SwapFrom(TaskInterface *tNext) override
         {
@@ -676,17 +674,7 @@ namespace jamc
                         privateStack = nullptr;
                     }
                     privateStackSizeUpperBound = privateStackSize;
-                    try
-                    {
-                        privateStack = new uint8_t[privateStackSize];
-                    }
-                    catch (...)
-                    {
-                        // TODO: Exit task
-                        status = TASK_FINISHED;
-                        tScheduler->ShutDown();
-                        SwapToContext(&uContext, &tScheduler->schedulerContext, this);
-                    }
+                    privateStack = new uint8_t[privateStackSize];
                 }
                 memcpy(privateStack, tos, privateStackSize);
 END_COPYSTACK:
@@ -724,12 +712,9 @@ END_COPYSTACK:
             RefreshContext();
         }
 
-        ~SharedCopyStackTask()
+        ~SharedCopyStackTask() override
         {
-            if (privateStack != nullptr)
-            {
-                delete[] privateStack;
-            }
+            delete[] privateStack;
         }
 
     private:
@@ -738,13 +723,14 @@ END_COPYSTACK:
         {
             auto tScheduler = GetSchedulerValue();
             memset(&uContext, 0, sizeof(uContext));
-            auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
             uContext.uc_stack.ss_sp = tScheduler->sharedStackBegin;
             uContext.uc_stack.ss_size = tScheduler->sharedStackSizeActual;
-            CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC));
+            CreateContext(&uContext, reinterpret_cast<void (*)()>(TaskInterface::ExecuteC));
         }
 
+    public:
         SharedCopyStackTask() = delete;
+    private:
         uint8_t *privateStack;
         uint32_t privateStackSize;
         uint32_t privateStackSizeUpperBound;
@@ -757,7 +743,7 @@ END_COPYSTACK:
     {
     public:
 
-        const bool CanSteal() const override { return true; }
+        bool CanSteal() const override { return true; }
 
         void SwapFrom(TaskInterface *tNext) override
         {
@@ -803,14 +789,13 @@ END_COPYSTACK:
         void InitStack(uint32_t stackSize)
         {
             memset(&uContext, 0, sizeof(uContext));
-            auto valueThisPtr = reinterpret_cast<uintptr_t>(this);
             uContext.uc_stack.ss_sp = reinterpret_cast<std::uint8_t*>(aligned_alloc(16, stackSize));
             uContext.uc_stack.ss_size = stackSize;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
             v_stack_id = VALGRIND_STACK_REGISTER(
                 uContext.uc_stack.ss_sp, (void *)((uintptr_t)uContext.uc_stack.ss_sp + uContext.uc_stack.ss_size));
 #endif
-            CreateContext(&uContext, reinterpret_cast<void (*)(void)>(TaskInterface::ExecuteC));
+            CreateContext(&uContext, reinterpret_cast<void (*)()>(TaskInterface::ExecuteC));
         }
 
         StandAloneStackTask(SchedulerBase *sched, uint32_t stackSize, Fn &&tf, Args... args)
@@ -819,7 +804,7 @@ END_COPYSTACK:
             InitStack(stackSize);
         }
 
-        ~StandAloneStackTask()
+        ~StandAloneStackTask() override
         {
 #ifdef JAMSCRIPT_ENABLE_VALGRIND
             VALGRIND_STACK_DEREGISTER(v_stack_id);

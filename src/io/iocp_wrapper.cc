@@ -18,26 +18,26 @@ jamc::IOCPAgent::~IOCPAgent()
     close(kqFileDescriptor);
 }
 
-bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, short int>>& evesToAdd, void* uData)
+bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& evesToAdd, void* uData)
 {
     {
         std::scoped_lock lk(m);
-        pendingEvents[uData] = evesToAdd;
+        pendingEvents[uintptr_t(uData)] = evesToAdd;
     }
     bool ret = true;
     for (auto& [fd, addEvent]: evesToAdd)
     {
         struct kevent kev[3];
         int n = 0;
-        if (addEvent & POLLIN)
+        if (addEvent & std::uint16_t(POLLIN))
         {
             EV_SET(&kev[n++], fd, EVFILT_READ, EV_ADD, 0, 0, uData);
         }
-        if (addEvent & POLLOUT)
+        if (addEvent & std::uint16_t(POLLOUT))
         {
             EV_SET(&kev[n++], fd, EVFILT_WRITE, EV_ADD, 0, 0, uData);
         }
-        if (addEvent & POLLERR)
+        if (addEvent & std::uint16_t(POLLERR))
         {
             EV_SET(&kev[n++], fd, EVFILT_EXCEPT, EV_ADD, 0, 0, uData);
         }
@@ -47,19 +47,19 @@ bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, short int>>& evesToAd
     return ret;
 }
 
-bool jamc::IOCPAgent::CancelOne(int fd, short int cancelEvent, void* uData) const
+bool jamc::IOCPAgent::CancelOne(int fd, std::uint16_t cancelEvent, void* uData) const
 {
     struct kevent kev[3];
     int n = 0;
-    if (cancelEvent & POLLIN)
+    if (cancelEvent & std::uint16_t(POLLIN))
     {
         EV_SET(&kev[n++], fd, EVFILT_READ, EV_DELETE, 0, 0, uData);
     }
-    if (cancelEvent & POLLOUT)
+    if (cancelEvent & std::uint16_t(POLLOUT))
     {
         EV_SET(&kev[n++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, uData);
     }
-    if (cancelEvent & POLLERR)
+    if (cancelEvent & std::uint16_t(POLLERR))
     {
         EV_SET(&kev[n++], fd, EVFILT_EXCEPT, EV_DELETE, 0, 0, uData);
     }
@@ -69,11 +69,11 @@ bool jamc::IOCPAgent::CancelOne(int fd, short int cancelEvent, void* uData) cons
 bool jamc::IOCPAgent::CancelByData(void* uData)
 {
     bool ret = true;
-    for (auto& [fileDes, eventsToCancel]: pendingEvents[uData])
+    for (auto& [fileDes, eventsToCancel]: pendingEvents[uintptr_t(uData)])
     {
         ret = ret & CancelOne(fileDes, eventsToCancel, uData);
     }
-    pendingEvents.erase(uData);
+    pendingEvents.erase(uintptr_t(uData));
     return ret;
 }
 
@@ -99,12 +99,12 @@ void jamc::IOCPAgent::Run()
             return;
         }
         int n = kevent(kqFileDescriptor, nullptr, 0, kev, cEvent, &timeout);
-        std::unordered_map<void*, std::unordered_map<int, short int>> wakeupMap;
+        std::unordered_map<void*, std::unordered_map<int,  std::uint16_t>> wakeupMap;
         for (int i = 0; i < n; ++i)
         {
             struct kevent & ev = kev[i];
             int fd = ev.ident;
-            short int pollEvent = 0;
+            std::uint16_t pollEvent = 0;
             if (ev.filter == EVFILT_READ)
             {
                 pollEvent = POLLIN;
@@ -113,13 +113,13 @@ void jamc::IOCPAgent::Run()
             {
                 pollEvent = POLLOUT;
             }
-            if (ev.flags & EV_EOF)
+            if (ev.flags & std::uint16_t(EV_EOF))
             {
-                pollEvent |= POLLHUP;
+                pollEvent |= std::uint16_t(POLLHUP);
             }
-            if (ev.flags & EV_ERROR)
+            if (ev.flags & std::uint16_t(EV_ERROR))
             {
-                pollEvent |= POLLERR;
+                pollEvent |= std::uint16_t(POLLERR);
             }
             auto it = wakeupMap.find(ev.udata);
             if (it == wakeupMap.end())
@@ -138,7 +138,7 @@ void jamc::IOCPAgent::Run()
         for (auto& [ptrFut, fdMap]: wakeupMap)
         {
             CancelByData(ptrFut);
-            auto* prom = reinterpret_cast<jamc::promise<std::unordered_map<int, short int>> *>(ptrFut);
+            auto* prom = reinterpret_cast<jamc::promise<std::unordered_map<int, std::uint16_t>> *>(ptrFut);
             prom->set_value(fdMap);
         }
     }

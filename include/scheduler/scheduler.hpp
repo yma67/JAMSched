@@ -88,8 +88,8 @@ namespace jamc
         template <typename Fn>
         void RegisterRPCall(const std::string &fName, StackTraits stackTrait, Fn && fn) 
         {
-            localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
-            localFuncStackTraitsMap[fName] = std::move(stackTrait);
+            localFuncMap[fName] = RExecDetails::CreateRemoteRoutine(std::function(fn));
+            localFuncStackTraitsMap[fName] = stackTrait;
         }
         
         /**
@@ -102,7 +102,7 @@ namespace jamc
         template <typename Fn>
         void RegisterRPCall(const std::string &fName, Fn && fn) 
         {
-            localFuncMap[fName] = std::make_unique<RExecDetails::RoutineRemote<decltype(std::function(fn))>>(std::function(fn));
+            localFuncMap[fName] = RExecDetails::CreateRemoteRoutine(std::function(fn));
             localFuncStackTraitsMap[fName] = StackTraits(true, 0, true);
         }
 
@@ -126,7 +126,7 @@ namespace jamc
                 CreateBatchTask({ localFuncStackTraitsMap[fName] }, Clock::duration::max(), 
                 [this, fu { std::move(fu) }, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))] () 
                 {
-                    nlohmann::json jxe(localFuncMap[fName]->Invoke(std::move(rpcAttr["args"])));
+                    nlohmann::json jxe(localFuncMap[fName](rpcAttr["args"]));
                     fu->set_value(std::move(jxe));
                 }).Detach();
                 return fut.get();
@@ -150,7 +150,7 @@ namespace jamc
                 CreateBatchTask({ localFuncStackTraits }, Clock::duration::max(), 
                 [this, execRemote, rpcAttr]() 
                 {
-                    nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()]->Invoke(rpcAttr["args"]));
+                    nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()](rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
@@ -196,7 +196,7 @@ namespace jamc
         TaskHandle CreateInteractiveTask(const StackTraits &stackTraits, Duration deadline, Duration burst,
                                          std::function<void()> onCancel, Fn &&tf, Args &&... args)
         {
-            TaskInterface *fn = nullptr;
+            TaskInterface *fn;
             if (stackTraits.useSharedStack)
             {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
@@ -206,8 +206,8 @@ namespace jamc
                 fn = new StandAloneStackTask(this, stackTraits.stackSize, std::forward<Fn>(tf), std::forward<Args>(args)...);
             }
             fn->taskType = INTERACTIVE_TASK_T;
-            fn->burst = std::move(burst);
-            fn->deadline = std::move(deadline);
+            fn->burst = burst;
+            fn->deadline = deadline;
             fn->onCancel = std::move(onCancel);
             fn->isStealable = stackTraits.canSteal;
             std::lock_guard lock(qMutex);
@@ -216,7 +216,7 @@ namespace jamc
                  std::chrono::duration_cast<std::chrono::microseconds>(burst).count()});
             iEDFPriorityQueue.insert(*fn);
             cvQMutex.notify_one();
-            return { fn->notifier };
+            return TaskHandle(fn->notifier);
         }
         
         /**
@@ -233,7 +233,7 @@ namespace jamc
         template <typename Fn, typename... Args>
         TaskHandle CreateBatchTask(const StackTraits &stackTraits, Duration burst, Fn &&tf, Args &&... args)
         {
-            TaskInterface *fn = nullptr;
+            TaskInterface *fn;
             if (stackTraits.useSharedStack)
             {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
@@ -248,7 +248,7 @@ namespace jamc
             auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
-                StealScheduler *pNextThief = nullptr;
+                StealScheduler *pNextThief;
                 if (stackTraits.pinCore > -1 && 
                     stackTraits.pinCore < thiefs.size() && 
                     thiefs[stackTraits.pinCore] != nullptr) 
@@ -279,7 +279,7 @@ namespace jamc
                 bQueue.push_back(*fn);
                 cvQMutex.notify_one();
             }
-            return { ptrTaskHandle };
+            return TaskHandle(ptrTaskHandle);
         }
 
         /**
@@ -294,7 +294,7 @@ namespace jamc
         template <typename Fn, typename... Args>
         TaskHandle CreateRealTimeTask(const StackTraits &stackTraits, uint32_t id, Fn &&tf, Args &&... args)
         {
-            TaskInterface *fn = nullptr;
+            TaskInterface *fn;
             if (stackTraits.useSharedStack)
             {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
@@ -309,7 +309,7 @@ namespace jamc
             std::lock_guard lock(qMutex);
             rtRegisterTable.insert(*fn);
             cvQMutex.notify_one();
-            return { fn->notifier };
+            return TaskHandle(fn->notifier);
         }
 
         /**
@@ -584,9 +584,9 @@ namespace jamc
             return future.get().get<T>();
         }
 
-        void SetStealers(std::vector<std::unique_ptr<StealScheduler>> thiefs) 
+        void SetStealers(std::vector<std::unique_ptr<StealScheduler>> tfs)
         { 
-            this->thiefs = std::move(thiefs);
+            this->thiefs = std::move(tfs);
         }
 
         RIBScheduler *GetRIBScheduler() override { return this; }
@@ -595,7 +595,7 @@ namespace jamc
 
         using JAMDataKeyType = std::pair<std::string, std::string>;
 
-        RIBScheduler(uint32_t sharedStackSize);
+        explicit RIBScheduler(uint32_t sharedStackSize);
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
                      const std::string &appName, const std::string &devName);
@@ -615,7 +615,6 @@ namespace jamc
         Timer timer;
         Decider decider;
         uint32_t cThief;
-        std::thread tTimer;
         ExecutionStats eStats;
         uint32_t numberOfPeriods;
         Duration vClockI, vClockB;
@@ -636,7 +635,7 @@ namespace jamc
         std::size_t idxRealTimeTask;
 
         std::unordered_map<std::string, std::any> lexecFuncMap;
-        std::unordered_map<std::string, std::unique_ptr<RExecDetails::RoutineInterface>> localFuncMap;
+        std::unordered_map<std::string, std::function<nlohmann::json(nlohmann::json)>> localFuncMap;
         std::unordered_map<std::string, StackTraits> localFuncStackTraitsMap;
 
         JAMStorageTypes::BatchQueueType bQueue;

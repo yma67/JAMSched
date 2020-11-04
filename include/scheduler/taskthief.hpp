@@ -26,9 +26,9 @@ namespace jamc
 
         void ShutDown() override;
         void RunSchedulerMainLoop() override;
-        virtual void StopSchedulerMainLoop();
-        virtual TaskInterface *GetNextTask() override;
-        virtual void EndTask(TaskInterface *ptrCurrTask) override;
+        void StopSchedulerMainLoop();
+        TaskInterface *GetNextTask() override;
+        void EndTask(TaskInterface *ptrCurrTask) override;
         
         void Enable(TaskInterface *toEnable) override;
         void EnableImmediately(TaskInterface *toSteal) override;
@@ -46,7 +46,7 @@ namespace jamc
         RIBScheduler *GetRIBScheduler() override { return victim; }
 
         StealScheduler(RIBScheduler *victim, uint32_t ssz);
-        virtual ~StealScheduler() override;
+        ~StealScheduler() override;
 
     private:
 

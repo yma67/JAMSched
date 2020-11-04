@@ -8,6 +8,7 @@
 #include <condition_variable>
 
 #include <nlohmann/json.hpp>
+#include <utility>
 #include <hiredis/adapters/libevent.h>
 
 #include "concurrency/mutex.hpp"
@@ -30,7 +31,7 @@ namespace jamc
         unsigned long long timeStamp;
         std::vector<std::uint8_t> encodedObject;
         LogStreamObject(std::string logKey, unsigned long long timeStamp, std::vector<std::uint8_t> encodedObject) : 
-        logKey(std::move(logKey)), timeStamp(timeStamp), encodedObject(encodedObject) {}
+        logKey(std::move(logKey)), timeStamp(timeStamp), encodedObject(std::move(encodedObject)) {}
     };
 
     class LogManager
@@ -63,7 +64,7 @@ namespace jamc
         void Append(char* data);
         nlohmann::json Get();
         const std::string &GetBroadcastKey() { return bCastKey; }
-        BroadcastVariable(std::string bCastKey) : bCastKey(bCastKey), isCancelled(false) {}
+        BroadcastVariable(std::string bCastKey) : bCastKey(std::move(bCastKey)), isCancelled(false) {}
         ~BroadcastVariable() { isCancelled = true; cvVarStream.notify_all(); }
     private:
         std::string bCastKey;

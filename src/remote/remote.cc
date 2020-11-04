@@ -2,7 +2,6 @@
 #include "scheduler/scheduler.hpp"
 #include <nlohmann/json.hpp>
 #include <MQTTAsync.h>
-#include <MQTTClient.h>
 
 #ifndef CLOUD_FOG_COUNT_STEP
 #define CLOUD_FOG_COUNT_STEP 10
@@ -76,7 +75,7 @@ void jamc::CloudFogInfo::Clear()
 }
 
 jamc::Remote::Remote(RIBScheduler *scheduler, std::string hostAddr, std::string appId, std::string devId)
-    : scheduler(scheduler), cache(1024), mainFogInfo(nullptr),
+    : scheduler(scheduler), cache(1024), mainFogInfo(nullptr), eIdFactory(0),
       devId(std::move(devId)), appId(std::move(appId)), hostAddr(std::move(hostAddr))
 {
     std::lock_guard lockCtor(mCallback);
@@ -161,8 +160,8 @@ bool jamc::Remote::CreateRetryTaskSync(std::string hostName, Duration timeOut, n
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
         this, hostName { std::move(hostName) }, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, 
-        countCommon { std::move(countCommon) }, failureCountCommon { std::move(failureCountCommon) }, 
-        timeOut { std::move(timeOut) }, successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
+        countCommon { countCommon }, failureCountCommon { std::move(failureCountCommon) },
+        timeOut { timeOut }, successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
         promise<bool> prAck;
         promise<std::pair<bool, nlohmann::json>> pr;
         auto futureAck = prAck.get_future();
@@ -266,8 +265,8 @@ bool jamc::Remote::CreateRetryTaskSync(Duration timeOut, nlohmann::json rexReque
                                             std::shared_ptr<std::once_flag> successCallOnceFlag)
 {
     scheduler->CreateBatchTask({true, 0, true}, Duration::max(), [
-        this, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, countCommon { std::move(countCommon) }, 
-        timeOut { std::move(timeOut) }, failureCountCommon { std::move(failureCountCommon) }, 
+        this, rexRequest { std::move(rexRequest) }, prCommon { std::move(prCommon) }, countCommon { countCommon },
+        timeOut { timeOut }, failureCountCommon { std::move(failureCountCommon) },
         successCallOnceFlag { std::move(successCallOnceFlag) }] () mutable {
         promise<bool> prAck;
         promise<std::pair<bool, nlohmann::json>> pr;
