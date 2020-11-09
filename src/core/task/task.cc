@@ -15,11 +15,13 @@ void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
 {
     CleanupPreviousTask();
     auto *task = reinterpret_cast<TaskInterface *>(lpTaskHandle);
-    thisTask = task;
-    task->Execute();
-    task->status = TASK_FINISHED;
-    task->notifier->Notify();
-    task->SwapOut();
+    if (task != nullptr) {
+        thisTask = task;
+        task->Execute();
+        task->status = TASK_FINISHED;
+        task->notifier->Notify();
+        task->SwapOut();
+    }
 }
 
 #ifdef __APPLE__
@@ -41,7 +43,11 @@ void jamc::TaskInterface::CleanupPreviousTask()
 {
     if (thisTask != nullptr)
     {
-       thisTask->GetSchedulerValue()->EndTask(thisTask);
+       auto sched = thisTask->GetSchedulerValue();
+       if (sched != nullptr)
+       {
+           sched->EndTask(thisTask);
+       }
     }
 }
 
@@ -52,12 +58,15 @@ void jamc::TaskInterface::ResetTaskInfos()
 
 void jamc::TaskInterface::SwapOut()
 {
-    auto nextTask = GetSchedulerValue()->GetNextTask();
-    if (nextTask != this)
-    {
-        SwapTo(nextTask);
-        CleanupPreviousTask();
-        thisTask = this;
+    auto sched = GetSchedulerValue();
+    if (sched != nullptr) {
+        auto nextTask = sched->GetNextTask();
+        if (nextTask != this)
+        {
+            this->SwapTo(nextTask);
+            CleanupPreviousTask();
+            thisTask = this;
+        }
     }
 }
 

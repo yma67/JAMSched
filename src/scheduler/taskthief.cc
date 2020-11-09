@@ -152,9 +152,9 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     srand(time(nullptr));
     TaskInterface::ResetTaskInfos();
 #ifdef __APPLE__
-    auto* tIOManager = new StandAloneStackTask(this, 1024 * 4 * 4, [this]
+    auto* tIOManager = new StandAloneStackTask(this, 1024 * 256, [this]
     {
-        while (toContinue)
+        while (true)
         {
             this->evm->Run();
         }
@@ -164,7 +164,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     tIOManager->status = TASK_READY;
     tIOManager->id = 0;
     tIOManager->ToggleNonSteal();
-    tIOManager->Enable();
+    tIOManager->EnableImmediately();
 #endif
     while (toContinue)
     {
@@ -175,6 +175,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
             TaskInterface::ResetTaskInfos();
         }
     }
+    delete tIOManager;
 }
 
 jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 

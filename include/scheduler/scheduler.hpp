@@ -590,6 +590,7 @@ namespace jamc
         }
 
         RIBScheduler *GetRIBScheduler() override { return this; }
+        Timer &GetTimer() { return timer; }
         TaskInterface *GetNextTask() override;
         void EndTask(TaskInterface *ptrCurrTask) override;
 
@@ -631,7 +632,7 @@ namespace jamc
         TimePoint currentTime, schedulerStartTime, cycleStartTime, taskStartTime;
 
         std::vector<std::unique_ptr<StealScheduler>> thiefs;
-        std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy, currentSchedule;
+        std::vector<RealTimeSchedule> rtScheduleNormal, rtScheduleGreedy;
         std::size_t idxRealTimeTask;
 
         std::unordered_map<std::string, std::any> lexecFuncMap;
@@ -649,7 +650,7 @@ namespace jamc
         void ShutDownRunOnce();
         uint32_t GetThiefSizes();
         StealScheduler* GetMinThief();
-        TaskInterface *GetAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
+        bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
     };
 
     namespace ctask {

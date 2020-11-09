@@ -18,6 +18,7 @@ namespace jamc
 
     class TaskInterface;
     class RIBScheduler;
+    class IOCPAgent;
     class SpinMutex;
     class Notifier;
     class Mutex;
@@ -31,6 +32,7 @@ namespace jamc
         void RunTimerLoop();
         void UpdateTimeout();
         void NotifyAllTimeouts();
+        void RequestIO(int) const;
         void SetTimeoutFor(TaskInterface *task, const Duration &dt);
         void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp);
         void SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<SpinMutex> &iLock);
@@ -38,7 +40,7 @@ namespace jamc
         void SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<Mutex> &iLock);
         void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<Mutex> &iLock);
 
-        Timer(RIBScheduler *scheduler);
+        explicit Timer(RIBScheduler *scheduler);
         ~Timer();
 
     private:
@@ -52,6 +54,7 @@ namespace jamc
         
         struct timeouts *timingWheelPtr;
         RIBScheduler *scheduler;
+        int kqFileDescriptor;
         SpinMutex sl;
 
         Timer(Timer const &) = delete;

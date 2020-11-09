@@ -9,8 +9,7 @@ namespace jamc
     class IOCPAgent
     {
         Mutex m;
-        ConditionVariableAny cv;
-        int kqFileDescriptor;
+        int kqFileDescriptor, numSpin;
         SchedulerBase *scheduler;
         std::unordered_map<uintptr_t, std::vector<std::pair<int, std::uint16_t>>> pendingEvents;
         bool CancelOne(int fd, std::uint16_t cancelEvent, void* uData) const;

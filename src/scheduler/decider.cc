@@ -46,7 +46,7 @@ uint64_t jamc::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
         std::cout << "(" << r.arrival << ", " << r.burst << ", " << r.deadline << ")" << std::endl;
     }
 #endif
-    std::priority_queue<QType, std::deque<QType>, std::greater<>> edfPQueue;
+    std::priority_queue<QType, std::deque<QType>, std::greater<QType>> edfPQueue;
     for (auto &slot : schedule)
     {
         while (!tRecord.empty())
@@ -72,7 +72,7 @@ uint64_t jamc::Decider::CalculateMatchCount(const std::vector<QType> &schedule)
                 break;
             }
         }
-        std::int64_t tSlot = std::int64_t(slot.second) - slot.first;
+        long tSlot = slot.second - slot.first;
         while (tSlot > 0 && !edfPQueue.empty())
         {
             if (edfPQueue.top().second <= tSlot)

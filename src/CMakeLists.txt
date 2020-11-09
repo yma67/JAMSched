@@ -21,8 +21,6 @@ set(JAMCOMPONENTS_SOURCES_LIST "" io/iocp_wrapper.cc)
 foreach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
     list(APPEND JAMCOMPONENTS_SOURCES_LIST ${jamcomponent_source})
 endforeach(jamcomponent_source ${JAMCOMPONENTS_SOURCES})
-list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/concurrency/spinrwlock.cc")
-list(APPEND JAMCOMPONENTS_SOURCES_LIST "${CMAKE_CURRENT_SOURCE_DIR}/io/io.cc")
 
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 if (JAMSCRIPT_DEBUG_LINEINFO_OPT)

@@ -1,6 +1,8 @@
 #include <mutex>
+#include <sys/event.h>
 #include "time/time.hpp"
 #include "boost/assert.hpp"
+#include "io/iocp_wrapper.h"
 #include "core/task/task.hpp"
 #include "concurrency/mutex.hpp"
 #include "scheduler/scheduler.hpp"
@@ -10,6 +12,9 @@
 constexpr std::chrono::nanoseconds kTimerSampleDelta(5000);
 
 jamc::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
+#ifdef __APPLE__
+, kqFileDescriptor(kqueue())
+#endif
 {
     int err;
     timingWheelPtr = timeouts_open(0, &err);
@@ -24,15 +29,46 @@ jamc::Timer::~Timer()
         delete static_cast<TaskInterface *>(timeOut->callback.arg);
     }
     timeouts_close(timingWheelPtr);
+#ifdef __APPLE__
+    close(kqFileDescriptor);
+#endif
+}
+
+void jamc::Timer::RequestIO(int kqFD) const
+{
+    auto* t = TaskInterface::Active();
+    if (t != nullptr)
+    {
+        struct kevent ev{};
+        EV_SET(&ev, kqFD, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, t);
+        kevent(kqFileDescriptor, &ev, 1, nullptr, 0, nullptr);
+        t->SwapOut();
+    }
 }
 
 void jamc::Timer::RunTimerLoop() 
 {
     uint64_t printCount = 0;
-    while (scheduler->toContinue) 
+    while (scheduler->toContinue.load())
     {
+#ifdef __APPLE__
+        constexpr std::size_t cEvent = 1024;
+        struct kevent kev[cEvent];
+        struct timespec timeout{};
+        timeout.tv_sec = 0;
+        timeout.tv_nsec = 5000;
+        int n = kevent(kqFileDescriptor, nullptr, 0, kev, cEvent, &timeout);
+        for (int i = 0; i < n; i++)
+        {
+            struct kevent & ev = kev[i];
+            auto *t = static_cast<TaskInterface *>(ev.udata);
+            if (ev.filter == EVFILT_READ)
+            {
+                t->Enable();
+            }
+        }
+#endif
         NotifyAllTimeouts();
-        std::this_thread::sleep_for(kTimerSampleDelta);
 #ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
         if (printCount++ == 1000)
         {
@@ -50,7 +86,7 @@ void jamc::Timer::RunTimerLoop()
 
 void jamc::Timer::NotifyAllTimeouts()
 {
-    std::unique_lock lk(sl);
+    std::scoped_lock lk(sl);
     UpdateTimeoutWithoutLock();
     struct timeout *timeOut;
     while ((timeOut = timeouts_get(timingWheelPtr)))
@@ -74,7 +110,7 @@ void jamc::Timer::UpdateTimeoutWithoutLock()
 
 void jamc::Timer::SetTimeoutFor(TaskInterface *task, const Duration &dt) 
 { 
-    SetTimeout(task, Clock::now() - scheduler->GetSchedulerStartTime() + dt, TIMEOUT_ABS); 
+    SetTimeout(task, Clock::now() - scheduler->GetSchedulerStartTime() + dt, TIMEOUT_ABS);
 }
 
 void jamc::Timer::SetTimeoutUntil(TaskInterface *task, const TimePoint &tp)
