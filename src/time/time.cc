@@ -1,5 +1,7 @@
 #include <mutex>
+#ifdef __APPLE__
 #include <sys/event.h>
+#endif
 #include "time/time.hpp"
 #include "boost/assert.hpp"
 #include "io/iocp_wrapper.h"
@@ -39,10 +41,12 @@ void jamc::Timer::RequestIO(int kqFD) const
     auto* t = TaskInterface::Active();
     if (t != nullptr)
     {
+#ifdef __APPLE__
         struct kevent ev{};
         EV_SET(&ev, kqFD, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, t);
         kevent(kqFileDescriptor, &ev, 1, nullptr, 0, nullptr);
         t->SwapOut();
+#endif
     }
 }
 
@@ -67,6 +71,8 @@ void jamc::Timer::RunTimerLoop()
                 t->Enable();
             }
         }
+#else
+        std::chrono::sleep_for(kTimerSampleDelta);
 #endif
         NotifyAllTimeouts();
 #ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
