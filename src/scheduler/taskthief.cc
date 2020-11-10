@@ -175,7 +175,9 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
             TaskInterface::ResetTaskInfos();
         }
     }
+#ifdef __APPLE__
     delete tIOManager;
+#endif
 }
 
 jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 
