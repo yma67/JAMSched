@@ -359,6 +359,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
         remote->cvLoopSleep.notify_one();
         remoteCheckers[0].join();
     }
+    timer.NotifyAllTimeouts();
     tTimer.join();
 }
 

@@ -6,7 +6,7 @@ constexpr std::size_t kNumberOfCoroutine = 1000000;
 constexpr std::size_t kNumberOfChild = 10;
 constexpr bool kWaitInGroup = true;
 
-jamc::StackTraits stCommon(false, 4096 * 2, true);
+jamc::StackTraits stCommonNode(false, 4096 * 2, true), stCommon(true, 0, true);
 
 inline long GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
 {
@@ -25,7 +25,8 @@ void GetSkynetWithCSP(jamc::Channel<long> &cNum, jamc::WaitGroup &wg, long num, 
             swg->Add(1);
             long factor = size / div;
             long subNum = num + i * (factor);
-            jamc::ctask::CreateBatchTask(stCommon, jamc::Duration::max(),
+            jamc::ctask::CreateBatchTask(
+                (factor == 1) ? stCommon : stCommonNode, jamc::Duration::max(),
                 GetSkynetWithCSP, std::ref(*sc), std::ref(*swg),
                 long(subNum), long(factor), long(div))
                 .Detach();
@@ -82,7 +83,7 @@ auto GetSkynetWithAsync(long num, long size, long div) -> long
         FoldLeft([](auto x, auto &y) { return x + y.get(); }, 0L, 
         Map([num, size, div] (long i) {
             return jamc::async(
-                    stCommon,
+                (size / div == 1) ? stCommon : stCommonNode,
                 [num, size, div, i] {
                 return GetSkynetWithAsync(
                     num + i * (size / div), 
@@ -107,7 +108,7 @@ int main(int argc, char *argv[])
         for (int i = 0; i < atoi(argv[1]); i++)
             vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
-        ribScheduler.CreateBatchTask(stCommon, jamc::Duration::max(), [&ribScheduler, &totalNS] {
+        ribScheduler.CreateBatchTask(stCommonNode, jamc::Duration::max(), [&ribScheduler, &totalNS] {
             auto tpStart = std::chrono::high_resolution_clock::now();
             auto sc = std::make_unique<jamc::Channel<long>>();
             auto swg = std::make_unique<jamc::WaitGroup>();
@@ -134,9 +135,9 @@ int main(int argc, char *argv[])
             vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
         auto tpStart = std::chrono::high_resolution_clock::now();
-        ribScheduler.CreateBatchTask(stCommon, jamc::Duration::max(),
+        ribScheduler.CreateBatchTask(stCommonNode, jamc::Duration::max(),
         [&i, tpStart, &totalFutureNS, &ribScheduler] {
-            jamc::async([&i, tpStart, &totalFutureNS, &ribScheduler] {
+            jamc::async(stCommonNode, [] {
                 return GetSkynetWithAsync(0L, long(kNumberOfCoroutine), long(kNumberOfChild));
             }).then([tpStart](jamc::future<long> res) {
                 long r = res.get();
