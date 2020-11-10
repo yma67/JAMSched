@@ -72,7 +72,7 @@ void jamc::Timer::RunTimerLoop()
             }
         }
 #else
-        std::chrono::sleep_for(kTimerSampleDelta);
+        std::this_thread::sleep_for(kTimerSampleDelta);
 #endif
         NotifyAllTimeouts();
 #ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
