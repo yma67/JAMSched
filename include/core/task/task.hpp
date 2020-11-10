@@ -688,6 +688,7 @@ END_COPYSTACK:
                 }
                 return;
             }
+            BOOST_ASSERT_MSG(0, "task stack overflow\n");
         }
 
         bool Steal(SchedulerBase *scheduler) override

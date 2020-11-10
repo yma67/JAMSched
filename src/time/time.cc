@@ -24,12 +24,6 @@ jamc::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
 
 jamc::Timer::~Timer() 
 {
-    timeouts_update(timingWheelPtr, std::numeric_limits<uint64_t>::max());
-    struct timeout *timeOut;
-    while ((timeOut = timeouts_get(timingWheelPtr)))
-    {
-        delete static_cast<TaskInterface *>(timeOut->callback.arg);
-    }
     timeouts_close(timingWheelPtr);
 #ifdef __APPLE__
     close(kqFileDescriptor);
@@ -97,7 +91,7 @@ void jamc::Timer::NotifyAllTimeouts()
     struct timeout *timeOut;
     while ((timeOut = timeouts_get(timingWheelPtr)))
     {
-        timeOut->callback.fn(timeOut->callback.arg);
+        if (timeOut->callback.arg != nullptr) timeOut->callback.fn(timeOut->callback.arg);
     }
 }
 

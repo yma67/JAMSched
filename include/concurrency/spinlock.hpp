@@ -18,18 +18,7 @@ namespace jamc
 
     };
 
-    class SpinOnlyMutex
-    {
-
-        std::atomic_flag flag = ATOMIC_FLAG_INIT;
-
-    public:
-
-        void lock();
-        bool try_lock();
-        void unlock();
-
-    };
+    using SpinOnlyMutex = SpinMutex;
 
 } // namespace jamc
 #endif
