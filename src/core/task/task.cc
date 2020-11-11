@@ -59,7 +59,8 @@ void jamc::TaskInterface::ResetTaskInfos()
 void jamc::TaskInterface::SwapOut()
 {
     auto sched = GetSchedulerValue();
-    if (sched != nullptr) {
+    if (sched != nullptr)
+    {
         auto nextTask = sched->GetNextTask();
         if (nextTask != this)
         {

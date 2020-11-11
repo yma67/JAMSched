@@ -5,8 +5,7 @@
 constexpr std::size_t kNumberOfCoroutine = 1000000;
 constexpr std::size_t kNumberOfChild = 10;
 constexpr bool kWaitInGroup = true;
-
-jamc::StackTraits stCommonNode(false, 4096 * 2, true), stCommon(true, 0, true);
+constexpr jamc::StackTraits stCommonNode(false, 4096 * 2, true), stCommon(true, 0, true);
 
 inline long GetDurationNS(std::chrono::high_resolution_clock::time_point tp) 
 {
@@ -35,7 +34,7 @@ void GetSkynetWithCSP(jamc::Channel<long> &cNum, jamc::WaitGroup &wg, long num, 
         {
             swg->Wait();
             sc->close();
-            std::accumulate(sc->begin(), sc->end(), 0L, std::plus<long>()) >> cNum;
+            std::accumulate(sc->begin(), sc->end(), 0L, std::plus<>()) >> cNum;
             wg.Done();
         }
         else
@@ -105,7 +104,7 @@ int main(int argc, char *argv[])
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
         std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
-        for (int i = 0; i < atoi(argv[1]); i++)
+        for (int i = 0; i < std::atoi(argv[1]); i++)
             vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
         ribScheduler.CreateBatchTask(stCommonNode, jamc::Duration::max(), [&ribScheduler, &totalNS] {
@@ -131,7 +130,7 @@ int main(int argc, char *argv[])
         ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
                                  {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
         std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
-        for (int i = 0; i < atoi(argv[1]); i++)
+        for (int i = 0; i < std::atoi(argv[1]); i++)
             vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
         ribScheduler.SetStealers(std::move(vst));
         auto tpStart = std::chrono::high_resolution_clock::now();

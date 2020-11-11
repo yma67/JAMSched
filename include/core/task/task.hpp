@@ -707,8 +707,9 @@ END_COPYSTACK:
             std::apply(std::move(valueStore.tFunction), std::move(valueStore.tArgs));
         }
 
-        SharedCopyStackTask(SchedulerBase *sched, Fn &&tf, Args... args) : TaskInterface(sched), valueStore(std::forward<Fn>(tf), std::forward<Args>(args)...), privateStack(nullptr),
-                                                                           privateStackSize(0), privateStackSizeUpperBound(0)
+        SharedCopyStackTask(SchedulerBase *sched, Fn &&tf, Args... args)
+        : TaskInterface(sched), valueStore(std::forward<Fn>(tf), std::forward<Args>(args)...), privateStack(nullptr),
+          privateStackSize(0), privateStackSizeUpperBound(0)
         {
             RefreshContext();
         }

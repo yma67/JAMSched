@@ -22,7 +22,7 @@ namespace jamc
         friend class RIBScheduler;
 
         virtual uint64_t Size() const;
-        virtual size_t StealFrom(StealScheduler *toSteal);
+        virtual std::vector<TaskInterface *> Steal();
 
         void ShutDown() override;
         void RunSchedulerMainLoop() override;
@@ -49,6 +49,8 @@ namespace jamc
         ~StealScheduler() override;
 
     private:
+
+        size_t StealFrom(StealScheduler *toSteal);
 
         std::atomic_uint64_t upCPUTime, sizeOfQueue;
         bool isRunning;

@@ -363,7 +363,8 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
     tTimer.join();
 }
 
-bool jamc::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock) {
+bool jamc::RIBScheduler::TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock)
+{
     if (bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty())
     {
         return false;

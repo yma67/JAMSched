@@ -33,12 +33,9 @@ namespace jamc
             : sTime(s), eTime(e), taskId(id) {}
     };
 
-    
-
-    class LogManager;
     struct RedisState;
-    class JAMDataKey;
     class BroadcastManager;
+    class LogManager;
     class Timer;
 
     class RIBScheduler : public SchedulerBase
@@ -57,10 +54,8 @@ namespace jamc
 
         void ShutDown() override;
         void RunSchedulerMainLoop() override;
-
         void Enable(TaskInterface *toEnable) override;
         void EnableImmediately(TaskInterface *toEnable) override;
-
         TimePoint GetSchedulerStartTime() const override;
         TimePoint GetCycleStartTime() const override;
         void SleepFor(TaskInterface* task, const Duration &dt) override;
@@ -589,13 +584,12 @@ namespace jamc
             this->thiefs = std::move(tfs);
         }
 
+        using JAMDataKeyType = std::pair<std::string, std::string>;
+
         RIBScheduler *GetRIBScheduler() override { return this; }
         Timer &GetTimer() { return timer; }
         TaskInterface *GetNextTask() override;
         void EndTask(TaskInterface *ptrCurrTask) override;
-
-        using JAMDataKeyType = std::pair<std::string, std::string>;
-
         explicit RIBScheduler(uint32_t sharedStackSize);
         RIBScheduler(uint32_t sharedStackSize, uint32_t nThiefs);
         RIBScheduler(uint32_t sharedStackSize, const std::string &hostAddr,
@@ -653,7 +647,8 @@ namespace jamc
         bool TryExecuteAnInteractiveBatchTask(std::unique_lock<decltype(qMutex)> &lock);
     };
 
-    namespace ctask {
+    namespace ctask
+    {
         
         template <typename ...Args>
         TaskHandle CreateBatchTask(Args&&... args)

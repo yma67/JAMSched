@@ -32,69 +32,80 @@ void jamc::StealScheduler::StopSchedulerMainLoop()
 
 void jamc::StealScheduler::EnableImmediately(TaskInterface *toEnable)
 {
-    std::scoped_lock lk(qMutex);
-    sizeOfQueue++;
-    isReady.push_front(*toEnable);
-    toEnable->status = TASK_READY;
-    cvQMutex.notify_all();
+    if (toEnable != nullptr)
+    {
+        std::scoped_lock lk(qMutex);
+        sizeOfQueue++;
+        isReady.push_front(*toEnable);
+        toEnable->status = TASK_READY;
+        cvQMutex.notify_all();
+    }
 }
 
 
 void jamc::StealScheduler::Enable(TaskInterface *toEnable)
 {
-    std::scoped_lock lk(qMutex);
-    sizeOfQueue++;
-    isReady.push_back(*toEnable);
-    toEnable->status = TASK_READY;
-    cvQMutex.notify_all();
+    if (toEnable != nullptr)
+    {
+        std::scoped_lock lk(qMutex);
+        sizeOfQueue++;
+        isReady.push_back(*toEnable);
+        toEnable->status = TASK_READY;
+        cvQMutex.notify_all();
+    }
+}
+
+std::vector<jamc::TaskInterface *> jamc::StealScheduler::Steal()
+{
+    std::vector<TaskInterface *> tasksToSteal;
+    std::scoped_lock sLock(qMutex);
+    size_t stealableCount = 0;
+    for (auto& task: isReady)
+    {
+        if (task.isStealable)
+        {
+            stealableCount++;
+        }
+    }
+    if (stealableCount > 1) {
+        auto toStealCount = std::min(stealableCount, isReady.size() / 2);
+        auto itBatch = isReady.rbegin();
+        while (itBatch != isReady.rend() && toStealCount > 0)
+        {
+            if (itBatch->isStealable)
+            {
+                auto *pNextSteal = &(*itBatch);
+                isReady.erase(std::next(itBatch).base());
+                sizeOfQueue--;
+                sizeOfQueue++;
+                tasksToSteal.push_back(pNextSteal);
+                toStealCount--;
+            }
+            else
+            {
+                itBatch++;
+            }
+        }
+    }
+    return tasksToSteal;
 }
 
 size_t jamc::StealScheduler::StealFrom(StealScheduler *toSteal)
 {
-    std::vector<TaskInterface *> tasksToSteal;
+    if (toSteal != nullptr)
     {
-        std::scoped_lock sLock(toSteal->qMutex);
-        size_t stealableCount = 0;
-        for (auto& task: toSteal->isReady)
+        auto tasksToSteal = toSteal->Steal();
         {
-            if (task.isStealable)
+            std::scoped_lock sLock(qMutex);
+            for (auto tsk: tasksToSteal)
             {
-                stealableCount++;
+                tsk->Steal(this);
+                sizeOfQueue++;
+                isReady.push_front(*tsk);
             }
         }
-        if (stealableCount > 1) {
-            auto nThiefs = victim->thiefs.size();
-            auto toStealCount = std::min(stealableCount, toSteal->isReady.size() / 2);
-            auto supposeTo = toStealCount;
-            auto itBatch = toSteal->isReady.rbegin();
-            while (itBatch != toSteal->isReady.rend() && toStealCount > 0)
-            {
-                if (itBatch->isStealable)
-                {
-                    auto *pNextSteal = &(*itBatch);
-                    toSteal->isReady.erase(std::next(itBatch).base());
-                    toSteal->sizeOfQueue--;
-                    sizeOfQueue++;
-                    tasksToSteal.push_back(pNextSteal);
-                    toStealCount--;
-                }
-                else
-                {
-                    itBatch++;
-                }
-            }
-        }
+        return tasksToSteal.size();
     }
-    {
-        std::scoped_lock sLock(qMutex);
-        for (auto tsk: tasksToSteal)
-        {
-            tsk->Steal(this);
-            sizeOfQueue++;
-            isReady.push_front(*tsk);
-        }
-    }
-    return tasksToSteal.size();
 }
 
 uint64_t jamc::StealScheduler::Size() const
@@ -154,10 +165,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
 #ifdef __APPLE__
     auto* tIOManager = new StandAloneStackTask(this, 1024 * 256, [this]
     {
-        while (true)
-        {
-            this->evm->Run();
-        }
+        while (true) this->evm->Run();
     });
     tIOManager->taskType = BATCH_TASK_T;
     tIOManager->isStealable = false;
@@ -220,12 +228,15 @@ jamc::TaskInterface *jamc::StealScheduler::GetNextTask()
 
 void jamc::StealScheduler::EndTask(TaskInterface *ptrCurrTask) 
 {
-    if (ptrCurrTask->CanSteal()) 
+    if (ptrCurrTask != nullptr)
     {
-        ptrCurrTask->isStealable = true;
-    }
-    if (ptrCurrTask->status == TASK_FINISHED)
-    {
-        delete ptrCurrTask;
+        if (ptrCurrTask->CanSteal())
+        {
+            ptrCurrTask->isStealable = true;
+        }
+        if (ptrCurrTask->status == TASK_FINISHED)
+        {
+            delete ptrCurrTask;
+        }
     }
 }
