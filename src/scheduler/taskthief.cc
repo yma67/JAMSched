@@ -106,6 +106,7 @@ size_t jamc::StealScheduler::StealFrom(StealScheduler *toSteal)
         }
         return tasksToSteal.size();
     }
+    return 0;
 }
 
 uint64_t jamc::StealScheduler::Size() const
