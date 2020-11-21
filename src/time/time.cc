@@ -73,7 +73,7 @@ void jamc::Timer::RunTimerLoop()
         if (printCount++ == 1000)
         {
             printCount = 0;
-            std::cout << "sizes of executors ";
+            std::cout << "sizes of executors at ";
             for (auto& t: scheduler->thiefs)
             {
                 std::cout << t->Size() << " ";
@@ -136,7 +136,7 @@ void jamc::Timer::TimeoutCallback(void *args)
     auto cvWaitFlag = t->cvStatus.exchange(-2, std::memory_order_seq_cst);
     if (cvWaitFlag != static_cast<std::intptr_t>(-1))
     {
-        t->EnableImmediately();
+        t->Enable();
     }
 }
 

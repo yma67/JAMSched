@@ -61,7 +61,8 @@ void jamc::TaskInterface::SwapOut()
     auto sched = GetSchedulerValue();
     if (sched != nullptr)
     {
-        auto nextTask = sched->GetNextTask();
+        //auto nextTask = sched->GetNextTask();
+        auto nextTask = nullptr;
         if (nextTask != this)
         {
             this->SwapTo(nextTask);
@@ -69,6 +70,24 @@ void jamc::TaskInterface::SwapOut()
             thisTask = this;
         }
     }
+}
+
+void jamc::TaskInterface::RendementALaTache(TaskInterface *nextTask)
+{
+    if (this->status != TASK_FINISHED && nextTask != nullptr && nextTask != this &&
+        nextTask->GetSchedulerValue() == this->GetSchedulerValue())
+    {
+        this->Enable();
+        this->SwapTo(nextTask);
+        CleanupPreviousTask();
+        thisTask = this;
+    }
+}
+
+void jamc::TaskInterface::Enable()
+{
+    if (enableImmediately) scheduler->EnableImmediately(this);
+    else scheduler->Enable(this);
 }
 
 jamc::TaskHandle::TaskHandle(std::shared_ptr<Notifier> h)
@@ -160,7 +179,7 @@ void jamc::ctask::Yield()
     auto thisTaskK = TaskInterface::Active();
     if (thisTaskK != nullptr && thisTaskK->status != TASK_FINISHED) 
     {
-        thisTaskK->Enable();
+        thisTaskK->scheduler->Enable(thisTaskK);
         thisTaskK->SwapOut();
     }
 }

@@ -10,12 +10,12 @@ void jamc::ConditionVariableAny::notify_one()
         auto exp = reinterpret_cast<std::intptr_t>(this);
         if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_seq_cst))
         {
-            pFr->EnableImmediately();
+            pFr->Enable();
             return;
         }
         if (exp == static_cast<std::intptr_t>(0))
         {
-            pFr->EnableImmediately();
+            pFr->Enable();
             return;
         }
     }
@@ -31,11 +31,11 @@ void jamc::ConditionVariableAny::notify_all()
         auto exp = reinterpret_cast<std::intptr_t>(this);
         if (pFr->cvStatus.compare_exchange_strong(exp, static_cast<std::intptr_t>(-1), std::memory_order_seq_cst))
         {
-            pFr->EnableImmediately();
+            pFr->Enable();
         }
         else if (exp == static_cast<std::intptr_t>(0))
         {
-            pFr->EnableImmediately();
+            pFr->Enable();
         }
     }
 }

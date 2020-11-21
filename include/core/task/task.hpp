@@ -505,9 +505,9 @@ namespace jamc
         virtual bool Steal(SchedulerBase *scheduler) = 0;
         virtual bool CanSteal() const { return false; }
 
-        void Enable() { GetSchedulerValue()->Enable(this); }
-        void EnableImmediately() { GetSchedulerValue()->EnableImmediately(this); }
+        void Enable();
         void SwapOut();
+        void RendementALaTache(TaskInterface *);
 
         TaskType GetTaskType() const { return taskType; }
 
@@ -546,7 +546,7 @@ namespace jamc
         jamc::JAMHookTypes::ReadyInteractiveEdfHook riEdfHook;
         boost::intrusive::unordered_set_member_hook<> rtHook;
     private:
-        uint32_t id;
+        uint32_t id, enableImmediately = 1;
         std::atomic_bool isStealable;
         std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         TaskType taskType;
@@ -732,6 +732,12 @@ END_COPYSTACK:
 
     public:
         SharedCopyStackTask() = delete;
+        static void* operator new(std::size_t sz) {
+            return std::aligned_alloc(64, sz);
+        }
+        static void operator delete(void* ptr, std::size_t sz) {
+            return std::free(ptr);
+        }
     private:
         uint8_t *privateStack;
         uint32_t privateStackSize;
@@ -814,6 +820,13 @@ END_COPYSTACK:
             VALGRIND_STACK_DEREGISTER(v_stack_id);
 #endif
             free(reinterpret_cast<uint8_t *>(uContext.uc_stack.ss_sp));
+        }
+
+        static void* operator new(std::size_t sz) {
+            return std::aligned_alloc(64, sz);
+        }
+        static void operator delete(void* ptr, std::size_t sz) {
+            return std::free(ptr);
         }
 
     private:

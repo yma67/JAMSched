@@ -7,7 +7,7 @@
 #include <initializer_list>
 #include <unordered_map>
 #include <type_traits>
-#include <cuda.h>
+#include "cuda_runtime.h"
 
 using StreamType = cudaStream_t;
 using ErrorType = cudaError_t;
@@ -31,10 +31,11 @@ namespace cuda {
         {
             StreamBundle* data = static_cast<StreamBundle*>(lpStreamBundle);
             {
-                std::scoped_lock lk(data->m);
+                std::unique_lock lk(data->m);
                 data->resMap.emplace(stream, error);
                 if (data->resMap.size() == data->totalStreamCount)
                 {
+                    lk.unlock();
                     data->cv.notify_one();
                 }
             }
@@ -75,14 +76,14 @@ namespace cuda {
 
         std::unordered_map<StreamType, ErrorType> WaitThenGet()
         {
-            std::scoped_lock lk(m);
+            std::unique_lock lk(m);
             while (resMap.size() < totalStreamCount) cv.wait(lk);
             return std::move(resMap);
         }
 
     };
 
-    inline ErrorType WaitStream(StreamType stream)
+    ErrorType WaitStream(StreamType stream)
     {
         auto r = std::make_unique<jamc::promise<ErrorType>>();
         auto f = r->get_future();
@@ -99,17 +100,8 @@ namespace cuda {
         }
         return f.get();
     }
-
-    template<typename ...TStream>
-    inline
-    typename std::enable_if<all_same<StreamType, TStream...>::value, std::unordered_map<StreamType, ErrorType>>::type
-    WaitStream(StreamType firstStream, TStream... xsStreams)
-    {
-        auto r = std::make_unique<StreamBundle>(firstStream, xsStreams...);
-        return r->WaitThenGet();
-    }
-
-    inline std::unordered_map<StreamType, ErrorType> WaitStream(std::vector<StreamType> streams)
+    
+    std::unordered_map<StreamType, ErrorType> WaitStream(std::vector<StreamType> streams)
     {
         auto r = std::make_unique<StreamBundle>(streams);
         return r->WaitThenGet();

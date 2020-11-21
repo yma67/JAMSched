@@ -35,7 +35,7 @@ void jamc::StealScheduler::EnableImmediately(TaskInterface *toEnable)
     if (toEnable != nullptr)
     {
         std::scoped_lock lk(qMutex);
-        sizeOfQueue++;
+        if(toEnable->CanSteal() || toEnable->isStealable) sizeOfQueue++;
         isReady.push_front(*toEnable);
         toEnable->status = TASK_READY;
         cvQMutex.notify_all();
@@ -48,7 +48,7 @@ void jamc::StealScheduler::Enable(TaskInterface *toEnable)
     if (toEnable != nullptr)
     {
         std::scoped_lock lk(qMutex);
-        sizeOfQueue++;
+        if(toEnable->CanSteal() || toEnable->isStealable) sizeOfQueue++;
         isReady.push_back(*toEnable);
         toEnable->status = TASK_READY;
         cvQMutex.notify_all();
@@ -77,7 +77,6 @@ std::vector<jamc::TaskInterface *> jamc::StealScheduler::Steal()
                 auto *pNextSteal = &(*itBatch);
                 isReady.erase(std::next(itBatch).base());
                 sizeOfQueue--;
-                sizeOfQueue++;
                 tasksToSteal.push_back(pNextSteal);
                 toStealCount--;
             }
@@ -221,7 +220,7 @@ jamc::TaskInterface *jamc::StealScheduler::GetNextTask()
     }
     auto& pNext = isReady.front();
     isReady.pop_front();
-    sizeOfQueue--;
+    if(pNext.CanSteal() || pNext.isStealable) sizeOfQueue--;
     pNext.isStealable = false;
     pNext.status = TASK_RUNNING;
     return &pNext;

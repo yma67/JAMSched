@@ -111,18 +111,29 @@ namespace jamc
             if (rpcAttr.contains("actname") && rpcAttr.contains("args") && 
                 localFuncMap.find(rpcAttr["actname"].get<std::string>()) != localFuncMap.end()) 
             {
+#ifdef __CUDACC__
+                auto fu = new promise<nlohmann::json>();
+#else
                 auto fu = std::make_unique<promise<nlohmann::json>>();
+#endif
                 auto fut = fu->get_future();
                 auto fName = rpcAttr["actname"].get<std::string>();
                 if (localFuncStackTraitsMap.find(fName) == localFuncStackTraitsMap.end())
                 {
                     return false;
                 }
-                CreateBatchTask({ localFuncStackTraitsMap[fName] }, Clock::duration::max(), 
-                [this, fu { std::move(fu) }, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))] () 
+                CreateBatchTask(StackTraits(localFuncStackTraitsMap[fName] ), Clock::duration::max(),
+#ifdef __CUDACC__
+                    [this, fu, fName, rpcAttr] ()
+#else
+                [this, fu { std::move(fu) }, fName { std::move(fName) }, rpcAttr(std::move(rpcAttr))] ()
+#endif
                 {
                     nlohmann::json jxe(localFuncMap[fName](rpcAttr["args"]));
                     fu->set_value(std::move(jxe));
+#ifdef __CUDACC__
+                    delete fu;
+#endif
                 }).Detach();
                 return fut.get();
             }
@@ -142,14 +153,18 @@ namespace jamc
                 {
                     localFuncStackTraits = itLocalFuncStackTraits->second;
                 }
-                CreateBatchTask({ localFuncStackTraits }, Clock::duration::max(), 
+                CreateBatchTask(StackTraits(localFuncStackTraits), Clock::duration::max(),
                 [this, execRemote, rpcAttr]() 
                 {
                     nlohmann::json jResult(localFuncMap[rpcAttr["actname"].get<std::string>()](rpcAttr["args"]));
                     jResult["actid"] = rpcAttr["actid"].get<int>();
                     jResult["cmd"] = "REXEC-RES";
                     auto vReq = nlohmann::json::to_cbor(jResult.dump());
+#ifdef __CUDACC__
+                    Remote::callbackThreadPool.enqueue([execRemote, vReq] () mutable {
+#else
                     Remote::callbackThreadPool.enqueue([execRemote, vReq { std::move(vReq) }] () mutable {
+#endif
                         std::shared_lock lk(Remote::mCallback);
                         for (int i = 0; i < 3; i++)
                         {
@@ -205,6 +220,7 @@ namespace jamc
             fn->deadline = deadline;
             fn->onCancel = std::move(onCancel);
             fn->isStealable = stackTraits.canSteal;
+            fn->enableImmediately = stackTraits.launchImmediately;
             std::lock_guard lock(qMutex);
             decider.RecordInteractiveJobArrival(
                 {std::chrono::duration_cast<std::chrono::microseconds>(deadline).count(),
@@ -228,7 +244,7 @@ namespace jamc
         template <typename Fn, typename... Args>
         TaskHandle CreateBatchTask(const StackTraits &stackTraits, Duration burst, Fn &&tf, Args &&... args)
         {
-            TaskInterface *fn;
+            TaskInterface *fn, *ptrCetteTache = TaskInterface::Active();
             if (stackTraits.useSharedStack)
             {
                 fn = new SharedCopyStackTask(this, std::forward<Fn>(tf), std::forward<Args>(args)...);
@@ -240,6 +256,7 @@ namespace jamc
             fn->taskType = BATCH_TASK_T;
             fn->burst = burst;
             fn->isStealable = stackTraits.canSteal;
+            fn->enableImmediately = stackTraits.launchImmediately;
             auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
@@ -253,11 +270,10 @@ namespace jamc
                 else 
                 {
                     pNextThief = GetMinThief();
-                    auto* ptrTaskCurrent = TaskInterface::Active();
-                    if (ptrTaskCurrent != nullptr && this != ptrTaskCurrent->scheduler &&
+                    if (ptrCetteTache != nullptr && this != ptrCetteTache->scheduler &&
                         pNextThief != nullptr && pNextThief->Size() > 0)
                     {
-                        pNextThief = static_cast<StealScheduler *>(ptrTaskCurrent->GetSchedulerValue());
+                        pNextThief = static_cast<StealScheduler *>(ptrCetteTache->GetSchedulerValue());
                     }
                     else if (pNextThief == nullptr || pNextThief->Size() > 0)
                     {
@@ -265,8 +281,16 @@ namespace jamc
                     }
                 }
                 fn->Steal(pNextThief);
-                if (stackTraits.launchImmediately) fn->EnableImmediately();
-                else fn->Enable();
+                /*if (stackTraits.launchImmediately && ptrCetteTache != nullptr &&
+                    fn->GetSchedulerValue() == ptrCetteTache->GetSchedulerValue())
+                {
+                    ptrCetteTache->RendementALaTache(fn);
+                }
+                else
+                {
+                    fn->Enable();
+                }*/
+                fn->Enable();
             } 
             else 
             {
