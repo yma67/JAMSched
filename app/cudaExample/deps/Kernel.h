@@ -7,7 +7,6 @@
 #include "cuda_runtime.h"
 #include "LogicalInput.h"
 #include <vector>
-void KernelInvoker(cudaStream_t, int*, int*, int*);
-void Assignment1(cudaStream_t, g26::LogicalInput*, g26::LogicalInput*, g26::LogicalInput*, g26::LogicalInput*, unsigned int);
+void KernelInvoker(cudaStream_t, int*, int*, int*, int*, int*, int*, int, int);
 
 #endif //JAMSCRIPT_KERNEL_H

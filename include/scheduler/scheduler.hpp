@@ -281,7 +281,7 @@ namespace jamc
                     }
                 }
                 fn->Steal(pNextThief);
-                /*if (stackTraits.launchImmediately && ptrCetteTache != nullptr &&
+                if (stackTraits.launchImmediately && ptrCetteTache != nullptr &&
                     fn->GetSchedulerValue() == ptrCetteTache->GetSchedulerValue())
                 {
                     ptrCetteTache->RendementALaTache(fn);
@@ -289,9 +289,8 @@ namespace jamc
                 else
                 {
                     fn->Enable();
-                }*/
-                fn->Enable();
-            } 
+                }
+            }
             else 
             {
                 std::lock_guard lock(qMutex);
