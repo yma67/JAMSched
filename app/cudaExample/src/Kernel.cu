@@ -37,7 +37,7 @@ void vector_add( int * a, int * b, int * c, int size) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     int lim = idx + 256;
     if (lim > size) lim = size;
-    for (int i = idx; i < lim; i++) c[idx] += a[i] * b[i];
+    for (int i = idx; i < lim; i++) c[idx] += a[i % size] * b[i % size];
     if (idx < size) {
         c[idx] = a[idx] + b[idx];
     }

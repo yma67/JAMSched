@@ -69,8 +69,6 @@ static void Compute(int k) {
 
 int main(int argc, char* argv[]) {
     jamc::RIBScheduler ribScheduler(1024 * 256);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::seconds(10000), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::seconds(10000), 0}});
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
     auto nThreads = std::atoi(argv[1]);
     for (int i = 0; i < nThreads; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
@@ -78,6 +76,7 @@ int main(int argc, char* argv[]) {
     ribScheduler.CreateBatchTask(jamc::StackTraits(false, 1024 * 256, true, false), jamc::Duration::max(), [&ribScheduler] {
         std::vector<jamc::TaskHandle> pendings;
         int *hostMemoryPtr;
+        
         constexpr size_t perIterHostPerArray = kNumIteration * kPerDimLen * kPerDimLen;
         constexpr size_t perIterHostTotal = perIterHostPerArray * 3;
         constexpr size_t perIterDeviceArray = kPerDimLen * kPerDimLen;
@@ -107,6 +106,7 @@ int main(int argc, char* argv[]) {
         cnmemFinalize();
         cudaFreeHost(hostMemoryPtr);
         for (int i = 0; i < kNumTrails; i++) cudaStreamDestroy(streams[i]);
+        
         ribScheduler.ShutDown();
     }).Detach();
     ribScheduler.RunSchedulerMainLoop();

@@ -20,39 +20,37 @@ static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
     std::vector<int> result;
     cudaStream_t stream;
-	cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
-	auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
-	auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
-	auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
-	if (res1 != cudaSuccess) {
-	    printf("shut up 1\n");
-	    return;
-	}
-	if (res2 != cudaSuccess) {
-	    printf("shut up 3\n");
-	    return;
-	}
-	if (res3 != cudaSuccess) {
-	    printf("shut up 3\n");
-	    return;
-	}
-	cudaMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int));
-	cudaMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int));
-	cudaMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int));
-	KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration);
-	cudaFree(dev_a);
-	cudaFree(dev_b);
-	cudaFree(dev_c);
-	cudaFreeHost(host_a);
-	cudaFreeHost(host_b);
-	cudaFreeHost(host_c);
-	cudaStreamDestroy(stream);
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+    auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    if (res1 != cudaSuccess) {
+        printf("shut up 1\n");
+        return;
+    }
+    if (res2 != cudaSuccess) {
+        printf("shut up 3\n");
+        return;
+    }
+    if (res3 != cudaSuccess) {
+        printf("shut up 3\n");
+        return;
+    }
+    cudaMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int));
+    cudaMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int));
+    cudaMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int));
+    KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration);
+    cudaFree(dev_a);
+    cudaFree(dev_b);
+    cudaFree(dev_c);
+    cudaFreeHost(host_a);
+    cudaFreeHost(host_b);
+    cudaFreeHost(host_c);
+    cudaStreamDestroy(stream);
 }
 
 int main(int argc, char* argv[]) {
     jamc::RIBScheduler ribScheduler(1024 * 256);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::seconds(10000), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::seconds(10000), 0}});
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
     auto nThreads = std::atoi(argv[1]);
     for (int i = 0; i < nThreads; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));

@@ -101,8 +101,6 @@ int main(int argc, char *argv[])
     for (int i = 0; i < 10; i++)
     {
         jamc::RIBScheduler ribScheduler(1024 * 256);
-        ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}},
-                                 {{std::chrono::milliseconds(0), std::chrono::milliseconds(10000), 0}});
         std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
         for (int i = 0; i < std::atoi(argv[1]); i++)
             vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));

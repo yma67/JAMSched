@@ -128,8 +128,6 @@ int main()
     ribScheduler.RegisterRPCall("PrintResultWithGrade", PrintResultWithGrade);
     ribScheduler.RegisterRPCall("CompareCString", strcmp);
     ribScheduler.RegisterRPCall("CStringLength", strlen);
-    ribScheduler.SetSchedule({{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}},
-                             {{std::chrono::milliseconds(0), std::chrono::milliseconds(10), 0}});
     std::atomic_int32_t syncVar = 0, rTotal = 0;
     int var = 0;
 #ifdef JAMSCRIPT_ENABLE_VALGRIND

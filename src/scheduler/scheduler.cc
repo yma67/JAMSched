@@ -226,108 +226,110 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
         );
     }
     TaskInterface::ResetTaskInfos();
-    while (toContinue)
+    if (!rtScheduleGreedy.empty() or !rtScheduleNormal.empty())
     {
-        std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
-        while (rtScheduleGreedy.empty() && rtScheduleNormal.empty())
+        while (toContinue)
         {
-            lScheduleReady.unlock();
-            std::unique_lock lQMutexScheduleReady(qMutex);
-            auto haveBITaskToExecute = TryExecuteAnInteractiveBatchTask(lQMutexScheduleReady);
-            lScheduleReady.lock();
-#if JAMSCRIPT_BLOCK_WAIT && RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS > 0
-            if (!haveBITaskToExecute)
+            std::unique_lock<std::mutex> lScheduleReady(sReadyRTSchedule);
+            while (rtScheduleGreedy.empty() && rtScheduleNormal.empty())
             {
-                cvReadyRTSchedule.wait_for(
-                        lScheduleReady,
-                        std::chrono::nanoseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS)
-                );
-            }
+                lScheduleReady.unlock();
+                std::unique_lock lQMutexScheduleReady(qMutex);
+                auto haveBITaskToExecute = TryExecuteAnInteractiveBatchTask(lQMutexScheduleReady);
+                lScheduleReady.lock();
+#if JAMSCRIPT_BLOCK_WAIT && RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS > 0
+                if (!haveBITaskToExecute)
+                {
+                    cvReadyRTSchedule.wait_for(
+                            lScheduleReady,
+                            std::chrono::nanoseconds(RT_SCHEDULE_NOT_SET_RETRY_WAIT_TIME_NS)
+                    );
+                }
 #endif
-        }
-        decltype(rtScheduleGreedy) currentSchedule;
-        if (rtScheduleNormal.empty())
-        {
-            currentSchedule = rtScheduleGreedy;
-        }
-        else if (rtScheduleGreedy.empty())
-        {
-            currentSchedule = rtScheduleNormal;
-        }
-        else
-        {
-            if (decider.DecideNextScheduleToRun())
+            }
+            decltype(rtScheduleGreedy) currentSchedule;
+            if (rtScheduleNormal.empty())
+            {
+                currentSchedule = rtScheduleGreedy;
+            }
+            else if (rtScheduleGreedy.empty())
             {
                 currentSchedule = rtScheduleNormal;
             }
             else
             {
-                currentSchedule = rtScheduleGreedy;
-            }
-        }
-        lScheduleReady.unlock();
-        cycleStartTime = Clock::now();
-        for (auto &rtItem : currentSchedule)
-        {
-            currentTime = Clock::now();
-            if (rtItem.sTime <= currentTime - cycleStartTime && currentTime - cycleStartTime <= rtItem.eTime)
-            {
-                std::unique_lock lockRT(qMutex);
-                if (rtItem.taskId != 0 && rtRegisterTable.count(rtItem.taskId) > 0)
+                if (decider.DecideNextScheduleToRun())
                 {
-                    auto currentRTIter = rtRegisterTable.find(rtItem.taskId);
-                    lockRT.unlock();
-                    eStats.jitters.push_back((currentTime - cycleStartTime) - rtItem.sTime);
-                    currentRTIter->SwapFrom(nullptr);
-                    lockRT.lock();
-                    rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
-                    TaskInterface::ResetTaskInfos();
-#ifdef JAMSCRIPT_BLOCK_WAIT
-                    if (rtItem.eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
-                    {
-                        cvQMutex.wait_until(
-                                lockRT,
-                                GetCycleStartTime() +
-                                (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)),
-                                [this] () -> bool {
-                                    return !(rtScheduleGreedy.empty() && rtScheduleNormal.empty() && toContinue);
-                                }
-                        );
-                    }
-#endif
-                    while (Clock::now() - cycleStartTime < rtItem.eTime);
+                    currentSchedule = rtScheduleNormal;
                 }
                 else
                 {
-                    lockRT.unlock();
-                    while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime  -
-                                                                          std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
+                    currentSchedule = rtScheduleGreedy;
+                }
+            }
+            lScheduleReady.unlock();
+            cycleStartTime = Clock::now();
+            for (auto &rtItem : currentSchedule)
+            {
+                currentTime = Clock::now();
+                if (rtItem.sTime <= currentTime - cycleStartTime && currentTime - cycleStartTime <= rtItem.eTime)
+                {
+                    std::unique_lock lockRT(qMutex);
+                    if (rtItem.taskId != 0 && rtRegisterTable.count(rtItem.taskId) > 0)
                     {
-                        currentTime = Clock::now();
-                        std::unique_lock lockIBTask(qMutex);
-                        if (!TryExecuteAnInteractiveBatchTask(lockIBTask))
-                        {
+                        auto currentRTIter = rtRegisterTable.find(rtItem.taskId);
+                        lockRT.unlock();
+                        eStats.jitters.push_back((currentTime - cycleStartTime) - rtItem.sTime);
+                        currentRTIter->SwapFrom(nullptr);
+                        lockRT.lock();
+                        rtRegisterTable.erase_and_dispose(currentRTIter, [](TaskInterface *t) { delete t; });
+                        TaskInterface::ResetTaskInfos();
 #ifdef JAMSCRIPT_BLOCK_WAIT
-                            cvQMutex.wait_until(lockIBTask,
-                                                (cycleStartTime + rtItem.eTime -
-                                                 std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)),
-                                                [this]() -> bool {
-                                                    return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty() && toContinue);
-                                                });
-#endif
-                        }
-                        lockIBTask.unlock();
-                        if (!toContinue)
+                        if (rtItem.eTime > std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
                         {
-                            break;
+                            cvQMutex.wait_until(
+                                    lockRT,
+                                    GetCycleStartTime() +
+                                    (rtItem.eTime - std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)),
+                                    [this] () -> bool {
+                                        return !(rtScheduleGreedy.empty() && rtScheduleNormal.empty() && toContinue);
+                                    }
+                            );
+                        }
+#endif
+                        while (Clock::now() - cycleStartTime < rtItem.eTime);
+                    }
+                    else
+                    {
+                        lockRT.unlock();
+                        while (toContinue && Clock::now() - cycleStartTime <= rtItem.eTime  -
+                                                                              std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US))
+                        {
+                            currentTime = Clock::now();
+                            std::unique_lock lockIBTask(qMutex);
+                            if (!TryExecuteAnInteractiveBatchTask(lockIBTask))
+                            {
+#ifdef JAMSCRIPT_BLOCK_WAIT
+                                cvQMutex.wait_until(lockIBTask,
+                                                    (cycleStartTime + rtItem.eTime -
+                                                     std::chrono::microseconds(END_OF_RT_SLOT_SPIN_MAX_US)),
+                                                    [this]() -> bool {
+                                                        return !(bQueue.empty() && iEDFPriorityQueue.empty() && iCancelStack.empty() && toContinue);
+                                                    });
+#endif
+                            }
+                            lockIBTask.unlock();
+                            if (!toContinue)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
             }
-        }
-        numberOfPeriods++;
+            numberOfPeriods++;
 #ifdef JAMSCRIPT_SCHED_AI_EXP
-        if (!eStats.jitters.empty())
+            if (!eStats.jitters.empty())
         {
             std::cout << "Jitters: ";
             long tj = 0, nj = 0;
@@ -340,7 +342,13 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
             std::cout << "AVG: " << tj / nj << std::endl;
         }
 #endif
-        eStats.jitters.clear();
+            eStats.jitters.clear();
+        }
+    }
+    else
+    {
+        std::unique_lock lk(qMutex);
+        while (toContinue) cvQMutex.wait(lk);
     }
     for (int i = 0; i < thiefs.size(); i++)
     {
