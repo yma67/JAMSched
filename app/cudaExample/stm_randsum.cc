@@ -12,7 +12,7 @@
 #include "../deps/Kernel.h"
 #include "cuda_runtime.h"
 
-constexpr int kNumTrails = 128;
+constexpr int kNumTrails = 512;
 constexpr size_t kPerDimLen = 256;
 constexpr size_t kNumIteration = 8;
 
@@ -25,15 +25,15 @@ static void Compute() {
     auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     if (res1 != cudaSuccess) {
-        printf("shut up 1\n");
+        printf("hostAlloc Error 1\n");
         return;
     }
     if (res2 != cudaSuccess) {
-        printf("shut up 3\n");
+        printf("hostAlloc Error 3\n");
         return;
     }
     if (res3 != cudaSuccess) {
-        printf("shut up 3\n");
+        printf("hostAlloc Error 3\n");
         return;
     }
     cudaMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int));

@@ -21,7 +21,7 @@ struct HostMemory {
     int *host_a, *host_b, *host_c;
 };
 
-constexpr int kNumTrails = 128;
+constexpr int kNumTrails = 512;
 constexpr size_t kPerDimLen = 256;
 constexpr size_t kNumIteration = 8;
 size_t sizes[kNumTrails];

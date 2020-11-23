@@ -35,9 +35,9 @@ public:
 __global__
 void vector_add( int * a, int * b, int * c, int size) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    int lim = idx + 256;
-    if (lim > size) lim = size;
-    for (int i = idx; i < lim; i++) c[idx] += a[i % size] * b[i % size];
+    for (int i = idx; i < idx + 128; i++) {
+        c[idx] += a[i % size] * b[i % size];
+    }
     if (idx < size) {
         c[idx] = a[idx] + b[idx];
     }
@@ -60,15 +60,15 @@ static std::vector<int> GetDistribution(int * ha, int * hb, int sz)
 
 void KernelInvoker(cudaStream_t stream, int* host_a, int* host_b, int* host_c, int* dev_a, int* dev_b, int* dev_c, int size, int numIteration)
 {
-        int full_size = numIteration * size;
-        auto result = GetDistribution(host_a, host_b, full_size);
-        auto args = std::make_unique<CommandArgs<int*, int*, int*, int>>(dev_a, dev_b, dev_c, size);
-        for ( int i = 0; i < full_size; i += size) {
-            cudaMemcpyAsync( dev_a, host_a + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
-            cudaMemcpyAsync( dev_b, host_b + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
-            cudaLaunchKernel((void*)vector_add, dim3(size / 256), dim3(256), args->GetCudaKernelArgs(), 0, stream);
-            cudaMemcpyAsync( host_c + i, dev_c, size * sizeof( int), cudaMemcpyDeviceToHost, stream);
-        }
-        WaitForCudaStream(stream);
-        for (int i = 0; i < full_size; i++) assert(result[i] == host_c[i]);
+    int full_size = numIteration * size;
+    auto result = GetDistribution(host_a, host_b, full_size);
+    auto args = std::make_unique<CommandArgs<int*, int*, int*, int>>(dev_a, dev_b, dev_c, size);
+    for ( int i = 0; i < full_size; i += size) {
+        cudaMemcpyAsync( dev_a, host_a + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync( dev_b, host_b + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
+        cudaLaunchKernel((void*)vector_add, dim3(size / 256), dim3(256), args->GetCudaKernelArgs(), 0, stream);
+        cudaMemcpyAsync( host_c + i, dev_c, size * sizeof( int), cudaMemcpyDeviceToHost, stream);
+    }
+    WaitForCudaStream(stream);
+    for (int i = 0; i < full_size; i++) assert(result[i] == host_c[i]);
 }
