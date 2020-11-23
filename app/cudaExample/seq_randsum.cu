@@ -11,7 +11,7 @@
 #include "cuda_runtime.h"
 
 constexpr bool useThread = false;
-constexpr int kNumTrails = 512;
+constexpr int kNumTrails = 256;
 constexpr size_t kPerDimLen = 256;
 constexpr size_t kNumIteration = 8;
 
@@ -78,6 +78,8 @@ static void Compute() {
 int main() {
     std::vector<std::thread> px;
     auto startCuda = std::chrono::high_resolution_clock::now();
+    int dn;
+    cudaGetDevice(&dn);
     for (int i = 0; i < kNumTrails; i++) {
         if constexpr(useThread) {
             px.emplace_back(Compute);

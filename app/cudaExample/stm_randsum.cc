@@ -12,7 +12,7 @@
 #include "../deps/Kernel.h"
 #include "cuda_runtime.h"
 
-constexpr int kNumTrails = 512;
+constexpr int kNumTrails = 256;
 constexpr size_t kPerDimLen = 256;
 constexpr size_t kNumIteration = 8;
 
@@ -53,6 +53,8 @@ int main(int argc, char* argv[]) {
     jamc::RIBScheduler ribScheduler(1024 * 256);
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
     auto nThreads = std::atoi(argv[1]);
+    int dn;
+    cudaGetDevice(&dn);
     for (int i = 0; i < nThreads; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
     ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true, false), jamc::Duration::max(), [&ribScheduler] {

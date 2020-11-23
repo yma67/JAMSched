@@ -32,7 +32,7 @@ void vector_add( int * a, int * b, int * c, int size) {
     }
 }
 
-constexpr int kNumTrails = 512;
+constexpr int kNumTrails = 256;
 constexpr int wh = 256;
 constexpr int nt = 8;
 
@@ -59,11 +59,13 @@ int main(int argc, char *argv[]) {
         bool done = false;
         std::vector<std::thread> tx;
         int nthreads = 1;
+        int dn;
+        cudaGetDevice(&dn);
         if (argc > 1) nthreads = std::atoi(argv[1]);
         for (int i = 0; i < nthreads - 1; i++) tx.emplace_back([nthreads] {
-            std::ostringstream buffer;
-            buffer << "thread started " << std::this_thread::get_id() << std::endl;
-            std::cout << buffer.str() << std::flush;
+            // std::ostringstream buffer;
+            // buffer << "thread started " << std::this_thread::get_id() << std::endl;
+            // std::cout << buffer.str() << std::flush;
             boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >(nthreads);
             lock_type lk(mtx_count);
             cnd_count.wait( lk, [](){ return 0 >= fiber_count; } ); 

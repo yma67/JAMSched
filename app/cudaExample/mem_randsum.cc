@@ -21,9 +21,15 @@ struct HostMemory {
     int *host_a, *host_b, *host_c;
 };
 
-constexpr int kNumTrails = 512;
+constexpr int kNumTrails = 256;
 constexpr size_t kPerDimLen = 256;
 constexpr size_t kNumIteration = 8;
+constexpr size_t perIterHostPerArray = kNumIteration * kPerDimLen * kPerDimLen;
+constexpr size_t perIterHostTotal = perIterHostPerArray * 3;
+constexpr size_t perIterDeviceArray = kPerDimLen * kPerDimLen;
+constexpr size_t perIterDeviceTotal = perIterDeviceArray * 3;
+
+std::atomic<int> hitCount;
 size_t sizes[kNumTrails];
 cudaStream_t streams[kNumTrails];
 boost::lockfree::stack<HostMemory> hostMemory;
@@ -31,7 +37,16 @@ boost::lockfree::stack<HostMemory> hostMemory;
 HostMemory jamcHostAlloc() {
     nvtxRangeId_t id0 = nvtxRangeStart("jamcHostAlloc");
     HostMemory h{};
-    hostMemory.pop(h);
+    if (!hostMemory.pop(h)) {
+        if (cudaSuccess != cudaHostAlloc(&(h.host_a), perIterHostTotal * sizeof(int), cudaHostAllocDefault)) {
+            printf("bad allocation\n");
+        } else {
+            h.host_b = h.host_a + perIterHostPerArray;
+            h.host_c = h.host_a + 2 * perIterHostPerArray;
+        }
+    } else {
+        hitCount++;
+    }
     nvtxRangeEnd(id0);
     return h;
 }
@@ -71,25 +86,16 @@ int main(int argc, char* argv[]) {
     jamc::RIBScheduler ribScheduler(1024 * 256);
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
     auto nThreads = std::atoi(argv[1]);
+    int dn;
+    cudaGetDevice(&dn);
     for (int i = 0; i < nThreads; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
     ribScheduler.CreateBatchTask(jamc::StackTraits(false, 1024 * 256, true, false), jamc::Duration::max(), [&ribScheduler] {
         std::vector<jamc::TaskHandle> pendings;
-        int *hostMemoryPtr;
-        
-        constexpr size_t perIterHostPerArray = kNumIteration * kPerDimLen * kPerDimLen;
-        constexpr size_t perIterHostTotal = perIterHostPerArray * 3;
-        constexpr size_t perIterDeviceArray = kPerDimLen * kPerDimLen;
-        constexpr size_t perIterDeviceTotal = perIterDeviceArray * 3;
-        cudaHostAlloc(&hostMemoryPtr, kNumTrails * perIterHostTotal * sizeof(int), cudaHostAllocDefault);
+        auto startCuda = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < kNumTrails; i++) {
             cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking);
             sizes[i] = perIterDeviceTotal * sizeof(int);
-            HostMemory h{};
-            h.host_a = hostMemoryPtr + i * perIterHostTotal;
-            h.host_b = hostMemoryPtr + i * perIterHostTotal + perIterHostPerArray;
-            h.host_c = hostMemoryPtr + i * perIterHostTotal + 2 * perIterHostPerArray;
-            hostMemory.push(h);
         }
         cnmemDevice_t memDevice;
         memDevice.device = 0;
@@ -98,15 +104,14 @@ int main(int argc, char* argv[]) {
         memDevice.streams = streams;
         memDevice.streamSizes = sizes;
         cnmemInit(1, &memDevice, CNMEM_FLAGS_DEFAULT);
-        auto startCuda = std::chrono::high_resolution_clock::now();
+        
         for (int k = 0; k < kNumTrails; k++) pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, false), jamc::Duration::max(), [k] { Compute(k); }));
         for (auto& p: pendings) p.Join();
-        auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startCuda).count();
-        std::cout << "CPU time: " << dur << " us" << std::endl;
         cnmemFinalize();
-        cudaFreeHost(hostMemoryPtr);
+        hostMemory.consume_all([](const HostMemory& h) { cudaFreeHost(h.host_a); });
         for (int i = 0; i < kNumTrails; i++) cudaStreamDestroy(streams[i]);
-        
+        auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startCuda).count();
+        std::cout << "CPU time: " << dur << " us, alloc cache hit% = " << float(hitCount) / float(kNumTrails) << std::endl;
         ribScheduler.ShutDown();
     }).Detach();
     ribScheduler.RunSchedulerMainLoop();
