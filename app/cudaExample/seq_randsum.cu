@@ -9,26 +9,15 @@
 #include <vector>
 #include <cassert>
 #include "cuda_runtime.h"
+#include "deps/Kernel.h"
 
-constexpr bool useThread = false;
+constexpr bool useThread = true;
 constexpr int kNumTrails = 256;
-constexpr size_t kPerDimLen = 256;
-constexpr size_t kNumIteration = 8;
-
-__global__
-void vector_add( int * a, int * b, int * c, int size) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    for (int i = idx; i < idx + 128; i++) {
-        c[idx] += a[i % size] * b[i % size];
-    }
-    if (idx < size) {
-        c[idx] = a[idx] + b[idx];
-    }
-}
+constexpr int kPerDimLen = 256;
+constexpr int kNumIteration = 8;
 
 static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
-    std::vector<int> result;
     cudaStream_t stream;
     cudaStreamCreate(&stream);
     auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
@@ -49,19 +38,11 @@ static void Compute() {
     cudaMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof( int) );
     cudaMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof( int) );
     cudaMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof( int) );
-    {
-        std::minstd_rand generator;
-        std::uniform_int_distribution<> distribution(1, 6);
-        for ( int i = 0; i < kPerDimLen * kPerDimLen * kNumIteration; ++i) {
-            host_a[i] = distribution(generator);
-            host_b[i] = distribution(generator);
-            result.push_back(host_a[i] + host_b[i]);
-        }
-    }
+    auto result = GetRandomArray(host_a, host_b, kPerDimLen * kPerDimLen, kPerDimLen * kPerDimLen * kNumIteration);
     for ( int i = 0; i < kPerDimLen * kPerDimLen * kNumIteration; i += kPerDimLen * kPerDimLen) {
         cudaMemcpyAsync( dev_a, host_a + i, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync( dev_b, host_b + i, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyHostToDevice, stream);
-        vector_add<<<kPerDimLen * kPerDimLen / 256, 256, 0, stream>>>(dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen);
+        CircularSubarrayInnerProduct<<<kPerDimLen * kPerDimLen / 256, 256, 0, stream>>>(dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen);
         cudaMemcpyAsync( host_c + i, dev_c, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyDeviceToHost, stream);
     }
     cudaStreamSynchronize(stream);
@@ -78,8 +59,7 @@ static void Compute() {
 int main() {
     std::vector<std::thread> px;
     auto startCuda = std::chrono::high_resolution_clock::now();
-    int dn;
-    cudaGetDevice(&dn);
+    InitDummy();
     for (int i = 0; i < kNumTrails; i++) {
         if constexpr(useThread) {
             px.emplace_back(Compute);

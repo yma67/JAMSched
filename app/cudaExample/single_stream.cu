@@ -20,52 +20,25 @@
 #include <boost/fiber/all.hpp>
 #include <boost/fiber/cuda/waitfor.hpp>
 
-
-__global__
-void vector_add( int * a, int * b, int * c, int size) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    for (int i = idx; i < idx + 128; i++) {
-        c[idx] += a[i % size] * b[i % size];
-    }
-    if (idx < size) {
-        c[idx] = a[idx] + b[idx];
-    }
-}
+#include "deps/Kernel.h"
 
 constexpr int kNumTrails = 256;
 constexpr int wh = 256;
 constexpr int nt = 8;
 
-static int fiber_count = kNumTrails + 1;
+static int fiber_count = kNumTrails;
 static std::mutex mtx_count{};
 static boost::fibers::condition_variable_any cnd_count{};
 typedef std::unique_lock< std::mutex > lock_type;
-
-static std::vector<int> GetDistribution(int * ha, int * hb, int sz)
-{
-    std::vector<int> res;
-    std::minstd_rand generator;
-        std::uniform_int_distribution<> distribution(1, 6);
-        for ( int i = 0; i < sz; ++i) {
-            ha[i] = distribution(generator);
-            hb[i] = distribution(generator);
-            res.push_back(ha[i] + hb[i]);
-        }
-        return res;
-}
 
 int main(int argc, char *argv[]) {
     try {
         bool done = false;
         std::vector<std::thread> tx;
         int nthreads = 1;
-        int dn;
-        cudaGetDevice(&dn);
+        InitDummy();
         if (argc > 1) nthreads = std::atoi(argv[1]);
         for (int i = 0; i < nthreads - 1; i++) tx.emplace_back([nthreads] {
-            // std::ostringstream buffer;
-            // buffer << "thread started " << std::this_thread::get_id() << std::endl;
-            // std::cout << buffer.str() << std::flush;
             boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >(nthreads);
             lock_type lk(mtx_count);
             cnd_count.wait( lk, [](){ return 0 >= fiber_count; } ); 
@@ -89,11 +62,11 @@ int main(int argc, char *argv[]) {
 		        cudaMalloc( & dev_a, size * sizeof( int) );
 		        cudaMalloc( & dev_b, size * sizeof( int) );
 		        cudaMalloc( & dev_c, size * sizeof( int) );
-		        auto res = GetDistribution(host_a, host_b, full_size);
+		        auto res = GetRandomArray(host_a, host_b, size, full_size);
 		        for ( int i = 0; i < full_size; i += size) {
 		            cudaMemcpyAsync( dev_a, host_a + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
 		            cudaMemcpyAsync( dev_b, host_b + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
-		            vector_add<<< size / 256, 256, 0, stream >>>( dev_a, dev_b, dev_c, size);
+		            CircularSubarrayInnerProduct<<< size / 256, 256, 0, stream >>>( dev_a, dev_b, dev_c, size);
 		            cudaMemcpyAsync( host_c + i, dev_c, size * sizeof( int), cudaMemcpyDeviceToHost, stream);
 		        }
 		        auto result = boost::fibers::cuda::waitfor_all( stream);

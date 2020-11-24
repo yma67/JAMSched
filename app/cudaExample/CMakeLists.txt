@@ -1,5 +1,8 @@
 enable_language(CUDA)
 
+find_package(Boost 1.71.0 COMPONENTS fiber context filesystem system REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
 add_library(cnmem src/cnmem.cpp)
 target_link_libraries(cnmem LINK_PUBLIC ${CUDA_LIBRARIES} jamsched)
 target_include_directories(cnmem PRIVATE deps "${PROJECT_SOURCE_DIR}/include/" "/usr/local/cuda/include")
@@ -17,9 +20,21 @@ target_include_directories(liba2cu PRIVATE deps "${PROJECT_SOURCE_DIR}/include/"
 
 add_executable(seq_randsum seq_randsum.cu)
 target_compile_options(seq_randsum PRIVATE -arch=sm_50)
-target_link_libraries(seq_randsum PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} pthread)
+target_link_libraries(seq_randsum PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} liba2cu)
 target_compile_features(seq_randsum PRIVATE cxx_std_17)
 target_include_directories(seq_randsum PRIVATE "/usr/local/cuda/include")
+
+add_executable(single_stream single_stream.cu)
+target_compile_options(single_stream PRIVATE -arch=sm_50)
+target_link_libraries(single_stream PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} liba2cu ${Boost_LIBRARIES})
+target_compile_features(single_stream PRIVATE cxx_std_17)
+target_include_directories(single_stream PRIVATE "/usr/local/cuda/include")
+
+add_executable(inf_exec inf_exec.cu)
+target_compile_options(inf_exec PRIVATE -arch=sm_50)
+target_link_libraries(inf_exec PRIVATE cudart ${CUDA_LIBRARIES} liba2cu)
+target_compile_features(inf_exec PRIVATE cxx_std_17)
+target_include_directories(inf_exec PRIVATE "/usr/local/cuda/include")
 
 add_executable(stm_randsum stm_randsum.cc)
 target_link_libraries(stm_randsum PRIVATE jamsched liba2cu cudart)

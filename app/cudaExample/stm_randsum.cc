@@ -13,8 +13,8 @@
 #include "cuda_runtime.h"
 
 constexpr int kNumTrails = 256;
-constexpr size_t kPerDimLen = 256;
-constexpr size_t kNumIteration = 8;
+constexpr int kPerDimLen = 256;
+constexpr int kNumIteration = 8;
 
 static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
@@ -53,8 +53,7 @@ int main(int argc, char* argv[]) {
     jamc::RIBScheduler ribScheduler(1024 * 256);
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
     auto nThreads = std::atoi(argv[1]);
-    int dn;
-    cudaGetDevice(&dn);
+    InitDummy();
     for (int i = 0; i < nThreads; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
     ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true, false), jamc::Duration::max(), [&ribScheduler] {
