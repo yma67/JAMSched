@@ -281,7 +281,7 @@ namespace jamc
                     }
                 }
                 fn->Steal(pNextThief);
-                if (stackTraits.launchImmediately && ptrCetteTache != nullptr &&
+                if (stackTraits.launchImmediately && stackTraits.directSwap && ptrCetteTache != nullptr && 
                     fn->GetSchedulerValue() == ptrCetteTache->GetSchedulerValue())
                 {
                     ptrCetteTache->RendementALaTache(fn);

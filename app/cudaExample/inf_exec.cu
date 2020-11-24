@@ -75,14 +75,22 @@ static void Compute() {
     auto result = GetRandomArray(host_a, host_b, kSize, kSize);
     cudaMemcpy( dev_a, host_a, kSize * sizeof( int), cudaMemcpyHostToDevice);
     cudaMemcpy( dev_b, host_b, kSize * sizeof( int), cudaMemcpyHostToDevice);
+    cudaDeviceSynchronize();
     GpuTimer t;
     t.Start();
     auto startCuda = std::chrono::high_resolution_clock::now();
     CircularSubarrayInnerProduct<<<kSize / 256, 256>>>(dev_a, dev_b, dev_c, kSize);
+    /*for (int i = 0; i < kSize; i++) {
+        host_c[i] = 0;
+        for (int j = i; j < i + 128; j++) {
+            host_c[i] += host_a[j % kSize] * host_b[j % kSize];
+        }
+    }*/
     cudaDeviceSynchronize();
     auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startCuda).count();
     t.Stop();
-    cudaMemcpy( host_c, dev_c, kSize * sizeof( int), cudaMemcpyDeviceToHost);    
+    cudaMemcpy( host_c, dev_c, kSize * sizeof( int), cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
     for (long i = 0; i < kSize; i++) assert(result[i] == host_c[i]);
     std::cout << "Kernel GPU time: " << t.Elapsed() << " us" << std::endl;
     std::cout << "Kernel CPU time: " << dur << " us" << std::endl;

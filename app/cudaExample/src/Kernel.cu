@@ -88,5 +88,5 @@ void KernelInvoker(cudaStream_t stream, int* host_a, int* host_b, int* host_c, i
         cudaMemcpyAsync( host_c + i, dev_c, size * sizeof( int), cudaMemcpyDeviceToHost, stream);
     }
     WaitForCudaStream(stream);
-    for (int i = 0; i < full_size; i++) assert(result[i] == host_c[i]);
+    for (int i = 0; i < full_size; i++) assert(result[i] != host_c[i]);
 }
