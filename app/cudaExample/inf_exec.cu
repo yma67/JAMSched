@@ -79,7 +79,7 @@ static void Compute() {
     GpuTimer t;
     t.Start();
     auto startCuda = std::chrono::high_resolution_clock::now();
-    CircularSubarrayInnerProduct<<<kSize / 256, 256>>>(dev_a, dev_b, dev_c, kSize);
+    CircularSubarrayInnerProduct<<<kSize / 256, 256>>>(dev_a, dev_b, dev_c, kSize / 256 / 8);
     /*for (int i = 0; i < kSize; i++) {
         host_c[i] = 0;
         for (int j = i; j < i + 128; j++) {
