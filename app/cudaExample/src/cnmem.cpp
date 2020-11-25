@@ -193,7 +193,8 @@ class Mutex {
 #ifdef WIN32
     mutable CRITICAL_SECTION mCriticalSection;
 #else
-    jamc::Mutex* m;
+    using CNMEMMutexTypeDef = jamc::Mutex;
+    CNMEMMutexTypeDef *m;
 #endif
 
 public:
@@ -219,7 +220,7 @@ cnmemStatus_t Mutex::initialize() {
     CNMEM_CHECK_PTHREAD(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE), CNMEM_STATUS_UNKNOWN_ERROR);
     CNMEM_CHECK_PTHREAD(pthread_mutex_init(&mMutex, &attr), CNMEM_STATUS_UNKNOWN_ERROR);
 #else
-    m = new jamc::Mutex();
+    m = new CNMEMMutexTypeDef();
 #endif
 #endif
     return CNMEM_STATUS_SUCCESS;

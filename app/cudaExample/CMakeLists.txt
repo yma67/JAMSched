@@ -24,6 +24,12 @@ target_link_libraries(seq_randsum PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREA
 target_compile_features(seq_randsum PRIVATE cxx_std_17)
 target_include_directories(seq_randsum PRIVATE "/usr/local/cuda/include")
 
+add_executable(seq_randsum_forkjoin seq_randsum_forkjoin.cu)
+target_compile_options(seq_randsum_forkjoin PRIVATE -arch=sm_50)
+target_link_libraries(seq_randsum_forkjoin PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} liba2cu)
+target_compile_features(seq_randsum_forkjoin PRIVATE cxx_std_17)
+target_include_directories(seq_randsum_forkjoin PRIVATE "/usr/local/cuda/include")
+
 add_executable(single_stream single_stream.cu)
 target_compile_options(single_stream PRIVATE -arch=sm_50)
 target_link_libraries(single_stream PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} liba2cu ${Boost_LIBRARIES})
@@ -45,3 +51,9 @@ add_executable(mem_randsum mem_randsum.cc)
 target_link_libraries(mem_randsum PRIVATE jamsched liba2cu cudart cnmem)
 target_compile_features(mem_randsum PRIVATE cxx_std_17)
 target_include_directories(mem_randsum PRIVATE deps "${PROJECT_SOURCE_DIR}/include/" "/usr/local/cuda/include")
+
+add_executable(mem_randsum_thread mem_randsum_thread.cu)
+target_compile_options(mem_randsum_thread PRIVATE -arch=sm_50)
+target_link_libraries(mem_randsum_thread PRIVATE cudart ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} liba2cu)
+target_compile_features(mem_randsum_thread PRIVATE cxx_std_17)
+target_include_directories(mem_randsum_thread PRIVATE "/usr/local/cuda/include")

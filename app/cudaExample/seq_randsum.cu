@@ -11,7 +11,7 @@
 #include "cuda_runtime.h"
 #include "deps/Kernel.h"
 
-constexpr bool useThread = false;
+constexpr bool useThread = true;
 constexpr int kNumTrails = 256;
 constexpr int kPerDimLen = 256;
 constexpr int kNumIteration = 8;

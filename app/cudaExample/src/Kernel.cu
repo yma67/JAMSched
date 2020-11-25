@@ -5,7 +5,6 @@
 #include "../deps/LogicalInput.h"
 #include "../deps/cnmem.h"
 #include <vector>
-#include "jamc-cuda.h"
 #include "cuda_runtime.h"
 #include <chrono>
 #include <tuple>
@@ -50,32 +49,6 @@ void InitDummy()
     cudaStreamDestroy(dummys);
 }
 
-std::vector<int> GetRandomArray(int * ha, int * hb, int sz, int fsz)
-{
-    assert(kInnerProductSize > sz);
-    nvtxRangeId_t id2 = nvtxRangeStart("GetRandomArray");
-    std::vector<int> res(fsz, 0);
-    std::minstd_rand generator;
-    std::uniform_int_distribution<> distribution(1, 25);
-    for ( int i = 0; i < fsz; i += sz) {
-        int cumu = 0;
-        for (int j = 0; j < sz; j++) {
-            ha[i + j] = distribution(generator);
-            hb[i + j] = distribution(generator);
-        }
-        for (int j = 0; j < kInnerProductSize; j++) {
-            cumu += ha[i + j] * hb[i + j];
-        }
-        for (int j = 0; j < sz; j++) {
-            res[i + j] = cumu;
-            cumu -= ha[i + j] * hb[i + j];
-            cumu += ha[i + ((j + kInnerProductSize) % sz)] * hb[i + ((j + kInnerProductSize) % sz)];
-        }
-    }
-    nvtxRangeEnd(id2);
-    return res;
-}
-
 void KernelInvoker(cudaStream_t stream, int* host_a, int* host_b, int* host_c, int* dev_a, int* dev_b, int* dev_c, int size, int numIteration)
 {
     int full_size = numIteration * size;
@@ -88,5 +61,5 @@ void KernelInvoker(cudaStream_t stream, int* host_a, int* host_b, int* host_c, i
         cudaMemcpyAsync( host_c + i, dev_c, size * sizeof( int), cudaMemcpyDeviceToHost, stream);
     }
     WaitForCudaStream(stream);
-    for (int i = 0; i < full_size; i++) assert(result[i] != host_c[i]);
+    for (int i = 0; i < full_size; i++) if (result[i] != host_c[i]) perror("wrong result");
 }

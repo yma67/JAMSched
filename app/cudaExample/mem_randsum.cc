@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
         memDevice.streams = nullptr;
         memDevice.streamSizes = nullptr;
         cnmemInit(1, &memDevice, CNMEM_FLAGS_DEFAULT);
-        for (int k = 0; k < kNumTrails; k++) pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, false), jamc::Duration::max(), [k] { Compute(k); }));
+        for (int k = 0; k < kNumTrails; k++) pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, true), jamc::Duration::max(), [k] { Compute(k); }));
         for (auto& p: pendings) p.Join();
         hostMemory.consume_all([&wg, &ribScheduler](const HostMemory& h) { 
             wg.Add();

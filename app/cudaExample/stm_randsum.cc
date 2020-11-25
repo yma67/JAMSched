@@ -8,7 +8,7 @@
 #include <thread>
 #include <vector>
 #include <cassert>
-#include <jamscript>
+#include "scheduler/scheduler.hpp"
 #include "../deps/Kernel.h"
 #include "cuda_runtime.h"
 
@@ -20,7 +20,7 @@ static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
     std::vector<int> result;
     cudaStream_t stream;
-    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+    cudaStreamCreate(&stream);
     auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
@@ -59,7 +59,9 @@ int main(int argc, char* argv[]) {
     ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true, false), jamc::Duration::max(), [&ribScheduler] {
         std::vector<jamc::TaskHandle> pendings;
         auto startCuda = std::chrono::high_resolution_clock::now();
-        for (int k = 0; k < kNumTrails; k++) pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, false), jamc::Duration::max(), Compute));
+        for (int k = 0; k < kNumTrails; k++) {
+            pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, false), jamc::Duration::max(), Compute));
+        }
         for (auto& p: pendings) p.Join();
         auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startCuda).count();
         std::cout << "CPU time: " << dur << " us" << std::endl;

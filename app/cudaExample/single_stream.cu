@@ -55,14 +55,14 @@ int main(int argc, char *argv[]) {
 		        int full_size = nt * size;
 		        int * host_a, * host_b, * host_c;
 		        int * dev_a, * dev_b, * dev_c;
-		        cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+		        cudaStreamCreate(&stream);
                         cudaHostAlloc(&host_a, wh * wh * nt * sizeof(int), cudaHostAllocDefault);
                         cudaHostAlloc(&host_b, wh * wh * nt * sizeof(int), cudaHostAllocDefault);
                         cudaHostAlloc(&host_c, wh * wh * nt * sizeof(int), cudaHostAllocDefault);
 		        cudaMalloc( & dev_a, size * sizeof( int) );
 		        cudaMalloc( & dev_b, size * sizeof( int) );
 		        cudaMalloc( & dev_c, size * sizeof( int) );
-		        auto res = GetRandomArray(host_a, host_b, size, full_size);
+                        auto res = GetRandomArray(host_a, host_b, size, full_size);
 		        for ( int i = 0; i < full_size; i += size) {
 		            cudaMemcpyAsync( dev_a, host_a + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
 		            cudaMemcpyAsync( dev_b, host_b + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
 		        auto result = boost::fibers::cuda::waitfor_all( stream);
 		        BOOST_ASSERT( stream == std::get< 0 >( result) );
 		        BOOST_ASSERT( cudaSuccess == std::get< 1 >( result) );
-		        for (int cpr = 0; cpr < full_size; cpr++) assert(res[cpr] == host_c[cpr]);
+		        for (int cpr = 0; cpr < full_size; cpr++) if (res[cpr] != host_c[cpr]) perror("error value\n");
 		        cudaFree(dev_a);
 		        cudaFree(dev_b);
 		        cudaFree(dev_c);
