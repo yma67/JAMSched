@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <vector>
 #include <cuda_runtime_api.h>
+#include "jamc-cuda.h"
 
 #if !defined(WIN32) && defined(_MSC_VER)
 #define WIN32
@@ -466,7 +467,8 @@ cnmemStatus_t Manager::allocate(void *&ptr, std::size_t size, bool isBlocking) {
 
     // If the client is not blocking, we have to explicitly synchronize before giving one buffer.
     if( !isBlocking ) {
-        CNMEM_CHECK_CUDA_OR_UNLOCK(cudaStreamSynchronize(mStream), mMutex);
+        // CNMEM_CHECK_CUDA_OR_UNLOCK(cudaStreamSynchronize(mStream), mMutex);
+        CNMEM_CHECK_CUDA_OR_UNLOCK(WaitForCudaStream(mStream), mMutex);
     }
 
     // Find the best fit.
@@ -514,8 +516,10 @@ cnmemStatus_t Manager::allocateBlockUnsafe(Block *&curr, Block *&prev, std::size
             CNMEM_DEBUG_INFO("cudaMallocManaged(%lu)\n", size);
             CNMEM_CHECK_CUDA(cudaMallocManaged(&data, size));
             CNMEM_CHECK_CUDA(cudaMemPrefetchAsync(data, size, mDevice));
-        }
-        else {
+        } else if (mFlags & CNMEM_FLAGS_HOST_LOCKED) {
+            CNMEM_DEBUG_INFO("cudaHostAlloc(%lu)\n", size);
+            CNMEM_CHECK_CUDA(cudaHostAlloc(&data, size, cudaHostAllocDefault));
+        } else {
             CNMEM_DEBUG_INFO("cudaMalloc(%lu)\n", size);
             CNMEM_CHECK_CUDA(cudaMalloc(&data, size));
         }
@@ -650,8 +654,8 @@ cnmemStatus_t Manager::getNumChildren(std::size_t &numChildren) const {
 cnmemStatus_t Manager::giveBlockUnsafe(void *&blockData, std::size_t &blockSize, std::size_t size) {
     // Make sure the block is not in use any more. It could be too coarse grain and we may change 
     // it in the future.
-    CNMEM_CHECK_CUDA(cudaStreamSynchronize(mStream));
-    
+    // CNMEM_CHECK_CUDA(cudaStreamSynchronize(mStream));
+    CNMEM_CHECK_CUDA(WaitForCudaStream(mStream));
     // Init the returned values to 0.
     blockData = NULL;
     blockSize = 0;
@@ -781,8 +785,13 @@ cnmemStatus_t Manager::releaseAllUnsafe() {
         }
         else if( mFreeBlocks->isHead() ) {
             void *data = mFreeBlocks->getData();
-            CNMEM_DEBUG_INFO("cudaFree(%lu, 0x%016lx)\n", mFreeBlocks->getSize(), (size_t) data);
-            CNMEM_CHECK_CUDA(cudaFree(data));
+            if (mFlags & CNMEM_FLAGS_HOST_LOCKED) {
+                CNMEM_DEBUG_INFO("cudaFree(%lu, 0x%016lx)\n", mFreeBlocks->getSize(), (size_t) data);
+                CNMEM_CHECK_CUDA(cudaFree(data));
+            } else {
+                CNMEM_DEBUG_INFO("cudaFreeHost(%lu, 0x%016lx)\n", mFreeBlocks->getSize(), (size_t) data);
+                CNMEM_CHECK_CUDA(cudaFreeHost(data));
+            }
             CNMEM_DEBUG_INFO(">> success\n");
         }
         Block *block = mFreeBlocks;
@@ -976,9 +985,9 @@ class Context {
     /// The memory managers.
     std::vector<Manager> mManagers;
     /// The global context.
-    static Context *sCtx;
+    static Context *sCtx, *lockedCtx;
     /// Use a magic number to specify that the context was created.
-    static int sCtxCheck;
+    static int sCtxCheck, lockedCtxCheck;
 
 public:
     /// Ctor.
@@ -992,18 +1001,23 @@ public:
 
     /// Create the global context.
     static cnmemStatus_t create();
+    static cnmemStatus_t createLocked();
     /// Check that the context was created.
     static inline bool check() { return sCtxCheck == CTX_VALID && sCtx; }
+    static inline bool checkLocked() { return lockedCtxCheck == CTX_VALID && lockedCtx; }
     /// Get the global context.
     static Context* get();
+    static Context* getLocked();
     /// Retain.
     static cnmemStatus_t retain();
+    static cnmemStatus_t retainLocked();
     /// Release.
     static cnmemStatus_t release();
+    static cnmemStatus_t releaseLocked();
 };
 
-Context *Context::sCtx;
-int Context::sCtxCheck;
+Context *Context::sCtx, *Context::lockedCtx;
+int Context::sCtxCheck, Context::lockedCtxCheck;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1029,6 +1043,12 @@ cnmemStatus_t Context::create() {
     return CNMEM_STATUS_SUCCESS;
 }
 
+cnmemStatus_t Context::createLocked() {
+    lockedCtx = new Context;
+    lockedCtxCheck = CTX_VALID;
+    return CNMEM_STATUS_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 Context* Context::get() {
@@ -1036,11 +1056,23 @@ Context* Context::get() {
     return Context::sCtx;
 }
 
+Context* Context::getLocked() {
+    CNMEM_ASSERT(Context::checkLocked());
+    return Context::lockedCtx;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 cnmemStatus_t Context::retain() { 
     CNMEM_CHECK(sCtx->mMutex.lock());
     sCtx->mRefCount++; 
+    CNMEM_CHECK(sCtx->mMutex.unlock());
+    return CNMEM_STATUS_SUCCESS;
+}
+
+cnmemStatus_t Context::retainLocked() { 
+    CNMEM_CHECK(lockedCtx->mMutex.lock());
+    lockedCtx->mRefCount++; 
     CNMEM_CHECK(sCtx->mMutex.unlock());
     return CNMEM_STATUS_SUCCESS;
 }
@@ -1056,6 +1088,19 @@ cnmemStatus_t Context::release() {
         delete sCtx;
         Context::sCtx = NULL;
         Context::sCtxCheck = 0;
+    }
+    return CNMEM_STATUS_SUCCESS;
+}
+
+cnmemStatus_t Context::releaseLocked() {
+    CNMEM_CHECK(lockedCtx->mMutex.lock());
+    int refCount = --lockedCtx->mRefCount;
+    CNMEM_CHECK(lockedCtx->mMutex.unlock());
+
+    if( refCount == 0 ) { // Kill the context.
+        delete lockedCtx;
+        Context::lockedCtx = NULL;
+        Context::lockedCtxCheck = 0;
     }
     return CNMEM_STATUS_SUCCESS;
 }
@@ -1131,11 +1176,77 @@ cnmemStatus_t cnmemInit(int numDevices, const cnmemDevice_t *devices, unsigned f
     return CNMEM_STATUS_SUCCESS;
 }
 
+cnmemStatus_t cnlockedInit(int numDevices, const cnmemDevice_t *devices, unsigned flags) {
+    // Make sure we have at least one device declared.
+    CNMEM_CHECK_TRUE(numDevices > 0, CNMEM_STATUS_INVALID_ARGUMENT);
+    
+    // Find the largest ID of the device.
+    int maxDevice = 0;
+    for( int i = 0 ; i < numDevices ; ++i ) {
+        if( devices[i].device > maxDevice ) {
+            maxDevice = devices[i].device;
+        }
+    }
+
+    // Create the global context.
+    cnmem::Context::createLocked();
+    cnmem::Context *ctx = cnmem::Context::getLocked();
+        
+    // Allocate enough managers.
+    CNMEM_CHECK_TRUE(maxDevice >= 0, CNMEM_STATUS_INVALID_ARGUMENT);
+    std::vector<cnmem::Manager> &managers = ctx->getManagers();
+    managers.resize(maxDevice+1);
+
+    // Create a root manager for each device and create the children.
+    int oldDevice;
+    CNMEM_CHECK_CUDA(cudaGetDevice(&oldDevice));
+    for( int i = 0 ; i < numDevices ; ++i ) {
+        CNMEM_CHECK_CUDA(cudaSetDevice(devices[i].device));
+        std::size_t size = devices[i].size;
+        cudaDeviceProp props;
+        CNMEM_CHECK_CUDA(cudaGetDeviceProperties(&props, devices[i].device));
+        if( size == 0 ) {
+            size = props.totalGlobalMem / 2;
+        }
+        CNMEM_CHECK_TRUE(
+            size > 0 && size < props.totalGlobalMem, CNMEM_STATUS_INVALID_ARGUMENT);
+        
+        cnmem::Manager &manager = ctx->getManager(devices[i].device);
+        manager.setDevice(devices[i].device);
+        manager.setFlags(flags | CNMEM_FLAGS_HOST_LOCKED);
+        
+        size = cnmem::ceilInt(size, CNMEM_GRANULARITY);
+        CNMEM_CHECK(manager.reserve(size));
+        
+        for( int j = 0 ; j < devices[i].numStreams ; ++j ) {
+            cnmem::Manager *child = new cnmem::Manager;
+            child->setParent(&manager);
+            child->setDevice(devices[i].device);
+            child->setStream(devices[i].streams[j]);
+            child->setFlags(flags & ~CNMEM_FLAGS_CANNOT_GROW);
+            if( devices[i].streamSizes && devices[i].streamSizes[j] > 0 ) {
+                //https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#sequential-but-misaligned-access-pattern
+                //Align stream blocks so stream base addresses are alligned to CNMEM_GRANULARITY
+                devices[i].streamSizes[j] = cnmem::ceilInt(devices[i].streamSizes[j], CNMEM_GRANULARITY);
+                CNMEM_CHECK(child->reserve(devices[i].streamSizes[j]));
+            }
+            CNMEM_CHECK(manager.addChild(child));
+        }
+    }
+    CNMEM_CHECK_CUDA(cudaSetDevice(oldDevice));
+    return CNMEM_STATUS_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 cnmemStatus_t cnmemFinalize() {
     CNMEM_CHECK_TRUE(cnmem::Context::check(), CNMEM_STATUS_NOT_INITIALIZED);
     return cnmem::Context::release();
+}
+
+cnmemStatus_t cnlockedFinalize() {
+    CNMEM_CHECK_TRUE(cnmem::Context::checkLocked(), CNMEM_STATUS_NOT_INITIALIZED);
+    return cnmem::Context::releaseLocked();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1145,11 +1256,21 @@ cnmemStatus_t cnmemRetain() {
     return cnmem::Context::retain();
 }
 
+cnmemStatus_t cnlockedRetain() {
+    CNMEM_CHECK_TRUE(cnmem::Context::checkLocked(), CNMEM_STATUS_NOT_INITIALIZED);
+    return cnmem::Context::retainLocked();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 cnmemStatus_t cnmemRelease() {
     CNMEM_CHECK_TRUE(cnmem::Context::check(), CNMEM_STATUS_NOT_INITIALIZED);
     return cnmem::Context::release();
+}
+
+cnmemStatus_t cnlockedRelease() {
+    CNMEM_CHECK_TRUE(cnmem::Context::checkLocked(), CNMEM_STATUS_NOT_INITIALIZED);
+    return cnmem::Context::releaseLocked();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1162,6 +1283,24 @@ cnmemStatus_t cnmemRegisterStream(cudaStream_t stream) {
     CNMEM_CHECK_CUDA(cudaGetDevice(&device));
 
     cnmem::Manager &root = cnmem::Context::get()->getManager(device);
+    cnmem::Manager *child = new cnmem::Manager;
+    child->setParent(&root);
+    child->setDevice(device);
+    child->setStream(stream);
+    child->setFlags(root.getFlags() & ~CNMEM_FLAGS_CANNOT_GROW);
+    root.addChild(child);
+
+    return CNMEM_STATUS_SUCCESS;
+}
+
+cnmemStatus_t cnlockedRegisterStream(cudaStream_t stream) {
+    CNMEM_CHECK_TRUE(cnmem::Context::checkLocked(), CNMEM_STATUS_NOT_INITIALIZED);
+    CNMEM_CHECK_TRUE(stream, CNMEM_STATUS_INVALID_ARGUMENT);
+    
+    int device;
+    CNMEM_CHECK_CUDA(cudaGetDevice(&device));
+
+    cnmem::Manager &root = cnmem::Context::getLocked()->getManager(device);
     cnmem::Manager *child = new cnmem::Manager;
     child->setParent(&root);
     child->setDevice(device);
@@ -1247,6 +1386,79 @@ cnmemStatus_t cnmemMalloc(void **ptr, std::size_t size, cudaStream_t stream) {
     return result;
 }
 
+cnmemStatus_t cnlockedMalloc(void **ptr, std::size_t size, cudaStream_t stream) {
+    CNMEM_CHECK_TRUE(cnmem::Context::checkLocked(), CNMEM_STATUS_NOT_INITIALIZED);
+    if( !ptr && !size ) {
+        return CNMEM_STATUS_SUCCESS;
+    }
+    else if( !size ) {
+        ptr[0] = NULL;
+        return CNMEM_STATUS_SUCCESS;
+    }
+    CNMEM_CHECK_TRUE(ptr,  CNMEM_STATUS_INVALID_ARGUMENT);
+    
+    int device;
+    CNMEM_CHECK_CUDA(cudaGetDevice(&device));
+
+    cnmem::Manager &root = cnmem::Context::getLocked()->getManager(device);
+    cnmem::Manager *manager = &root;
+    if( stream ) {
+        CNMEM_CHECK(root.getChildFromStream(manager, stream));
+    }
+    CNMEM_ASSERT(manager);
+    
+    size = cnmem::ceilInt(size, CNMEM_GRANULARITY);
+    cnmemStatus_t result = manager->allocate(ptr[0], size);
+
+    // We failed to allocate but there might still be a buffer available in another manager. Try to 
+    // steal it.
+    if( result == CNMEM_STATUS_OUT_OF_MEMORY ) {
+
+        // Try to acquire locks on all the children.
+        std::size_t numChildren;
+        CNMEM_CHECK(root.getNumChildren(numChildren));
+        std::vector<const cnmem::Mutex*> mutexes(numChildren);
+
+        std::size_t numLocked = 0;
+        for( size_t i = 0 ; i < numChildren ; ++i, ++numLocked ) {
+            cnmem::Manager *child;
+            CNMEM_CHECK(root.getChild(child, i));
+            mutexes[numLocked] = child->getMutex();
+            if( mutexes[numLocked]->lock() != CNMEM_STATUS_SUCCESS ) {
+                break;
+            }
+        }
+
+        // One lock failed, quit. Reduce the damage as much as possible, though.
+        if( numLocked != numChildren ) {
+            for( std::size_t i = 0 ; i < numLocked ; ++i ) {
+                cnmemStatus_t lockStatus = mutexes[i]->unlock();
+            }
+            return CNMEM_STATUS_UNKNOWN_ERROR;
+        }
+
+        // Grab the lock on the root, first.
+        const cnmem::Mutex *rootMutex = root.getMutex();
+        CNMEM_CHECK(rootMutex->lock());
+
+        // We acquired all the lock so we try to steal a node from another child.
+        if( numLocked == mutexes.size() ) {
+            result = manager->stealUnsafe(ptr[0], size);
+        }
+        for( std::size_t i = 0 ; i < numLocked ; ++i ) {
+            cnmemStatus_t lockStatus = mutexes[i]->unlock();
+            if( lockStatus != CNMEM_STATUS_SUCCESS ) { 
+                // Starting from now we are panicking!!! One lock failed to be released, we try
+                // we others. We could also give up because we are already screwed. I don't know
+                // what's best! Comment are welcome.
+                result = lockStatus;
+            }
+        }
+        CNMEM_CHECK(rootMutex->unlock());
+    }
+    return result;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 cnmemStatus_t cnmemFree(void *ptr, cudaStream_t stream) {
@@ -1259,6 +1471,24 @@ cnmemStatus_t cnmemFree(void *ptr, cudaStream_t stream) {
     CNMEM_CHECK_CUDA(cudaGetDevice(&device));
 
     cnmem::Manager &root = cnmem::Context::get()->getManager(device);
+    cnmem::Manager *manager = &root;
+    if( stream ) {
+        CNMEM_CHECK(root.getChildFromStream(manager, stream));
+    }
+    CNMEM_ASSERT(manager);
+    return manager->release(ptr);
+}
+
+cnmemStatus_t cnlockedFree(void *ptr, cudaStream_t stream) {
+    CNMEM_CHECK_TRUE(cnmem::Context::checkLocked(), CNMEM_STATUS_NOT_INITIALIZED);
+    if( ptr == NULL ) {
+        return CNMEM_STATUS_SUCCESS;
+    }
+
+    int device;
+    CNMEM_CHECK_CUDA(cudaGetDevice(&device));
+
+    cnmem::Manager &root = cnmem::Context::getLocked()->getManager(device);
     cnmem::Manager *manager = &root;
     if( stream ) {
         CNMEM_CHECK(root.getChildFromStream(manager, stream));

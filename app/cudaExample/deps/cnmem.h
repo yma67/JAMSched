@@ -74,6 +74,7 @@ typedef enum
   CNMEM_FLAGS_CANNOT_GROW = 1,   /// Prevent the manager from growing its memory consumption.
   CNMEM_FLAGS_CANNOT_STEAL = 2,  /// Prevent the manager from stealing memory.
   CNMEM_FLAGS_MANAGED = 4,       /// Use cudaMallocManaged for the allocator.
+  CNMEM_FLAGS_HOST_LOCKED = 8,
 } cnmemManagerFlags_t;
 
 /* ********************************************************************************************* */
@@ -111,6 +112,7 @@ typedef struct cnmemDevice_t_
  * CNMEM_STATUS_CUDA_ERROR,       if an error happens in a CUDA function.
  */
 cnmemStatus_t CNMEM_API cnmemInit(int numDevices, const cnmemDevice_t *devices, unsigned flags);
+cnmemStatus_t CNMEM_API cnlockedInit(int numDevices, const cnmemDevice_t *devices, unsigned flags);
 
 /**
  * \brief Release all the allocated memory. 
@@ -124,6 +126,7 @@ cnmemStatus_t CNMEM_API cnmemInit(int numDevices, const cnmemDevice_t *devices, 
  * CNMEM_STATUS_CUDA_ERROR,       if an error happens in one of the CUDA functions.
  */
 cnmemStatus_t CNMEM_API cnmemFinalize();
+cnmemStatus_t CNMEM_API cnlockedFinalize();
 
 /**
  * \brief Increase the internal reference counter of the context object.
@@ -165,6 +168,7 @@ cnmemStatus_t CNMEM_API cnmemRelease();
  * CNMEM_STATUS_INVALID_ARGUMENT, if one of the argument is invalid,
  */
 cnmemStatus_t CNMEM_API cnmemRegisterStream(cudaStream_t stream);
+cnmemStatus_t CNMEM_API cnlockedRegisterStream(cudaStream_t stream);
 
 /**
  * \brief Allocate memory. 
@@ -202,6 +206,7 @@ cnmemStatus_t CNMEM_API cnmemRegisterStream(cudaStream_t stream);
  * CNMEM_STATUS_CUDA_ERROR,       if an error happens in one of the CUDA functions.
  */
 cnmemStatus_t CNMEM_API cnmemMalloc(void **ptr, size_t size, cudaStream_t stream);
+cnmemStatus_t CNMEM_API cnlockedMalloc(void **ptr, size_t size, cudaStream_t stream);
 
 /**
  * \brief Release memory. 
@@ -216,6 +221,7 @@ cnmemStatus_t CNMEM_API cnmemMalloc(void **ptr, size_t size, cudaStream_t stream
  * CNMEM_STATUS_CUDA_ERROR,       if an error happens in one of the CUDA functions.
  */
 cnmemStatus_t CNMEM_API cnmemFree(void *ptr, cudaStream_t stream);
+cnmemStatus_t CNMEM_API cnlockedFree(void *ptr, cudaStream_t stream);
 
 /* ********************************************************************************************* */
 /* Utility functions.                                                                            */

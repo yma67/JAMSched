@@ -60,11 +60,12 @@ cudaStream_t jamcStreamAlloc() {
     nvtxRangeId_t id0 = nvtxRangeStart("jamcStreamAlloc");
     cudaStream_t s;
     if (!cudaStreams.pop(s)) {
-        if (cudaSuccess != cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking)) {
+        if (cudaSuccess != cudaStreamCreate(&s)) {
             printf("bad allocation stream\n");
             exit(0);
         } else {
             cnmemRegisterStream(s);
+            cnlockedRegisterStream(s);
         }
     } else {
         hitCountStream++;
@@ -80,19 +81,22 @@ void jamcStreamFree(cudaStream_t s) {
 }
 
 static void Compute(int k) {
-    auto h = jamcHostAlloc();
-    int *dev_a, *dev_b, *dev_c;
+    int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
     auto stream = jamcStreamAlloc();
+    cnlockedMalloc((void**)(&host_a), kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), stream);
+    cnlockedMalloc((void**)(&host_b), kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), stream);
+    cnlockedMalloc((void**)(&host_c), kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), stream);
     nvtxRangeId_t id0 = nvtxRangeStart("cnmemMalloc dev_a");
     cnmemMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int), stream);
     nvtxRangeEnd(id0);
+    auto result = GetRandomArray(host_a, host_b, kPerDimLen * kPerDimLen, kPerDimLen * kPerDimLen * kNumIteration);
     nvtxRangeId_t id1 = nvtxRangeStart("cnmemMalloc dev_b");
     cnmemMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int), stream);
     nvtxRangeEnd(id1);
     nvtxRangeId_t id2 = nvtxRangeStart("cnmemMalloc dev_c");
     cnmemMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int), stream);
     nvtxRangeEnd(id2);
-    KernelInvoker(stream, h.host_a, h.host_b, h.host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration);
+    KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration, result);
     nvtxRangeId_t idf0 = nvtxRangeStart("cnmemFree dev_a");
     cnmemFree(dev_a, stream);
     nvtxRangeEnd(idf0);
@@ -102,7 +106,9 @@ static void Compute(int k) {
     nvtxRangeId_t idf2 = nvtxRangeStart("cnmemFree dev_c");
     cnmemFree(dev_c, stream);
     nvtxRangeEnd(idf2);
-    jamcHostFree(h);
+    cnlockedFree(host_a, stream);
+    cnlockedFree(host_b, stream);
+    cnlockedFree(host_c, stream);
     jamcStreamFree(stream);
 }
 
@@ -117,13 +123,20 @@ int main(int argc, char* argv[]) {
         std::vector<jamc::TaskHandle> pendings;
         jamc::WaitGroup wg;
         auto startCuda = std::chrono::high_resolution_clock::now();
-        cnmemDevice_t memDevice;
+        cnmemDevice_t memDevice, memHost;
         memDevice.device = 0;
         memDevice.size = kNumTrails * perIterDeviceTotal * sizeof(int);
         memDevice.numStreams = 0;
         memDevice.streams = nullptr;
         memDevice.streamSizes = nullptr;
-        cnmemInit(1, &memDevice, CNMEM_FLAGS_DEFAULT);
+        memHost.device = 0;
+        memHost.size = 0;// kNumTrails * perIterHostPerArray * sizeof(int);
+        memHost.numStreams = 0;
+        memHost.streams = nullptr;
+        memHost.streamSizes = nullptr;
+        auto ret = jamc::async([&] { cnmemInit(1, &memHost, CNMEM_FLAGS_DEFAULT); return 0; });
+        cnlockedInit(1, &memDevice, CNMEM_FLAGS_HOST_LOCKED);
+        ret.wait();
         for (int k = 0; k < kNumTrails; k++) pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, true), jamc::Duration::max(), [k] { Compute(k); }));
         for (auto& p: pendings) p.Join();
         hostMemory.consume_all([&wg, &ribScheduler](const HostMemory& h) { 
@@ -137,6 +150,10 @@ int main(int argc, char* argv[]) {
             ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, false), jamc::Duration::max(), [&h, &wg] { 
                 cudaStreamDestroy(h); wg.Done();
             });    
+        });
+        wg.Add();
+        ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, false), jamc::Duration::max(), [&wg] { 
+            cnlockedFinalize(); wg.Done();
         });
         cnmemFinalize();
         wg.Wait();

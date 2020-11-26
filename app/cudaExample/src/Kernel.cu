@@ -49,10 +49,9 @@ void InitDummy()
     cudaStreamDestroy(dummys);
 }
 
-void KernelInvoker(cudaStream_t stream, int* host_a, int* host_b, int* host_c, int* dev_a, int* dev_b, int* dev_c, int size, int numIteration)
+void KernelInvoker(cudaStream_t stream, int* host_a, int* host_b, int* host_c, int* dev_a, int* dev_b, int* dev_c, int size, int numIteration, const std::vector<int>& result)
 {
     int full_size = numIteration * size;
-    auto result = GetRandomArray(host_a, host_b, size, full_size);
     auto args = std::make_unique<CommandArgs<int*, int*, int*, int>>(dev_a, dev_b, dev_c, size);
     for ( int i = 0; i < full_size; i += size) {
         cudaMemcpyAsync( dev_a, host_a + i, size * sizeof( int), cudaMemcpyHostToDevice, stream);

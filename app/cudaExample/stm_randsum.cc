@@ -18,7 +18,6 @@ constexpr int kNumIteration = 8;
 
 static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
-    std::vector<int> result;
     cudaStream_t stream;
     cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
     auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
@@ -37,9 +36,10 @@ static void Compute() {
         return;
     }
     cudaMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int));
+    auto result = GetRandomArray(host_a, host_b, kPerDimLen * kPerDimLen, kPerDimLen * kPerDimLen * kNumIteration);
     cudaMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int));
     cudaMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int));
-    KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration);
+    KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration, result);
     cudaFree(dev_a);
     cudaFree(dev_b);
     cudaFree(dev_c);

@@ -7,11 +7,12 @@
 #include "cuda_runtime.h"
 #include "LogicalInput.h"
 #include "jamc-cuda.h"
+#include <vector>
 #ifdef __CUDACC__
 __global__
 #endif
 void CircularSubarrayInnerProduct( int * a, int * b, int * c, int size);
-void KernelInvoker(cudaStream_t, int*, int*, int*, int*, int*, int*, int, int);
+void KernelInvoker(cudaStream_t, int*, int*, int*, int*, int*, int*, int, int, const std::vector<int>& result);
 
 void InitDummy();
 #endif //JAMSCRIPT_KERNEL_H
