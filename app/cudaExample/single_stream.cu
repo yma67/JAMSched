@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 		        int full_size = nt * size;
 		        int * host_a, * host_b, * host_c;
 		        int * dev_a, * dev_b, * dev_c;
-		        cudaStreamCreate(&stream);
+		        cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
                         cudaHostAlloc(&host_a, wh * wh * nt * sizeof(int), cudaHostAllocDefault);
                         cudaHostAlloc(&host_b, wh * wh * nt * sizeof(int), cudaHostAllocDefault);
                         cudaHostAlloc(&host_c, wh * wh * nt * sizeof(int), cudaHostAllocDefault);

@@ -131,10 +131,12 @@ int main(int argc, char* argv[]) {
     for (auto& p: pendings) p.join();
     pendings.clear();
     hostMemory.consume_all([&pendings](const HostMemory& h) { 
-        pendings.emplace_back([&h] { cudaFreeHost(h.host_a); });
+        // pendings.emplace_back([&h] { cudaFreeHost(h.host_a); });
+        cudaFreeHost(h.host_a);
     });
     cudaStreams.consume_all([&pendings](const cudaStream_t& h) {
-        pendings.emplace_back([&h] { cudaStreamDestroy(h); }); 
+        // pendings.emplace_back([&h] { cudaStreamDestroy(h); }); 
+        cudaStreamDestroy(h);
     });
     for (auto& p: pendings) p.join();
     auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startCuda).count();

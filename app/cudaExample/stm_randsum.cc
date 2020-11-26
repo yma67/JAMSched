@@ -20,7 +20,7 @@ static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
     std::vector<int> result;
     cudaStream_t stream;
-    cudaStreamCreate(&stream);
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
     auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
