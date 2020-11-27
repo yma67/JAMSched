@@ -11,7 +11,7 @@
 
 namespace jamc
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
     class IOCPAgent;
 #endif
 
@@ -32,7 +32,7 @@ namespace jamc
         
         void Enable(TaskInterface *toEnable) override;
         void EnableImmediately(TaskInterface *toSteal) override;
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
         IOCPAgent *GetIOCPAgent() override { return evm; }
 #endif
         TimePoint GetSchedulerStartTime() const override;
@@ -55,7 +55,7 @@ namespace jamc
         std::atomic_uint64_t upCPUTime, sizeOfQueue;
         bool isRunning;
         RIBScheduler *victim;
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
         IOCPAgent *evm;
 #endif
         JAMStorageTypes::ThiefQueueType isReady;

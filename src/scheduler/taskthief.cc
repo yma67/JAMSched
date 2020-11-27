@@ -5,7 +5,7 @@
 
 jamc::StealScheduler::StealScheduler(RIBScheduler *victim, uint32_t ssz) 
     : SchedulerBase(ssz), victim(victim), upCPUTime(0U), sizeOfQueue(0U), isRunning(true)
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
     ,evm(new IOCPAgent(this))
 #endif
     {}
@@ -14,7 +14,7 @@ jamc::StealScheduler::~StealScheduler()
 {
     auto dTaskInf = [](TaskInterface *t) { delete t; };
     isReady.clear_and_dispose(dTaskInf);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
     delete evm;
 #endif
 }
@@ -162,7 +162,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
 {
     srand(time(nullptr));
     TaskInterface::ResetTaskInfos();
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
     auto* tIOManager = new StandAloneStackTask(this, 1024 * 256, [this]
     {
         while (true) this->evm->Run();
@@ -170,9 +170,10 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     tIOManager->taskType = BATCH_TASK_T;
     tIOManager->isStealable = false;
     tIOManager->status = TASK_READY;
+    tIOManager->enableImmediately = true;
     tIOManager->id = 0;
     tIOManager->ToggleNonSteal();
-    tIOManager->EnableImmediately();
+    tIOManager->Enable();
 #endif
     while (toContinue)
     {
@@ -183,7 +184,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
             TaskInterface::ResetTaskInfos();
         }
     }
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
     delete tIOManager;
 #endif
 }

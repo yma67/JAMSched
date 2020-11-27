@@ -1,5 +1,5 @@
 #pragma once
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
 #include <vector>
 #include <atomic>
 #include "concurrency/mutex.hpp"
@@ -12,7 +12,8 @@ namespace jamc
         int kqFileDescriptor, numSpin;
         SchedulerBase *scheduler;
         std::unordered_map<uintptr_t, std::vector<std::pair<int, std::uint16_t>>> pendingEvents;
-        bool CancelOne(int fd, std::uint16_t cancelEvent, void* uData) const;
+        std::unordered_map<int, std::unordered_map<uintptr_t, std::pair<int, uintptr_t>>> pendingRev;
+        bool CancelOne(int fd, std::uint16_t cancelEvent, void* uData);
         bool CancelByData(void* uData);
     public:
         explicit IOCPAgent(SchedulerBase *);

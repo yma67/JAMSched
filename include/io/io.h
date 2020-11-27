@@ -1,5 +1,5 @@
 #pragma once
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
 #include <poll.h>
 #include <cstdint>
 #include <algorithm>
@@ -13,9 +13,6 @@
 namespace jamc
 {
     // to 🐑 @yoo_yyx for contributing idea of #include <io.h>
-    // timeout < 0: block forever
-    // timeout > 0: timeout in ms
-    // timeout == 0: non-blocking
 
     template <bool PreValidate = true,
               typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>

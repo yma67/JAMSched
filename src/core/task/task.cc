@@ -24,7 +24,7 @@ void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
     }
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
 jamc::IOCPAgent *jamc::TaskInterface::GetIOCPAgent()
 {
     if (thisTask != nullptr)

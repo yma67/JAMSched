@@ -174,7 +174,7 @@ namespace jamc
 
         virtual RIBScheduler *GetRIBScheduler() { return nullptr; }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
         virtual IOCPAgent *GetIOCPAgent() { return nullptr; }
 #endif
         bool Running() { return toContinue; }
@@ -511,7 +511,7 @@ namespace jamc
 
         TaskType GetTaskType() const { return taskType; }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
         static IOCPAgent *GetIOCPAgent();
 #endif
 

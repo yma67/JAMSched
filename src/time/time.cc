@@ -1,6 +1,9 @@
 #include <mutex>
 #ifdef __APPLE__
 #include <sys/event.h>
+#elif defined(__linux__)
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
 #endif
 #include "time/time.hpp"
 #include "boost/assert.hpp"
@@ -14,8 +17,10 @@
 constexpr std::chrono::nanoseconds kTimerSampleDelta(5000);
 
 jamc::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
-#ifdef __APPLE__
+#if defined(__APPLE__)
 , kqFileDescriptor(kqueue())
+#elif defined(__linux__)
+, kqFileDescriptor(epoll_create(1024))
 #endif
 {
     int err;
@@ -25,7 +30,7 @@ jamc::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
 jamc::Timer::~Timer() 
 {
     timeouts_close(timingWheelPtr);
-#ifdef __APPLE__
+#if defined(__APPLE__) or defined(__linux__)
     close(kqFileDescriptor);
 #endif
 }
@@ -35,10 +40,22 @@ void jamc::Timer::RequestIO(int kqFD) const
     auto* t = TaskInterface::Active();
     if (t != nullptr)
     {
-#ifdef __APPLE__
+#if defined(__APPLE__)
         struct kevent ev{};
         EV_SET(&ev, kqFD, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, t);
         kevent(kqFileDescriptor, &ev, 1, nullptr, 0, nullptr);
+        t->SwapOut();
+#elif defined(__linux__)
+        struct epoll_event ev{};
+        ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+        ev.data.ptr = t;
+        int ret = epoll_ctl(kqFileDescriptor, EPOLL_CTL_MOD, kqFD, &ev);
+        if (ret != 0 && errno == ENOENT) {
+            ret = epoll_ctl(kqFileDescriptor, EPOLL_CTL_ADD, kqFD, &ev);
+            if (ret != 0) std::abort();
+        } else if (ret != 0) {
+            std::abort();
+        }
         t->SwapOut();
 #endif
     }
@@ -47,6 +64,13 @@ void jamc::Timer::RequestIO(int kqFD) const
 void jamc::Timer::RunTimerLoop() 
 {
     uint64_t printCount = 0;
+#ifdef __linux__
+    struct epoll_event kevt{};
+    kevt.events = EPOLLIN | EPOLLET;
+    kevt.data.ptr = nullptr;
+    int tmrFD = timerfd_create(CLOCK_REALTIME, 0);
+    if (epoll_ctl(kqFileDescriptor, EPOLL_CTL_ADD, tmrFD, &kevt) != 0) std::abort();
+#endif
     while (scheduler->toContinue.load())
     {
 #ifdef __APPLE__
@@ -61,6 +85,25 @@ void jamc::Timer::RunTimerLoop()
             struct kevent & ev = kev[i];
             auto *t = static_cast<TaskInterface *>(ev.udata);
             if (ev.filter == EVFILT_READ)
+            {
+                t->Enable();
+            }
+        }
+#elif defined(__linux__)
+        constexpr std::size_t cEvent = 1024;
+        struct itimerspec timeoutDur{};
+        struct timespec now{};
+        clock_gettime(CLOCK_REALTIME, &now);
+        timeoutDur.it_value.tv_sec = now.tv_sec;
+        timeoutDur.it_value.tv_nsec = now.tv_nsec + 5000;
+        timerfd_settime(tmrFD, TFD_TIMER_ABSTIME, &timeoutDur, nullptr);
+        struct epoll_event kev[cEvent];
+        int n = epoll_wait(kqFileDescriptor, kev, cEvent, 1);
+        for (int i = 0; i < n; i++)
+        {
+            struct epoll_event & ev = kev[i];
+            auto *t = static_cast<TaskInterface *>(ev.data.ptr);
+            if (ev.events == EPOLLIN and ev.data.ptr != nullptr)
             {
                 t->Enable();
             }
