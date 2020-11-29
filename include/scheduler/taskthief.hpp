@@ -51,14 +51,13 @@ namespace jamc
     private:
 
         size_t StealFrom(StealScheduler *toSteal);
-
         std::atomic_uint64_t upCPUTime, sizeOfQueue;
-        bool isRunning;
         RIBScheduler *victim;
 #if defined(__APPLE__) || defined(__linux__)
         IOCPAgent *evm;
 #endif
         JAMStorageTypes::ThiefQueueType isReady;
+        bool isRunning;
 
     };
 

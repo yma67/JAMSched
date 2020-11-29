@@ -14,16 +14,16 @@ int main(int argc, char const *argv[])
 {
     jamc::RIBScheduler ribScheduler(1024 * 256);
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
-    for (int i = 0; i < 3; i++)
-        vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
-        ribScheduler.SetStealers(std::move(vst));
-        ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true),
-                                     jamc::Duration::max(), [&ribScheduler, argc, argv] {
+    int numProcs = atoi(argv[2]);
+    for (int i = 0; i < numProcs; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
+    ribScheduler.SetStealers(std::move(vst));
+    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096, true),
+                                 jamc::Duration::max(), [&ribScheduler, argc, argv] {
         int serverFd, clientFd;
         struct sockaddr_in server, client;
         socklen_t len;
         int port = 4576;
-        if (argc == 2)
+        if (argc > 1)
         {
             port = atoi(argv[1]);
         }
@@ -33,6 +33,9 @@ int main(int argc, char const *argv[])
             perror("Cannot create socket");
             exit(1);
         }
+        int enable = 1;
+        setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+        fcntl(serverFd, F_SETFL, fcntl(serverFd, F_GETFL, 0) | O_NONBLOCK);
         server.sin_family = AF_INET;
         server.sin_addr.s_addr = INADDR_ANY;
         server.sin_port = htons(port);
@@ -42,46 +45,46 @@ int main(int argc, char const *argv[])
             perror("Cannot bind socket");
             exit(2);
         }
-        if (listen(serverFd, 10) < 0)
+        if (listen(serverFd, 512) < 0)
         {
             perror("Listen error");
             exit(3);
         }
         while (1) {
             len = sizeof(client);
-            printf("waiting for clients\n");
+            //printf("waiting for clients\n");
             if ((clientFd = jamc::Accept(serverFd, (struct sockaddr *)&client, &len)) < 0) {
                 ribScheduler.ShutDown();
                 exit(4);
             }
-            jamc::ctask::CreateBatchTask(jamc::StackTraits(true, 4096 * 0, true), jamc::Duration::max(), [client, clientFd] {
+            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096, true, false, true), jamc::Duration::max(), [client, clientFd] {
                 constexpr std::size_t buflen = 1024;
-                auto buffer = new char[buflen];
-                struct sockaddr_in {};
-                char *client_ip = inet_ntoa(client.sin_addr);
-                printf("Accepted new connection from a client %s:%d\n", client_ip, ntohs(client.sin_port));
+                char buffer[buflen];
+                // printf("Accepted new connection from a client %s:%d\n", client_ip, ntohs(client.sin_port));
                 while (1)
                 {
-                    memset(buffer, 0, sizeof(char) * buflen);
                     int size = jamc::Read(clientFd, buffer, sizeof(char) * buflen);
-                    if (size == 0) break;
-                    printf("ready to read\n");
-                    if (size < 0) {
-                        perror("read error");
-                        return;
-                    }
-                    printf("received %s from client\n", buffer);
-                    if (!strcmp(buffer, "disconnect\n"))
+                    if (size == 0) 
                     {
                         break;
                     }
+                    // printf("ready to read\n");
+                    if (size < 0) {
+                        perror("read error");
+                        break;
+                    }
+                    // printf("received %s from client\n", buffer);
+                    /*if (!strncmp(buffer, "disconnect\n", 11))
+                    {
+                        break;
+                    }*/
                     if (jamc::Write(clientFd, buffer, size) < 0) {
                         perror("write error");
-                        return;
+                        break;
                     }
                 }
-                printf("Shutdown connection from client %s:%d\n", client_ip, ntohs(client.sin_port));
-                delete[] buffer;
+                // printf("Shutdown connection from client %s:%d\n", client_ip, ntohs(client.sin_port));
+                // close(clientFd);
             }).Detach();
         }
         close(serverFd);

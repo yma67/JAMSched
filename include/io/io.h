@@ -45,13 +45,19 @@ namespace jamc
             }
         }
         auto* evm = jamc::TaskInterface::GetIOCPAgent();
+
+
         evm->Add(vecMergedFd, evPollResult.get());
+
         if (tout == std::chrono::duration<TClock, TDur>::max())
         {
+
             evPollResultFuture.wait();
+            
         }
         else
         {
+                                
             if (evPollResultFuture.wait_for(tout) == jamc::future_status::timeout)
             {
                 evm->Cancel(evPollResult.get());
@@ -59,6 +65,7 @@ namespace jamc
         }
         if (evPollResultFuture.is_ready())
         {
+
             auto mapPollResult = evPollResultFuture.get();
             int ret = 0;
             for (nfds_t i = 0; i < nfds; i++)
@@ -73,6 +80,7 @@ namespace jamc
                     }
                 }
             }
+            
             return ret;
         }
         return 0;
@@ -101,13 +109,30 @@ namespace jamc
         {
             return fn(std::forward<Args>(args)...);
         }
+        #pragma unroll
+        for (int i = 0; i < 8; i++) 
+        {
+            auto ret = fn(std::forward<Args>(args)...);
+            if (ret >= 0) 
+            {
+                return ret;
+            }
+            if (i > 0) 
+            {
+                jamc::ctask::SleepFor(std::chrono::microseconds(i * 10));
+            }
+            else
+            {
+                jamc::ctask::Yield();
+            }
+        }
         struct pollfd fds{};
         fds.fd = fd;
         fds.events = event;
         fds.revents = 0;
         while (true)
         {
-            int triggers = jamc::Poll(&fds, 1, tout);
+            int triggers = jamc::PollWithoutPreValidation(&fds, 1, tout);
             if (triggers == -1 && errno == EINTR)
             {
                 continue;
@@ -144,7 +169,7 @@ namespace jamc
     int Accept(int socketFd, struct sockaddr *addr, socklen_t *addrlen,
                std::chrono::duration<TClock, TDur> tout = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(socketFd, POLLIN, tout, accept, socketFd, addr, addrlen);
+        return CallWrapper(socketFd, POLLIN, tout, accept4, socketFd, addr, addrlen, SOCK_NONBLOCK);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
@@ -157,9 +182,25 @@ namespace jamc
         }
         int isNonBlocking = fcntl(socket, F_GETFL, 0);
         fcntl(socket, unsigned(F_SETFL), unsigned(isNonBlocking) | unsigned(O_NONBLOCK));
-        int res = connect(socket, address, address_len);
         fcntl(socket, unsigned(F_SETFL), isNonBlocking);
-        if (res == -1 && errno == EINPROGRESS)
+        #pragma unroll
+        for (int i = 0; i < 16; i++)
+        {
+            int ret = connect(socket, address, address_len);
+            if (ret >= 0) 
+            {
+                return ret;
+            }
+            if (i > 0) 
+            {
+                jamc::ctask::SleepFor(std::chrono::microseconds(i * 10));
+            }
+            else
+            {
+                jamc::ctask::Yield();
+            }
+        }
+        if (errno == EINPROGRESS)
         {
             struct pollfd pfd{};
             pfd.fd = socket;
@@ -183,7 +224,7 @@ namespace jamc
             errno = sockErr;
             return -1;
         }
-        return res;
+        return -1;
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>

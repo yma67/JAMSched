@@ -170,7 +170,7 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
     tIOManager->taskType = BATCH_TASK_T;
     tIOManager->isStealable = false;
     tIOManager->status = TASK_READY;
-    tIOManager->enableImmediately = true;
+    tIOManager->enableImmediately = false;
     tIOManager->id = 0;
     tIOManager->ToggleNonSteal();
     tIOManager->Enable();

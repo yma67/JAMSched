@@ -264,22 +264,13 @@ void jamc::IOCPAgent::Run()
     constexpr std::size_t cEvent = 1024;
     struct epoll_event kev[cEvent];
     {
-        std::unique_lock lk(m);
+RETRY:  std::unique_lock lk(m);
         int n = epoll_wait(kqFileDescriptor, kev, cEvent, 0);
         if (n == 0)
         {
             lk.unlock();
-            if (numSpin < kNumSpin)
-            {
-                jamc::ctask::SleepFor(std::chrono::microseconds(numSpin * 10));
-                numSpin++;
-            }
-            else
-            {
-                scheduler->GetRIBScheduler()->GetTimer().RequestIO(kqFileDescriptor);
-                numSpin = 0;
-            }
-            return;
+            scheduler->GetRIBScheduler()->GetTimer().RequestIO(kqFileDescriptor);
+            goto RETRY;
         }
         std::unordered_map<void*, std::unordered_map<int,  std::uint16_t>> wakeupMap;
         for (int i = 0; i < n; ++i)
@@ -323,10 +314,8 @@ void jamc::IOCPAgent::Run()
         {
             CancelByData(ptrFut);
             auto* prom = reinterpret_cast<jamc::promise<std::unordered_map<int, std::uint16_t>> *>(ptrFut);
-            printf("%p\n", prom);
             prom->set_value(fdMap);
         }
-        printf("it done\n");
     }
 }
 #endif

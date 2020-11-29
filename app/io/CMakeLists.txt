@@ -1,4 +1,7 @@
 add_executable(io-server main.cpp)
 add_executable(io-client client.c)
+add_executable(httpbm httpservb.cc)
+target_link_libraries(httpbm PRIVATE jamsched)
 target_link_libraries(io-server PRIVATE jamsched)
-target_include_directories(jamsched PRIVATE "${PROJECT_SOURCE_DIR}/include/")
+target_include_directories(io-server PRIVATE "${PROJECT_SOURCE_DIR}/include/")
+target_include_directories(httpbm PRIVATE "${PROJECT_SOURCE_DIR}/include/")

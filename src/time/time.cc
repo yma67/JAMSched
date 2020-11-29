@@ -46,6 +46,7 @@ void jamc::Timer::RequestIO(int kqFD) const
         kevent(kqFileDescriptor, &ev, 1, nullptr, 0, nullptr);
         t->SwapOut();
 #elif defined(__linux__)
+        t->status = TASK_PENDING;
         struct epoll_event ev{};
         ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
         ev.data.ptr = t;
@@ -93,7 +94,7 @@ void jamc::Timer::RunTimerLoop()
         constexpr std::size_t cEvent = 1024;
         struct itimerspec timeoutDur{};
         struct timespec now{};
-        clock_gettime(CLOCK_REALTIME, &now);
+        clock_gettime(CLOCK_MONOTONIC, &now);
         timeoutDur.it_value.tv_sec = now.tv_sec;
         timeoutDur.it_value.tv_nsec = now.tv_nsec + 5000;
         timerfd_settime(tmrFD, TFD_TIMER_ABSTIME, &timeoutDur, nullptr);
@@ -113,7 +114,7 @@ void jamc::Timer::RunTimerLoop()
 #endif
         NotifyAllTimeouts();
 #ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
-        if (printCount++ == 1000)
+        if (printCount++ == 100000)
         {
             printCount = 0;
             std::cout << "sizes of executors at ";

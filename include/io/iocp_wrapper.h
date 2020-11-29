@@ -8,7 +8,7 @@ namespace jamc
     class SchedulerBase;
     class IOCPAgent
     {
-        Mutex m;
+        SpinMutex m;
         int kqFileDescriptor, numSpin;
         SchedulerBase *scheduler;
         std::unordered_map<uintptr_t, std::vector<std::pair<int, std::uint16_t>>> pendingEvents;
