@@ -189,6 +189,11 @@ void jamc::StealScheduler::RunSchedulerMainLoop()
 #endif
 }
 
+jamc::IOCPAgent *jamc::StealScheduler::GetIOCPAgent()
+{
+    return evm; 
+}
+
 jamc::TaskInterface *jamc::StealScheduler::GetNextTask() 
 {
     std::unique_lock lock(qMutex);

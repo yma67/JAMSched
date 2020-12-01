@@ -100,7 +100,7 @@ namespace jamc
         return PollImpl<false>(fds, nfds, tout);
     }
 
-    template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period,
+    template <int NumSpin = 6, typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period,
               typename Fn, typename ...Args>
     auto CallWrapper(int fd, short int event, std::chrono::duration<TClock, TDur> tout,
                      Fn fn, Args && ... args) -> typename std::invoke_result<Fn, Args...>::type
@@ -109,22 +109,17 @@ namespace jamc
         {
             return fn(std::forward<Args>(args)...);
         }
+        jamc::ctask::Yield();
         #pragma unroll
-        for (int i = 0; i < 8; i++) 
+        for (int i = 0; i < NumSpin; i++) 
         {
             auto ret = fn(std::forward<Args>(args)...);
-            if (ret >= 0) 
+            if (ret >= 0 || !(errno == EAGAIN || errno == EWOULDBLOCK))
             {
                 return ret;
             }
-            if (i > 0) 
-            {
-                jamc::ctask::SleepFor(std::chrono::microseconds(i * 10));
-            }
-            else
-            {
-                jamc::ctask::Yield();
-            }
+            if (i < 2) jamc::ctask::Yield();
+            else jamc::ctask::SleepFor(std::chrono::microseconds(10 * i));
         }
         struct pollfd fds{};
         fds.fd = fd;
@@ -169,7 +164,7 @@ namespace jamc
     int Accept(int socketFd, struct sockaddr *addr, socklen_t *addrlen,
                std::chrono::duration<TClock, TDur> tout = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(socketFd, POLLIN, tout, accept4, socketFd, addr, addrlen, SOCK_NONBLOCK);
+        return CallWrapper<1>(socketFd, POLLIN | POLLHUP, tout, accept4, socketFd, addr, addrlen, SOCK_NONBLOCK);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>

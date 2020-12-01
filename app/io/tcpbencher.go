@@ -13,9 +13,9 @@ import (
 
 var (
 	targetAddr  = flag.String("a", "127.0.0.1:5000", "target echo server address")
-	testMsgLen  = flag.Int("l", 512, "test message length")
-	testConnNum = flag.Int("c", 256, "test connection number")
-	testSeconds = flag.Int("t", 20, "test duration in seconds")
+	testMsgLen  = flag.Int("l", 2000, "test message length")
+	testConnNum = flag.Int("c", 1000, "test connection number")
+	testSeconds = flag.Int("t", 10, "test duration in seconds")
 )
 
 func main() {
@@ -39,7 +39,7 @@ func main() {
 		wg.Add(1)
 
 		go func() {
-			if conn, err := net.DialTimeout("tcp", "127.0.0.1:8080", time.Minute*99999); err == nil {
+			if conn, err := net.DialTimeout("tcp", "127.0.0.1:8888", time.Minute*99999); err == nil {
 				l := len(msg)
 				recv := make([]byte, l)
 

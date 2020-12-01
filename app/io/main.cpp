@@ -9,6 +9,7 @@
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h> // sockaddr_in, AF_INET, SOCK_STREAM, INADDR_ANY, socket etc...
 #include <string.h> // memset
+#include <netinet/tcp.h>
 
 int main(int argc, char const *argv[])
 {
@@ -17,7 +18,7 @@ int main(int argc, char const *argv[])
     int numProcs = atoi(argv[2]);
     for (int i = 0; i < numProcs; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
-    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096, true),
+    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096, true, false),
                                  jamc::Duration::max(), [&ribScheduler, argc, argv] {
         int serverFd, clientFd;
         struct sockaddr_in server, client;
@@ -45,46 +46,36 @@ int main(int argc, char const *argv[])
             perror("Cannot bind socket");
             exit(2);
         }
-        if (listen(serverFd, 512) < 0)
+        if (listen(serverFd, 4096) < 0)
         {
             perror("Listen error");
             exit(3);
         }
-        while (1) {
-            len = sizeof(client);
-            //printf("waiting for clients\n");
-            if ((clientFd = jamc::Accept(serverFd, (struct sockaddr *)&client, &len)) < 0) {
+        while (true) {
+            if ((clientFd = jamc::Accept(serverFd, nullptr, nullptr)) < 0) {
                 ribScheduler.ShutDown();
                 exit(4);
             }
-            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096, true, false, true), jamc::Duration::max(), [client, clientFd] {
-                constexpr std::size_t buflen = 1024;
+            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096, true, false), jamc::Duration::max(), [client, clientFd] {
+                constexpr std::size_t buflen = 2048;
                 char buffer[buflen];
-                // printf("Accepted new connection from a client %s:%d\n", client_ip, ntohs(client.sin_port));
                 while (1)
                 {
-                    int size = jamc::Read(clientFd, buffer, sizeof(char) * buflen);
+                    int size = jamc::Recv(clientFd, buffer, sizeof(char) * buflen, 0);
                     if (size == 0) 
                     {
                         break;
                     }
-                    // printf("ready to read\n");
                     if (size < 0) {
                         perror("read error");
                         break;
                     }
-                    // printf("received %s from client\n", buffer);
-                    /*if (!strncmp(buffer, "disconnect\n", 11))
-                    {
-                        break;
-                    }*/
-                    if (jamc::Write(clientFd, buffer, size) < 0) {
+                    if (jamc::Send(clientFd, buffer, size, 0) < 0) {
                         perror("write error");
                         break;
                     }
                 }
-                // printf("Shutdown connection from client %s:%d\n", client_ip, ntohs(client.sin_port));
-                // close(clientFd);
+                close(clientFd);
             }).Detach();
         }
         close(serverFd);

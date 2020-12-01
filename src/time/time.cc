@@ -65,13 +65,6 @@ void jamc::Timer::RequestIO(int kqFD) const
 void jamc::Timer::RunTimerLoop() 
 {
     uint64_t printCount = 0;
-#ifdef __linux__
-    struct epoll_event kevt{};
-    kevt.events = EPOLLIN | EPOLLET;
-    kevt.data.ptr = nullptr;
-    int tmrFD = timerfd_create(CLOCK_REALTIME, 0);
-    if (epoll_ctl(kqFileDescriptor, EPOLL_CTL_ADD, tmrFD, &kevt) != 0) std::abort();
-#endif
     while (scheduler->toContinue.load())
     {
 #ifdef __APPLE__
@@ -92,14 +85,8 @@ void jamc::Timer::RunTimerLoop()
         }
 #elif defined(__linux__)
         constexpr std::size_t cEvent = 1024;
-        struct itimerspec timeoutDur{};
-        struct timespec now{};
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        timeoutDur.it_value.tv_sec = now.tv_sec;
-        timeoutDur.it_value.tv_nsec = now.tv_nsec + 5000;
-        timerfd_settime(tmrFD, TFD_TIMER_ABSTIME, &timeoutDur, nullptr);
         struct epoll_event kev[cEvent];
-        int n = epoll_wait(kqFileDescriptor, kev, cEvent, 1);
+        int n = epoll_wait(kqFileDescriptor, kev, cEvent, 0);
         for (int i = 0; i < n; i++)
         {
             struct epoll_event & ev = kev[i];
@@ -109,6 +96,7 @@ void jamc::Timer::RunTimerLoop()
                 t->Enable();
             }
         }
+        std::this_thread::sleep_for(kTimerSampleDelta);
 #else
         std::this_thread::sleep_for(kTimerSampleDelta);
 #endif

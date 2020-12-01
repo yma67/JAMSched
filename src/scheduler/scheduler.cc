@@ -172,13 +172,17 @@ jamc::StealScheduler *jamc::RIBScheduler::GetMinThief()
         size_t nsz = thief->Size();
         if (nsz == 0)
         {
-            return thief.get();
+            zeroSchedulers.push_back(thief.get());
         }
         if (minSize > nsz)
         {
             minThief = thief.get();
             minSize = nsz;
         }
+    }
+    if (zeroSchedulers.size() > 1)
+    {
+        return zeroSchedulers[rand() % zeroSchedulers.size()];
     }
     return minThief;
 }
@@ -222,7 +226,7 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
     for (auto& thief: thiefs)
     {
         tThiefs.emplace_back(
-                [&thief] { thief->RunSchedulerMainLoop(); }
+            [&thief] { thief->RunSchedulerMainLoop(); }
         );
     }
     TaskInterface::ResetTaskInfos();
@@ -330,17 +334,17 @@ void jamc::RIBScheduler::RunSchedulerMainLoop()
             numberOfPeriods++;
 #ifdef JAMSCRIPT_SCHED_AI_EXP
             if (!eStats.jitters.empty())
-        {
-            std::cout << "Jitters: ";
-            long tj = 0, nj = 0;
-            for (auto &j : eStats.jitters)
             {
-                std::cout << std::chrono::duration_cast<std::chrono::microseconds>(j).count() << " ";
-                tj += std::chrono::duration_cast<std::chrono::microseconds>(j).count();
-                nj++;
+                std::cout << "Jitters: ";
+                long tj = 0, nj = 0;
+                for (auto &j : eStats.jitters)
+                {
+                    std::cout << std::chrono::duration_cast<std::chrono::microseconds>(j).count() << " ";
+                    tj += std::chrono::duration_cast<std::chrono::microseconds>(j).count();
+                    nj++;
+                }
+                std::cout << "AVG: " << tj / nj << std::endl;
             }
-            std::cout << "AVG: " << tj / nj << std::endl;
-        }
 #endif
             eStats.jitters.clear();
         }

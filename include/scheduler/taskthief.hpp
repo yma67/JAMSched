@@ -33,7 +33,7 @@ namespace jamc
         void Enable(TaskInterface *toEnable) override;
         void EnableImmediately(TaskInterface *toSteal) override;
 #if defined(__APPLE__) || defined(__linux__)
-        IOCPAgent *GetIOCPAgent() override { return evm; }
+        IOCPAgent *GetIOCPAgent() override;
 #endif
         TimePoint GetSchedulerStartTime() const override;
         TimePoint GetCycleStartTime() const override;

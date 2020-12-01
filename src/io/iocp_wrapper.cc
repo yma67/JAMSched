@@ -188,7 +188,7 @@ bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& eves
     {
         struct epoll_event kev{};
         int n = 0;
-        kev.events = EPOLLET;
+        kev.events = EPOLLONESHOT;
         if (addEvent & std::uint16_t(POLLIN))
         {
             kev.events |= EPOLLIN;
@@ -211,7 +211,14 @@ bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& eves
             pendingRev[fd].insert({uintptr_t(uData), {fd, uintptr_t(uData)}});
             kev.data.ptr = std::addressof(pendingRev[fd][uintptr_t(uData)]);
         }
-        ret &= (epoll_ctl(kqFileDescriptor, EPOLL_CTL_ADD, fd, &kev) == 0);
+        int retl = epoll_ctl(kqFileDescriptor, EPOLL_CTL_MOD, fd, &kev);
+        if (retl != 0 && errno == ENOENT) {
+            retl = epoll_ctl(kqFileDescriptor, EPOLL_CTL_ADD, fd, &kev);
+            if (retl != 0) std::abort();
+        } else if (retl != 0) {
+            std::abort();
+        }
+        ret &= retl;
     }
     return ret;
 }
@@ -220,7 +227,7 @@ bool jamc::IOCPAgent::CancelOne(int fd, std::uint16_t cancelEvent, void* uData)
 {
     struct epoll_event kev{};
     kev.data.ptr = std::addressof(pendingRev[fd][uintptr_t(uData)]);
-    kev.events = EPOLLET;
+    kev.events = EPOLLONESHOT;
     if (cancelEvent & std::uint16_t(POLLIN))
     {
         kev.events |= EPOLLIN;
@@ -240,6 +247,13 @@ bool jamc::IOCPAgent::CancelOne(int fd, std::uint16_t cancelEvent, void* uData)
     pendingRev[fd].erase(uintptr_t(uData));
     if (pendingRev[fd].empty()) pendingRev.erase(fd);
     return epoll_ctl(kqFileDescriptor, EPOLL_CTL_DEL, fd, &kev) == 0;
+}
+
+bool jamc::IOCPAgent::CancelOne(int fd, void* uData)
+{
+    pendingRev[fd].erase(uintptr_t(uData));
+    if (pendingRev[fd].empty()) pendingRev.erase(fd);
+    return true;
 }
 
 bool jamc::IOCPAgent::CancelByData(void* uData)
@@ -263,15 +277,19 @@ void jamc::IOCPAgent::Run()
 {
     constexpr std::size_t cEvent = 1024;
     struct epoll_event kev[cEvent];
+RETRY:
     {
-RETRY:  std::unique_lock lk(m);
+        std::unique_lock lk(m);
         int n = epoll_wait(kqFileDescriptor, kev, cEvent, 0);
         if (n == 0)
         {
             lk.unlock();
-            scheduler->GetRIBScheduler()->GetTimer().RequestIO(kqFileDescriptor);
+            if (numSpin < 4) jamc::ctask::Yield();
+            else { scheduler->GetRIBScheduler()->GetTimer().RequestIO(kqFileDescriptor); numSpin = -1; }
+            numSpin++;
             goto RETRY;
         }
+        numSpin = 0;
         std::unordered_map<void*, std::unordered_map<int,  std::uint16_t>> wakeupMap;
         for (int i = 0; i < n; ++i)
         {
@@ -312,7 +330,8 @@ RETRY:  std::unique_lock lk(m);
         }
         for (auto& [ptrFut, fdMap]: wakeupMap)
         {
-            CancelByData(ptrFut);
+            for (auto& [fd, kevs]: fdMap) CancelOne(fd, ptrFut);
+            pendingEvents.erase(uintptr_t(ptrFut));
             auto* prom = reinterpret_cast<jamc::promise<std::unordered_map<int, std::uint16_t>> *>(ptrFut);
             prom->set_value(fdMap);
         }
