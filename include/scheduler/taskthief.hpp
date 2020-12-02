@@ -44,6 +44,7 @@ namespace jamc
         void SleepFor(TaskInterface* task, const Duration &dt, std::unique_lock<SpinMutex> &lk) override;
         void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) override;
         RIBScheduler *GetRIBScheduler() override { return victim; }
+        void CancelTimeout(TaskInterface *) override;
 
         StealScheduler(RIBScheduler *victim, uint32_t ssz);
         ~StealScheduler() override;

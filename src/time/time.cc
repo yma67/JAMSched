@@ -155,9 +155,9 @@ void jamc::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t m
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
     task->cvStatus.store(0, std::memory_order_seq_cst);
-    timeout_init(task->timeOut.get(), mask);
-    timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    timeout_init(&(task->timeOut), mask);
+    timeout_setcb(&(task->timeOut), TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, &(task->timeOut), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     task->SwapOut();
 }
@@ -196,26 +196,32 @@ void jamc::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t m
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
-    timeout_init(task->timeOut.get(), mask);
-    timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    timeout_init(&(task->timeOut), mask);
+    timeout_setcb(&(task->timeOut), TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, &(task->timeOut), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     iLock.unlock();
     task->SwapOut();
     lk.lock();
-    if (!timeout_expired(task->timeOut.get())) jamscript_timeout_del(task->timeOut.get());
+    if (!timeout_expired(&(task->timeOut))) jamscript_timeout_del(&(task->timeOut));
 }
 
 void jamc::Timer::SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<Mutex> &iLock)
 {
     std::unique_lock lk(sl);
     UpdateTimeoutWithoutLock();
-    timeout_init(task->timeOut.get(), mask);
-    timeout_setcb(task->timeOut.get(), TimeoutCallback, task);
-    timeouts_add(timingWheelPtr, task->timeOut.get(), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
+    timeout_init(&(task->timeOut), mask);
+    timeout_setcb(&(task->timeOut), TimeoutCallback, task);
+    timeouts_add(timingWheelPtr, &(task->timeOut), std::chrono::duration_cast<std::chrono::nanoseconds>(dt).count());
     lk.unlock();
     iLock.unlock();
     task->SwapOut();
     lk.lock();
-    if (!timeout_expired(task->timeOut.get())) jamscript_timeout_del(task->timeOut.get());
+    if (!timeout_expired(&(task->timeOut))) jamscript_timeout_del(&(task->timeOut));
+}
+
+void jamc::Timer::CancelTimeout(TaskInterface *task)
+{
+    std::scoped_lock lk(sl);
+    jamscript_timeout_del(&(task->timeOut));
 }

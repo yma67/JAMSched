@@ -246,3 +246,8 @@ void jamc::StealScheduler::EndTask(TaskInterface *ptrCurrTask)
         }
     }
 }
+
+void jamc::StealScheduler::CancelTimeout(TaskInterface *t)
+{
+    victim->CancelTimeout(t);
+}

@@ -56,7 +56,7 @@ int main(int argc, char const *argv[])
                 ribScheduler.ShutDown();
                 exit(4);
             }
-            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096, true, false), jamc::Duration::max(), [client, clientFd] {
+            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true, false), jamc::Duration::max(), [client, clientFd] {
                 constexpr std::size_t buflen = 2048;
                 char buffer[buflen];
                 while (1)

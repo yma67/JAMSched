@@ -1,5 +1,6 @@
 #include "core/task/task.hpp"
 #include "time/timeout.h"
+#include "time/time.hpp"
 #include "io/iocp_wrapper.h"
 #include "scheduler/scheduler.hpp"
 #include "scheduler/tasklocal.hpp"
@@ -7,9 +8,12 @@
 
 jamc::TaskInterface::TaskInterface(SchedulerBase *scheduler)
     : status(TASK_READY), isStealable(true), scheduler(scheduler),
-      notifier(std::make_shared<Notifier>()), cvStatus(0), timeOut(std::make_unique<struct timeout>()),
-      id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), deadline(std::chrono::microseconds(0)),
+      notifier(std::make_shared<Notifier>()), cvStatus(0), 
+      id(0), taskLocalStoragePool(*GetGlobalJTLSMap()), 
+      deadline(std::chrono::microseconds(0)),
       burst(std::chrono::microseconds(0)) {}
+
+jamc::TaskInterface::~TaskInterface() { /*scheduler->CancelTimeout(this);*/ }
 
 void jamc::TaskInterface::ExecuteC(void *lpTaskHandle)
 {
@@ -153,6 +157,11 @@ jamc::TimePoint jamc::SchedulerBase::GetSchedulerStartTime() const
 jamc::TimePoint jamc::SchedulerBase::GetCycleStartTime() const 
 {
     return Clock::now(); 
+}
+
+void jamc::SchedulerBase::CancelTimeout(TaskInterface *)
+{
+
 }
 
 auto jamc::ctask::ConsumeOneFromBroadcastStream(const std::string &nameSpace, const std::string &variableName)

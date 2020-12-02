@@ -645,7 +645,7 @@ TIMEOUT_PUBLIC bool timeout_expired(struct timeout *to) {
 
 
 TIMEOUT_PUBLIC void jamscript_timeout_del(struct timeout *to) {
-	timeouts_del(to->timeouts, to);
+	if (to->timeouts != NULL) timeouts_del(to->timeouts, to);
 } /* jamscript_timeout_del() */
 #endif
 

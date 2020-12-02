@@ -160,6 +160,8 @@ namespace jamc
          */
         virtual void SleepUntil(TaskInterface* task, const TimePoint &tp, std::unique_lock<SpinMutex> &lk) {}
 
+        virtual void CancelTimeout(TaskInterface *);
+
         /**
          * Event Loop of the scheduler
          * - dispatch tasks
@@ -521,7 +523,7 @@ namespace jamc
         std::unordered_map<JTLSLocation, std::any> *GetTaskLocalStoragePool();
 
         explicit TaskInterface(SchedulerBase *scheduler);
-        virtual ~TaskInterface() = default;
+        virtual ~TaskInterface();
 
     public:
         TaskInterface() = delete;
@@ -548,15 +550,14 @@ namespace jamc
     private:
         uint32_t id, enableImmediately = 1;
         std::atomic_bool isStealable;
-        std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
+	std::unordered_map<JTLSLocation, std::any> taskLocalStoragePool;
         TaskType taskType;
         TaskStatus status;
         Duration deadline, burst;
         std::function<void()> onCancel;
         std::shared_ptr<Notifier> notifier;
-        std::unique_ptr<struct timeout> timeOut;
         std::atomic_intptr_t cvStatus;
-
+        struct timeout timeOut;
     };
 
     namespace ctask {

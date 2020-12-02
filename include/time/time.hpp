@@ -47,6 +47,7 @@ namespace jamc
 
         Timer() = delete;
         void UpdateTimeoutWithoutLock();
+        void CancelTimeout(TaskInterface *task);
         static void TimeoutCallback(void *args);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<SpinMutex> &iLock);

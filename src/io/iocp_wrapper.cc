@@ -179,13 +179,14 @@ jamc::IOCPAgent::~IOCPAgent()
 
 bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& evesToAdd, void* uData)
 {
-    {
-        std::scoped_lock lk(m);
-        pendingEvents[uintptr_t(uData)] = evesToAdd;
-    }
+    std::scoped_lock lk(m);
+    pendingEvents[uData] = {};
     bool ret = true;
-    for (auto& [fd, addEvent]: evesToAdd)
+    auto& storedTup = pendingEvents[uData];
+    for (auto& eveToAdd: evesToAdd)
     {
+        auto fd = eveToAdd.first;
+        auto addEvent = eveToAdd.second;
         struct epoll_event kev{};
         int n = 0;
         kev.events = EPOLLONESHOT;
@@ -205,17 +206,16 @@ bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& eves
         {
             kev.events |= EPOLLHUP;
         }
-        {
-            std::scoped_lock lk(m);
-            if (pendingRev.find(fd) == pendingRev.end()) pendingRev[fd] = {};
-            pendingRev[fd].insert({uintptr_t(uData), {fd, uintptr_t(uData)}});
-            kev.data.ptr = std::addressof(pendingRev[fd][uintptr_t(uData)]);
-        }
+        storedTup.emplace_back(fd, std::uint32_t(kev.events), uData);
+        kev.data.ptr = &(storedTup.back());
         int retl = epoll_ctl(kqFileDescriptor, EPOLL_CTL_MOD, fd, &kev);
-        if (retl != 0 && errno == ENOENT) {
+        if (retl != 0 && errno == ENOENT) 
+        {
             retl = epoll_ctl(kqFileDescriptor, EPOLL_CTL_ADD, fd, &kev);
             if (retl != 0) std::abort();
-        } else if (retl != 0) {
+        } 
+        else if (retl != 0) 
+        {
             std::abort();
         }
         ret &= retl;
@@ -223,10 +223,9 @@ bool jamc::IOCPAgent::Add(const std::vector<std::pair<int, std::uint16_t>>& eves
     return ret;
 }
 
-bool jamc::IOCPAgent::CancelOne(int fd, std::uint16_t cancelEvent, void* uData)
+bool jamc::IOCPAgent::CancelOne(int fd, std::uint16_t cancelEvent)
 {
     struct epoll_event kev{};
-    kev.data.ptr = std::addressof(pendingRev[fd][uintptr_t(uData)]);
     kev.events = EPOLLONESHOT;
     if (cancelEvent & std::uint16_t(POLLIN))
     {
@@ -244,26 +243,17 @@ bool jamc::IOCPAgent::CancelOne(int fd, std::uint16_t cancelEvent, void* uData)
     {
         kev.events |= EPOLLHUP;
     }
-    pendingRev[fd].erase(uintptr_t(uData));
-    if (pendingRev[fd].empty()) pendingRev.erase(fd);
     return epoll_ctl(kqFileDescriptor, EPOLL_CTL_DEL, fd, &kev) == 0;
-}
-
-bool jamc::IOCPAgent::CancelOne(int fd, void* uData)
-{
-    pendingRev[fd].erase(uintptr_t(uData));
-    if (pendingRev[fd].empty()) pendingRev.erase(fd);
-    return true;
 }
 
 bool jamc::IOCPAgent::CancelByData(void* uData)
 {
     bool ret = true;
-    for (auto& [fileDes, eventsToCancel]: pendingEvents[uintptr_t(uData)])
+    for (auto& [fileDes, eventsToCancel, ud]: pendingEvents[uData])
     {
-        ret = ret & CancelOne(fileDes, eventsToCancel, uData);
+        ret = ret & CancelOne(fileDes, eventsToCancel);
     }
-    pendingEvents.erase(uintptr_t(uData));
+    pendingEvents.erase(uData);
     return ret;
 }
 
@@ -277,7 +267,6 @@ void jamc::IOCPAgent::Run()
 {
     constexpr std::size_t cEvent = 1024;
     struct epoll_event kev[cEvent];
-RETRY:
     {
         std::unique_lock lk(m);
         int n = epoll_wait(kqFileDescriptor, kev, cEvent, 0);
@@ -287,16 +276,14 @@ RETRY:
             if (numSpin < 4) jamc::ctask::Yield();
             else { scheduler->GetRIBScheduler()->GetTimer().RequestIO(kqFileDescriptor); numSpin = -1; }
             numSpin++;
-            goto RETRY;
+            return;
         }
         numSpin = 0;
-        std::unordered_map<void*, std::unordered_map<int,  std::uint16_t>> wakeupMap;
+        wakeupMap.clear();
         for (int i = 0; i < n; ++i)
         {
             struct epoll_event &ev = kev[i];
-            auto& dataRef = *reinterpret_cast<std::pair<int, uintptr_t>*>(ev.data.ptr);
-            auto dataPtr = reinterpret_cast<void*>(dataRef.second);
-            int fd = dataRef.first;
+            auto& [fd, pevs, dataPtr] = *reinterpret_cast<std::tuple<int, std::uint32_t, void*>*>(ev.data.ptr);
             std::uint16_t pollEvent = 0;
             if (ev.events == EPOLLIN)
             {
@@ -314,26 +301,36 @@ RETRY:
             {
                 pollEvent |= std::uint16_t(POLLERR);
             }
-            auto it = wakeupMap.find(dataPtr);
-            if (it == wakeupMap.end())
+            if (wakeupMap.find(dataPtr) == wakeupMap.end())
             {
-                wakeupMap.insert({dataPtr, {}});
-                it = wakeupMap.find(dataPtr);
+                wakeupMap[dataPtr][fd] = pollEvent;
             }
-            auto it2 = it->second.find(fd);
-            if (it2 == it->second.end())
+            else
             {
-                it->second.insert({fd, {}});
-                it2 = it->second.find(fd);
+                auto& mapDataPtrToInsert = wakeupMap[dataPtr];
+                if (mapDataPtrToInsert.find(fd) == mapDataPtrToInsert.end())
+                {
+                    mapDataPtrToInsert.emplace(fd, pollEvent);
+                }
+                else
+                {
+                    mapDataPtrToInsert[fd] |= pollEvent;
+                }
             }
-            it2->second |= pollEvent;
         }
         for (auto& [ptrFut, fdMap]: wakeupMap)
         {
-            for (auto& [fd, kevs]: fdMap) CancelOne(fd, ptrFut);
-            pendingEvents.erase(uintptr_t(ptrFut));
-            auto* prom = reinterpret_cast<jamc::promise<std::unordered_map<int, std::uint16_t>> *>(ptrFut);
-            prom->set_value(fdMap);
+            std::vector<std::pair<int, std::uint16_t>> vres;
+            for (auto [fd, ev]: fdMap) 
+            {
+                vres.emplace_back(fd, ev);
+            }
+            auto* prom = reinterpret_cast<jamc::promise<std::vector<std::pair<int, std::uint16_t>>> *>(ptrFut);
+            prom->set_value(vres);
+        }
+        for (auto& [ptrFut, fdMap]: wakeupMap)
+        {
+            pendingEvents.erase(ptrFut);
         }
     }
 }

@@ -27,12 +27,13 @@ namespace jamc
                 return preValidationRes;
             }
         }
-        auto evPollResult = std::make_unique<jamc::promise<std::unordered_map<int, std::uint16_t>>>();
+        auto evPollResult = std::make_unique<jamc::promise<std::vector<std::pair<int, std::uint16_t>>>>();
         auto evPollResultFuture = evPollResult->get_future();
         std::vector<std::pair<int, std::uint16_t>> vecMergedFd;
         std::unordered_map<int, nfds_t> fd2poll;
         for (nfds_t i = 0; i < nfds; i++)
         {
+            fds[i].revents = 0;
             auto it = fd2poll.find(fds[i].fd);
             if (it == fd2poll.end())
             {
@@ -45,19 +46,13 @@ namespace jamc
             }
         }
         auto* evm = jamc::TaskInterface::GetIOCPAgent();
-
-
         evm->Add(vecMergedFd, evPollResult.get());
-
         if (tout == std::chrono::duration<TClock, TDur>::max())
         {
-
             evPollResultFuture.wait();
-            
         }
         else
         {
-                                
             if (evPollResultFuture.wait_for(tout) == jamc::future_status::timeout)
             {
                 evm->Cancel(evPollResult.get());
@@ -65,22 +60,13 @@ namespace jamc
         }
         if (evPollResultFuture.is_ready())
         {
-
             auto mapPollResult = evPollResultFuture.get();
-            int ret = 0;
-            for (nfds_t i = 0; i < nfds; i++)
+            int ret = mapPollResult.size();
+            for (auto& [fdRes, evRes]: mapPollResult) 
             {
-                auto it = mapPollResult.find(fds[i].fd);
-                if (it != mapPollResult.end())
-                {
-                    fds[i].revents = std::int16_t(it->second & std::uint16_t(fds[i].events));
-                    if (fds[i].revents > 0)
-                    {
-                        ret++;
-                    }
-                }
+                auto idxFdRes = fd2poll[fdRes];
+                fds[idxFdRes].revents = evRes & std::uint16_t(fds[idxFdRes].events);
             }
-            
             return ret;
         }
         return 0;
@@ -100,7 +86,7 @@ namespace jamc
         return PollImpl<false>(fds, nfds, tout);
     }
 
-    template <int NumSpin = 6, typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period,
+    template <int NumSpin = 6, bool PreYield = true, typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period,
               typename Fn, typename ...Args>
     auto CallWrapper(int fd, short int event, std::chrono::duration<TClock, TDur> tout,
                      Fn fn, Args && ... args) -> typename std::invoke_result<Fn, Args...>::type
@@ -109,7 +95,7 @@ namespace jamc
         {
             return fn(std::forward<Args>(args)...);
         }
-        jamc::ctask::Yield();
+        if constexpr(PreYield) jamc::ctask::Yield();
         #pragma unroll
         for (int i = 0; i < NumSpin; i++) 
         {
@@ -164,7 +150,7 @@ namespace jamc
     int Accept(int socketFd, struct sockaddr *addr, socklen_t *addrlen,
                std::chrono::duration<TClock, TDur> tout = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper<1>(socketFd, POLLIN | POLLHUP, tout, accept4, socketFd, addr, addrlen, SOCK_NONBLOCK);
+        return CallWrapper<0, false>(socketFd, POLLIN, tout, accept4, socketFd, addr, addrlen, SOCK_NONBLOCK);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
@@ -226,24 +212,21 @@ namespace jamc
     ssize_t Read(int fildes, void *buf, size_t nByte,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(fildes, std::uint16_t(POLLIN) | std::uint16_t(POLLHUP),
-                           timeoutMS, read, fildes, buf, nByte);
+        return CallWrapper(fildes, std::uint16_t(POLLIN), timeoutMS, read, fildes, buf, nByte);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
     ssize_t Write(int fildes, const void *buf, size_t nByte,
                   std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(fildes, std::uint16_t(POLLOUT) | std::uint16_t(POLLHUP),
-                           timeoutMS, write, fildes, buf, nByte);
+        return CallWrapper<4, false>(fildes, std::uint16_t(POLLOUT), timeoutMS, write, fildes, buf, nByte);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
     ssize_t Send(int socket, const void *buffer, size_t length, int flags,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(socket, std::uint16_t(POLLOUT) | std::uint16_t(POLLHUP),
-                           timeoutMS, send, socket, buffer, length, flags);
+        return CallWrapper<4, false>(socket, std::uint16_t(POLLOUT), timeoutMS, send, socket, buffer, length, flags);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
@@ -251,8 +234,8 @@ namespace jamc
                  int flags, const struct sockaddr *dest_addr, socklen_t dest_len,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(socket, std::uint16_t(POLLOUT) | std::uint16_t(POLLHUP),
-                           timeoutMS, sendto, socket, message, length, flags, dest_addr, dest_len);
+        return CallWrapper<4, false>(socket, std::uint16_t(POLLOUT), 
+                                     timeoutMS, sendto, socket, message, length, flags, dest_addr, dest_len);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
@@ -260,7 +243,7 @@ namespace jamc
                  struct sockaddr *address, socklen_t *address_len,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(socket, std::uint16_t(POLLIN) | std::uint16_t(POLLHUP),
+        return CallWrapper(socket, std::uint16_t(POLLIN),
                            timeoutMS, recvfrom, socket, buffer, length, flags, address, address_len);
     }
 
@@ -268,7 +251,7 @@ namespace jamc
     ssize_t Recv(int socket, void *buffer, size_t length, int flags,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper(socket, std::uint16_t(POLLIN) | std::uint16_t(POLLHUP),
+        return CallWrapper(socket, std::uint16_t(POLLIN),
                            timeoutMS, recv, socket, buffer, length, flags);
     }
 }

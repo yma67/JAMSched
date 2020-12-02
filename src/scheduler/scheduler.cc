@@ -498,3 +498,8 @@ void jamc::RIBScheduler::EndTask(TaskInterface *ptrCurrTask)
 {
 
 }
+
+void jamc::RIBScheduler::CancelTimeout(TaskInterface *t)
+{
+    timer.CancelTimeout(t);
+}
