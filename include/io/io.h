@@ -86,7 +86,7 @@ namespace jamc
         return PollImpl<false>(fds, nfds, tout);
     }
 
-    template <int NumSpin = 6, bool PreYield = true, typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period,
+    template <int NumSpin = 2, bool PreYield = true, typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period,
               typename Fn, typename ...Args>
     auto CallWrapper(int fd, short int event, std::chrono::duration<TClock, TDur> tout,
                      Fn fn, Args && ... args) -> typename std::invoke_result<Fn, Args...>::type
@@ -96,17 +96,17 @@ namespace jamc
             return fn(std::forward<Args>(args)...);
         }
         if constexpr(PreYield) jamc::ctask::Yield();
-        #pragma unroll
         for (int i = 0; i < NumSpin; i++) 
         {
-            auto ret = fn(std::forward<Args>(args)...);
-            if (ret >= 0 || !(errno == EAGAIN || errno == EWOULDBLOCK))
+            ssize_t ret = fn(std::forward<Args>(args)...);
+            if (ret >= 0 || !(errno == EAGAIN))
             {
                 return ret;
             }
             if (i < 2) jamc::ctask::Yield();
             else jamc::ctask::SleepFor(std::chrono::microseconds(10 * i));
         }
+        if constexpr(!PreYield) jamc::ctask::Yield();
         struct pollfd fds{};
         fds.fd = fd;
         fds.events = event;
@@ -164,7 +164,6 @@ namespace jamc
         int isNonBlocking = fcntl(socket, F_GETFL, 0);
         fcntl(socket, unsigned(F_SETFL), unsigned(isNonBlocking) | unsigned(O_NONBLOCK));
         fcntl(socket, unsigned(F_SETFL), isNonBlocking);
-        #pragma unroll
         for (int i = 0; i < 16; i++)
         {
             int ret = connect(socket, address, address_len);
@@ -219,14 +218,14 @@ namespace jamc
     ssize_t Write(int fildes, const void *buf, size_t nByte,
                   std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper<4, false>(fildes, std::uint16_t(POLLOUT), timeoutMS, write, fildes, buf, nByte);
+        return CallWrapper<1, false>(fildes, std::uint16_t(POLLOUT), timeoutMS, write, fildes, buf, nByte);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
     ssize_t Send(int socket, const void *buffer, size_t length, int flags,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper<4, false>(socket, std::uint16_t(POLLOUT), timeoutMS, send, socket, buffer, length, flags);
+        return CallWrapper<1, false>(socket, std::uint16_t(POLLOUT), timeoutMS, send, socket, buffer, length, flags);
     }
 
     template <typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>
@@ -234,7 +233,7 @@ namespace jamc
                  int flags, const struct sockaddr *dest_addr, socklen_t dest_len,
                  std::chrono::duration<TClock, TDur> timeoutMS = std::chrono::duration<TClock, TDur>::max())
     {
-        return CallWrapper<4, false>(socket, std::uint16_t(POLLOUT), 
+        return CallWrapper<1, false>(socket, std::uint16_t(POLLOUT), 
                                      timeoutMS, sendto, socket, message, length, flags, dest_addr, dest_len);
     }
 

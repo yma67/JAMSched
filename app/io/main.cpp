@@ -18,19 +18,16 @@ int main(int argc, char const *argv[])
     int numProcs = atoi(argv[2]);
     for (int i = 0; i < numProcs; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
-    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096, true, false),
-                                 jamc::Duration::max(), [&ribScheduler, argc, argv] {
+    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 4096, true, false), jamc::Duration::max(), [&ribScheduler, argc, argv] {
         int serverFd, clientFd;
         struct sockaddr_in server, client;
         socklen_t len;
         int port = 4576;
-        if (argc > 1)
-        {
+        if (argc > 1) {
             port = atoi(argv[1]);
         }
         serverFd = socket(AF_INET, SOCK_STREAM, 0);
-        if (serverFd < 0)
-        {
+        if (serverFd < 0) {
             perror("Cannot create socket");
             exit(1);
         }
@@ -41,13 +38,11 @@ int main(int argc, char const *argv[])
         server.sin_addr.s_addr = INADDR_ANY;
         server.sin_port = htons(port);
         len = sizeof(server);
-        if (bind(serverFd, (struct sockaddr *)&server, len) < 0)
-        {
+        if (bind(serverFd, (struct sockaddr *)&server, len) < 0) {
             perror("Cannot bind socket");
             exit(2);
         }
-        if (listen(serverFd, 4096) < 0)
-        {
+        if (listen(serverFd, 4096) < 0) {
             perror("Listen error");
             exit(3);
         }
@@ -56,22 +51,17 @@ int main(int argc, char const *argv[])
                 ribScheduler.ShutDown();
                 exit(4);
             }
-            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096 * 2, true, false), jamc::Duration::max(), [client, clientFd] {
+            jamc::ctask::CreateBatchTask(jamc::StackTraits(false, 4096, true, false), jamc::Duration::max(), [client, clientFd] {
                 constexpr std::size_t buflen = 2048;
                 char buffer[buflen];
-                while (1)
-                {
-                    int size = jamc::Recv(clientFd, buffer, sizeof(char) * buflen, 0);
-                    if (size == 0) 
-                    {
+                while (true) {
+                    auto size = jamc::Recv(clientFd, buffer, sizeof(char) * buflen, 0);
+                    if (size <= 0) {
                         break;
                     }
-                    if (size < 0) {
-                        perror("read error");
-                        break;
-                    }
-                    if (jamc::Send(clientFd, buffer, size, 0) < 0) {
-                        perror("write error");
+                    auto wsize = jamc::Send(clientFd, buffer, size, 0);
+                    if (wsize < 0) {
+                        printf("write error: %d, return code %d\n", errno, wsize);
                         break;
                     }
                 }
