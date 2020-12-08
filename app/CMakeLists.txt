@@ -3,8 +3,6 @@ add_subdirectory(one-task)
 add_subdirectory(assignment2)
 add_subdirectory(integration)
 add_subdirectory(skynet)
-include(CheckLanguage)
-
-# add_subdirectory(cudaExample)
+add_subdirectory(cudaExample)
 
 add_subdirectory(io)
