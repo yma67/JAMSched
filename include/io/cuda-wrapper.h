@@ -15,15 +15,6 @@ using ErrorType = cudaError_t;
 namespace jamc {
 namespace cuda {
 
-    template<typename... T>
-    struct all_same : std::false_type { };
-    template<>
-    struct all_same<> : std::true_type { };
-    template<typename T>
-    struct all_same<T> : std::true_type { };
-    template<typename T, typename... Ts>
-    struct all_same<T, T, Ts...> : all_same<T, Ts...> { };
-
     class StreamBundle
     {
 
