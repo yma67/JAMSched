@@ -895,14 +895,6 @@ future<U> make_exceptional_future(std::exception_ptr p) {
 #if defined (__clang__) || defined(_MSC_VER) || \
     (defined (__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 9) || __GNUC__ >= 5))
 
-class RIBScheduler;
-
-template<typename F, typename... Args>
-future<detail::callable_ret_type<F, Args...>> async(RIBScheduler& executor, F&& f, Args&&... args);
-template<typename F, typename... Args>
-future<detail::callable_ret_type<F, Args...>> async(
-  RIBScheduler& executor, jamc::StackTraits st, F&& f, Args&&... args);
-
 template<typename F, typename... Args>
 future<detail::callable_ret_type<F, Args...>> async(
   jamc::StackTraits st, F&& f, Args&&... args) {
@@ -923,12 +915,31 @@ future<detail::callable_ret_type<F, Args...>> async(
 }
 
 template<typename F, typename... Args>
+future<detail::callable_ret_type<F, Args...>> async(
+  int nthExecutor, F&& f, Args&&... args) {
+  using future_inner_type = detail::callable_ret_type<F, Args...>;
+
+  auto promise_ptr = std::make_shared<promise<future_inner_type>>();
+  auto result = promise_ptr->get_future();
+  ctask::CreateBatchTask(StackTraits(false, 4096, true, nthExecutor), jamc::Duration::max(), 
+  [promise_ptr, f = std::forward<F>(f), args...] () mutable {
+    try {
+      promise_ptr->set_value(std::forward<F>(f)(args...));
+    } catch (...) {
+      promise_ptr->set_exception(std::current_exception());
+    }
+  });
+
+  return result;
+}
+
+template<typename F, typename... Args>
 future<detail::callable_ret_type<F, Args...>> async(F&& f, Args&&... args) {
   using future_inner_type = detail::callable_ret_type<F, Args...>;
 
   auto promise_ptr = std::make_shared<promise<future_inner_type>>();
   auto result = promise_ptr->get_future();
-  ctask::CreateBatchTask(StackTraits(true, 0, true), jamc::Duration::max(), 
+  ctask::CreateBatchTask(StackTraits(false, 4096, true), jamc::Duration::max(), 
   [promise_ptr, f = std::forward<F>(f), args...] () mutable {
     try {
       promise_ptr->set_value(std::forward<F>(f)(args...));

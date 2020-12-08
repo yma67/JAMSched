@@ -65,8 +65,7 @@ void jamc::TaskInterface::SwapOut()
     auto sched = GetSchedulerValue();
     if (sched != nullptr)
     {
-        //auto nextTask = sched->GetNextTask();
-        auto nextTask = nullptr;
+        auto nextTask = sched->GetNextTask();
         if (nextTask != this)
         {
             this->SwapTo(nextTask);

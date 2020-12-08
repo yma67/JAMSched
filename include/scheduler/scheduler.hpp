@@ -261,16 +261,15 @@ namespace jamc
             auto ptrTaskHandle = fn->notifier;
             if (fn->isStealable)
             {
-                StealScheduler *pNextThief;
-                if (stackTraits.pinCore > -1 && 
-                    stackTraits.pinCore < thiefs.size() && 
-                    thiefs[stackTraits.pinCore] != nullptr) 
+                if (stackTraits.pinCore > -1 &&  stackTraits.pinCore < thiefs.size() && thiefs[stackTraits.pinCore] != nullptr) 
                 {
-                    pNextThief = thiefs[stackTraits.pinCore].get();
+                    fn->Steal(thiefs[stackTraits.pinCore].get());
+                    if (!stackTraits.useSharedStack) static_cast<StandAloneStackTask<Fn, Args...>*>(fn)->ToggleNonSteal();
+                    fn->isStealable = false;
                 } 
                 else 
                 {
-                    pNextThief = GetMinThief();
+                    auto pNextThief = GetMinThief();
                     if (ptrCetteTache != nullptr && this != ptrCetteTache->scheduler &&
                         pNextThief != nullptr && pNextThief->Size() > 0)
                     {
@@ -280,8 +279,8 @@ namespace jamc
                     {
                         pNextThief = thiefs[rand() % thiefs.size()].get();
                     }
+                    fn->Steal(pNextThief);
                 }
-                fn->Steal(pNextThief);
                 if (stackTraits.directSwap && ptrCetteTache != nullptr && 
                     fn->GetSchedulerValue() == ptrCetteTache->GetSchedulerValue())
                 {

@@ -15,7 +15,7 @@ var (
 	targetAddr  = flag.String("a", "127.0.0.1:5000", "target echo server address")
 	testMsgLen  = flag.Int("l", 512, "test message length")
 	testConnNum = flag.Int("c", 256, "test connection number")
-	testSeconds = flag.Int("t", 20, "test duration in seconds")
+	testSeconds = flag.Int("t", 10, "test duration in seconds")
 )
 
 func main() {
@@ -49,7 +49,9 @@ func main() {
 						rest -= i
 						if err != nil {
 							log.Println(err)
-							break
+							conn.Close()
+							wg.Done()
+							return
 						}
 					}
 
@@ -63,7 +65,9 @@ func main() {
 						rest -= i
 						if err != nil {
 							log.Println(err)
-							break
+							conn.Close()
+							wg.Done()
+							return
 						}
 					}
 

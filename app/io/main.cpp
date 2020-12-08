@@ -26,14 +26,11 @@ int main(int argc, char const *argv[])
         if (argc > 1) {
             port = atoi(argv[1]);
         }
-        serverFd = socket(AF_INET, SOCK_STREAM, 0);
+        serverFd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
         if (serverFd < 0) {
             perror("Cannot create socket");
             exit(1);
         }
-        int enable = 1;
-        setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-        fcntl(serverFd, F_SETFL, fcntl(serverFd, F_GETFL, 0) | O_NONBLOCK);
         server.sin_family = AF_INET;
         server.sin_addr.s_addr = INADDR_ANY;
         server.sin_port = htons(port);
@@ -46,8 +43,9 @@ int main(int argc, char const *argv[])
             perror("Listen error");
             exit(3);
         }
+        printf("server fd = %d\n", serverFd);
         while (true) {
-            if ((clientFd = jamc::Accept(serverFd, nullptr, nullptr)) < 0) {
+            if ((clientFd = jamc::Accept(serverFd, nullptr, nullptr)) == -1) {
                 ribScheduler.ShutDown();
                 exit(4);
             }
@@ -55,18 +53,21 @@ int main(int argc, char const *argv[])
                 constexpr std::size_t buflen = 2048;
                 char buffer[buflen];
                 while (true) {
-                    auto size = jamc::Recv(clientFd, buffer, sizeof(char) * buflen, 0);
+                    auto size = jamc::Recv(clientFd, buffer, sizeof(char) * buflen, MSG_DONTWAIT);
                     if (size <= 0) {
+                        if (size < 0) {
+                            printf("read error: %d, return code %ld\n", errno, size);
+                        }
                         break;
                     }
-                    auto wsize = jamc::Send(clientFd, buffer, size, 0);
+                    auto wsize = jamc::Send(clientFd, buffer, size, MSG_DONTWAIT);
                     if (wsize < 0) {
-                        printf("write error: %d, return code %d\n", errno, wsize);
+                        printf("write error: %d, return code %ld\n", errno, wsize);
                         break;
                     }
                 }
                 close(clientFd);
-            }).Detach();
+            });
         }
         close(serverFd);
         ribScheduler.ShutDown();
