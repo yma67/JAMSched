@@ -39,6 +39,9 @@ namespace jamc
         void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<SpinMutex> &iLock);
         void SetTimeoutFor(TaskInterface *task, const Duration &dt, std::unique_lock<Mutex> &iLock);
         void SetTimeoutUntil(TaskInterface *task, const TimePoint &tp, std::unique_lock<Mutex> &iLock);
+        
+        static void SetGPUSampleRate(std::chrono::nanoseconds);
+        static void SetSampleRate(std::chrono::nanoseconds);
 
         explicit Timer(RIBScheduler *scheduler);
         ~Timer();
@@ -53,6 +56,7 @@ namespace jamc
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<SpinMutex> &iLock);
         void SetTimeout(TaskInterface *task, const Duration &dt, uint32_t mask, std::unique_lock<Mutex> &iLock);
         
+        static std::chrono::nanoseconds kTimerSampleDelta, kTimerSampleDeltaGPU;
         struct timeouts *timingWheelPtr;
         RIBScheduler *scheduler;
         int kqFileDescriptor;

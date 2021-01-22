@@ -1,5 +1,6 @@
 include(FetchContent)
-
+enable_language(CUDA)
+find_package(CUDA REQUIRED)
 # JSON Library
 FetchContent_Declare(json
   GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent
@@ -30,6 +31,6 @@ endif(JAMSCRIPT_DEBUG_LINEINFO_OPT)
 find_package(Threads)
 add_library(jamsched ${JAMCOMPONENTS_SOURCES_LIST})
 target_compile_features(jamsched PUBLIC cxx_std_17)
-target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json paho-mqtt3a hiredis event ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES})
-target_include_directories(jamsched PUBLIC ${PROJECT_SOURCE_DIR}/include /usr/local/include /usr/include)
+target_link_libraries(jamsched PUBLIC nlohmann_json::nlohmann_json paho-mqtt3a hiredis event ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES})
+target_include_directories(jamsched PUBLIC ${PROJECT_SOURCE_DIR}/include /usr/local/include /usr/include "/usr/local/cuda/include")
 target_link_directories(jamsched PUBLIC /usr/local/lib /usr/lib)

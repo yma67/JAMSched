@@ -8,13 +8,14 @@
 #include "time/time.hpp"
 #include "boost/assert.hpp"
 #include "io/iocp_wrapper.h"
+#include "io/cuda-wrapper.h"
 #include "core/task/task.hpp"
 #include "concurrency/mutex.hpp"
 #include "scheduler/scheduler.hpp"
 #include "concurrency/notifier.hpp"
 #include "concurrency/spinlock.hpp"
 
-constexpr std::chrono::nanoseconds kTimerSampleDelta(5000);
+std::chrono::nanoseconds jamc::Timer::kTimerSampleDelta(5000), jamc::Timer::kTimerSampleDeltaGPU(5000);
 
 jamc::Timer::Timer(RIBScheduler *scheduler) : scheduler(scheduler)
 #if defined(__APPLE__)
@@ -33,6 +34,16 @@ jamc::Timer::~Timer()
 #if defined(__APPLE__) or defined(__linux__)
     close(kqFileDescriptor);
 #endif
+}
+
+void jamc::Timer::SetGPUSampleRate(std::chrono::nanoseconds t)
+{
+    kTimerSampleDeltaGPU = t;
+}
+
+void jamc::Timer::SetSampleRate(std::chrono::nanoseconds t)
+{
+    kTimerSampleDelta = t;
 }
 
 void jamc::Timer::RequestIO(int kqFD) const
@@ -96,13 +107,31 @@ void jamc::Timer::RunTimerLoop()
                 t->Enable();
             }
         }
-        std::this_thread::sleep_for(kTimerSampleDelta);
+//#ifdef __CUDACC__
+        if (kTimerSampleDeltaGPU > std::chrono::nanoseconds(0))
+        {
+            for (auto t = (kTimerSampleDelta - kTimerSampleDelta); 
+                 t < kTimerSampleDelta; ) 
+            {
+                jamc::cuda::CUDAPooler::GetInstance().IterateOnce();
+                auto startPool = std::chrono::high_resolution_clock::now();
+                std::this_thread::sleep_for(kTimerSampleDeltaGPU);
+                t += (std::chrono::high_resolution_clock::now() - startPool);
+            }
+        }
+        else
+        {
+            auto beg = std::chrono::high_resolution_clock::now();
+            while (std::chrono::high_resolution_clock::now() < beg + kTimerSampleDelta)
+                jamc::cuda::CUDAPooler::GetInstance().IterateOnce();
+        }
+//#endif
 #else
         std::this_thread::sleep_for(kTimerSampleDelta);
 #endif
         NotifyAllTimeouts();
 #ifdef JAMSCRIPT_SHOW_EXECUTOR_COUNT
-        if (printCount++ == 100000)
+        if (printCount++ == 100)
         {
             printCount = 0;
             std::cout << "sizes of executors at ";

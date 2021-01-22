@@ -3,19 +3,76 @@
 //
 #include "jamc-cuda.h"
 #include "io/cuda-wrapper.h"
+#include "concurrency/mutex.hpp"
+#include "concurrency/waitgroup.hpp"
 #include <random>
 #include <nvToolsExt.h>
 #include <nvToolsExtCuda.h>
+
+void BoostGPUForCoroutine()
+{
+    jamc::Timer::SetGPUSampleRate(std::chrono::nanoseconds(0));
+}
+
 cudaError_t WaitForCudaStream(cudaStream_t s)
 {
-    return jamc::cuda::WaitStream(s);
+    return jamc::cuda::WaitStream(s, 4);
+}
+
+cudaError_t WaitForCudaStreamWithRounds(cudaStream_t s, size_t n)
+{
+    return jamc::cuda::WaitStream(s, n);
+}
+
+void LaunchKernel(const std::function<void()>& f)
+{
+    return jamc::cuda::CUDAPooler::GetInstance().EnqueueKernel(f);
+}
+
+jamc::Mutex& GetCudaKernelLaunchLockInstance()
+{
+    static jamc::Mutex mtxCudaLaunchKernel;
+    return mtxCudaLaunchKernel;
+}
+
+void *CreateWaitGroup() {
+    return new jamc::WaitGroup();
+}
+
+void DestroyWaitGroup(void *lpHandle) {
+    auto wg = reinterpret_cast<jamc::WaitGroup*>(lpHandle);
+    delete wg;
+}
+
+void DoneWaitGroup(void *lpHandle) {
+    auto wg = reinterpret_cast<jamc::WaitGroup*>(lpHandle);
+    wg->Done();
+}
+
+void AddWaitGroup(void *lpHandle, int i) {
+    auto wg = reinterpret_cast<jamc::WaitGroup*>(lpHandle);
+    wg->Add(i);
+}
+
+void WaitForWaitGroup(void *lpHandle) {
+    auto wg = reinterpret_cast<jamc::WaitGroup*>(lpHandle);
+    wg->Wait();
+}
+
+void CudaLaunchBefore()
+{
+    GetCudaKernelLaunchLockInstance().lock();
+}
+
+void CudaLaunchAfter()
+{
+    GetCudaKernelLaunchLockInstance().unlock();
 }
 
 constexpr int kInnerProductSize = 128;
 
 std::vector<int> GetRandomArray(int * ha, int * hb, int sz, int fsz)
 {
-    assert(kInnerProductSize > sz);
     nvtxRangeId_t id2 = nvtxRangeStart("GetRandomArray");
     std::vector<int> res(fsz, 0);
     std::minstd_rand generator;

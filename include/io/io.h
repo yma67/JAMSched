@@ -12,7 +12,6 @@
 #include "concurrency/future.hpp"
 namespace jamc
 {
-    // to 🐑 @yoo_yyx for contributing idea of #include <io.h>
 
     template <bool PreValidate = true,
               typename TClock = std::chrono::microseconds::rep, typename TDur = std::chrono::microseconds::period>

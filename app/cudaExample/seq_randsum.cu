@@ -18,8 +18,11 @@ constexpr int kNumIteration = 8;
 
 static void Compute() {
     int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
-    cudaStream_t stream;
-    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+    /*cudaStream_t stream;
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);*/
+    //host_a = (int*)malloc(kPerDimLen * kPerDimLen * kNumIteration * sizeof(int));
+    //host_b = (int*)malloc(kPerDimLen * kPerDimLen * kNumIteration * sizeof(int));
+    //host_c = (int*)malloc(kPerDimLen * kPerDimLen * kNumIteration * sizeof(int));
     auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
     auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
@@ -40,12 +43,12 @@ static void Compute() {
     cudaMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof( int) );
     auto result = GetRandomArray(host_a, host_b, kPerDimLen * kPerDimLen, kPerDimLen * kPerDimLen * kNumIteration);
     for ( int i = 0; i < kPerDimLen * kPerDimLen * kNumIteration; i += kPerDimLen * kPerDimLen) {
-        cudaMemcpyAsync( dev_a, host_a + i, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync( dev_b, host_b + i, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyHostToDevice, stream);
-        CircularSubarrayInnerProduct<<<kPerDimLen * kPerDimLen / 256, 256, 0, stream>>>(dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen);
-        cudaMemcpyAsync( host_c + i, dev_c, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyDeviceToHost, stream);
+        cudaMemcpyAsync( dev_a, host_a + i, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyHostToDevice, 0);
+        cudaMemcpyAsync( dev_b, host_b + i, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyHostToDevice, 0);
+        CircularSubarrayInnerProduct<<<kPerDimLen * kPerDimLen / 256, 256, 0, 0>>>(dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen);
+        cudaMemcpyAsync( host_c + i, dev_c, kPerDimLen * kPerDimLen * sizeof( int), cudaMemcpyDeviceToHost, 0);
     }
-    cudaStreamSynchronize(stream);
+    cudaStreamSynchronize(0);
     for (int i = 0; i < kPerDimLen * kPerDimLen * kNumIteration; i++) assert(result[i] == host_c[i]);
     cudaFree(dev_a);
     cudaFree( dev_b);
@@ -53,7 +56,7 @@ static void Compute() {
     cudaFreeHost(host_a);
     cudaFreeHost(host_b);
     cudaFreeHost(host_c);
-    cudaStreamDestroy(stream);
+    //cudaStreamDestroy(stream);
 }
 
 int main() {

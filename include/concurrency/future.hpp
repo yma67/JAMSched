@@ -939,7 +939,7 @@ future<detail::callable_ret_type<F, Args...>> async(F&& f, Args&&... args) {
 
   auto promise_ptr = std::make_shared<promise<future_inner_type>>();
   auto result = promise_ptr->get_future();
-  ctask::CreateBatchTask(StackTraits(false, 4096, true), jamc::Duration::max(), 
+  ctask::CreateBatchTask(StackTraits(true, 0, true), jamc::Duration::max(), 
   [promise_ptr, f = std::forward<F>(f), args...] () mutable {
     try {
       promise_ptr->set_value(std::forward<F>(f)(args...));

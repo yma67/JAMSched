@@ -60,7 +60,8 @@ cudaStream_t jamcStreamAlloc() {
     nvtxRangeId_t id0 = nvtxRangeStart("jamcStreamAlloc");
     cudaStream_t s;
     if (!cudaStreams.pop(s)) {
-        if (cudaSuccess != cudaStreamCreate(&s)) {
+        if (cudaSuccess != cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking)) {
+        // if (cudaSuccess != cudaStreamCreate(&s)) {
             printf("bad allocation stream\n");
             exit(0);
         } else {
@@ -87,14 +88,14 @@ static void Compute(int k) {
     cnlockedMalloc((void**)(&host_b), kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), stream);
     cnlockedMalloc((void**)(&host_c), kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), stream);
     nvtxRangeId_t id0 = nvtxRangeStart("cnmemMalloc dev_a");
-    cnmemMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int), stream);
+    cnmemMallocOnDevice((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int), stream, 0);
     nvtxRangeEnd(id0);
     auto result = GetRandomArray(host_a, host_b, kPerDimLen * kPerDimLen, kPerDimLen * kPerDimLen * kNumIteration);
     nvtxRangeId_t id1 = nvtxRangeStart("cnmemMalloc dev_b");
-    cnmemMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int), stream);
+    cnmemMallocOnDevice((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int), stream, 0);
     nvtxRangeEnd(id1);
     nvtxRangeId_t id2 = nvtxRangeStart("cnmemMalloc dev_c");
-    cnmemMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int), stream);
+    cnmemMallocOnDevice((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int), stream, 0);
     nvtxRangeEnd(id2);
     KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration, result);
     nvtxRangeId_t idf0 = nvtxRangeStart("cnmemFree dev_a");
@@ -117,27 +118,34 @@ int main(int argc, char* argv[]) {
     std::vector<std::unique_ptr<jamc::StealScheduler>> vst{};
     auto nThreads = std::atoi(argv[1]);
     InitDummy();
+    // jamc::Timer::SetGPUSampleRate(std::chrono::nanoseconds(0));
     for (int i = 0; i < nThreads; i++) vst.push_back(std::move(std::make_unique<jamc::StealScheduler>(&ribScheduler, 1024 * 256)));
     ribScheduler.SetStealers(std::move(vst));
-    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 1024 * 256, true, false), jamc::Duration::max(), [&ribScheduler] {
+    ribScheduler.CreateBatchTask(jamc::StackTraits(false, 1024 * 256, true), jamc::Duration::max(), [&ribScheduler, nThreads] {
         std::vector<jamc::TaskHandle> pendings;
         jamc::WaitGroup wg;
         auto startCuda = std::chrono::high_resolution_clock::now();
         cnmemDevice_t memDevice, memHost;
         memDevice.device = 0;
-        memDevice.size = kNumTrails * perIterDeviceTotal * sizeof(int);
+        memDevice.size = 0;
         memDevice.numStreams = 0;
         memDevice.streams = nullptr;
         memDevice.streamSizes = nullptr;
         memHost.device = 0;
-        memHost.size = 0;// kNumTrails * perIterHostPerArray * sizeof(int);
+        memHost.size = kNumTrails * perIterDeviceTotal * sizeof(int);
         memHost.numStreams = 0;
         memHost.streams = nullptr;
         memHost.streamSizes = nullptr;
-        auto ret = jamc::async([&] { cnmemInit(1, &memHost, CNMEM_FLAGS_DEFAULT); return 0; });
-        cnlockedInit(1, &memDevice, CNMEM_FLAGS_HOST_LOCKED);
+        auto ret = jamc::async([&] { cnmemInit(1, &memDevice, CNMEM_FLAGS_DEFAULT); return 0; });
+        cnlockedInit(1, &memHost, CNMEM_FLAGS_HOST_LOCKED);
         ret.wait();
-        for (int k = 0; k < kNumTrails; k++) pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true, true), jamc::Duration::max(), [k] { Compute(k); }));
+        for (int k = 0; k < kNumTrails; k++) {
+            pendings.emplace_back(ribScheduler.CreateBatchTask(jamc::StackTraits(true, 0, true), jamc::Duration::max(), [k] { Compute(k); }));
+            //auto stx = std::chrono::high_resolution_clock::now();
+            //constexpr auto sleepCount = std::chrono::milliseconds(5);
+            //jamc::ctask::SleepFor(sleepCount);
+            //std::cout << "Sleep Jitter - " << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - stx - sleepCount).count() << " us" << std::endl;
+        }
         for (auto& p: pendings) p.Join();
         hostMemory.consume_all([&wg, &ribScheduler](const HostMemory& h) { 
             wg.Add();

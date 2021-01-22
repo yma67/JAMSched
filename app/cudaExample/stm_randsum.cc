@@ -9,22 +9,30 @@
 #include <vector>
 #include <cassert>
 #include "scheduler/scheduler.hpp"
+#include "io/cuda-wrapper.h"
 #include "../deps/Kernel.h"
 #include "cuda_runtime.h"
 
 constexpr int kNumTrails = 256;
 constexpr int kPerDimLen = 256;
 constexpr int kNumIteration = 8;
-
+int hallocerrcount = 0;
 static void Compute() {
-    int *host_a, *host_b, *host_c, *dev_a, *dev_b, *dev_c;
+    int *host_a = new int[kPerDimLen * kPerDimLen * kNumIteration * sizeof(int)], 
+        *host_b = new int[kPerDimLen * kPerDimLen * kNumIteration * sizeof(int)], 
+        *host_c = new int[kPerDimLen * kPerDimLen * kNumIteration * sizeof(int)], 
+        *dev_a, *dev_b, *dev_c;
     cudaStream_t stream;
     cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
-    auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
-    auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
-    auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    //auto res1 = cudaHostAlloc(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    //auto res2 = cudaHostAlloc(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    //auto res3 = cudaHostAlloc(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostAllocDefault);
+    /*auto res1 = cudaHostRegister(&host_a, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostRegisterDefault);
+    auto res2 = cudaHostRegister(&host_b, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostRegisterDefault);
+    auto res3 = cudaHostRegister(&host_c, kPerDimLen * kPerDimLen * kNumIteration * sizeof(int), cudaHostRegisterDefault);
     if (res1 != cudaSuccess) {
-        printf("hostAlloc Error 1\n");
+        ;
+        printf("hostAlloc Error 1 - %d\n", hallocerrcount++);
         return;
     }
     if (res2 != cudaSuccess) {
@@ -34,18 +42,22 @@ static void Compute() {
     if (res3 != cudaSuccess) {
         printf("hostAlloc Error 3\n");
         return;
-    }
-    cudaMalloc((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int));
+    }*/
+    cudaMallocAsync((void**)(&dev_a), kPerDimLen * kPerDimLen * sizeof(int), stream);
     auto result = GetRandomArray(host_a, host_b, kPerDimLen * kPerDimLen, kPerDimLen * kPerDimLen * kNumIteration);
-    cudaMalloc((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int));
-    cudaMalloc((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int));
+    cudaMallocAsync((void**)(&dev_b), kPerDimLen * kPerDimLen * sizeof(int), stream);
+    cudaMallocAsync((void**)(&dev_c), kPerDimLen * kPerDimLen * sizeof(int), stream);
     KernelInvoker(stream, host_a, host_b, host_c, dev_a, dev_b, dev_c, kPerDimLen * kPerDimLen, kNumIteration, result);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-    cudaFree(dev_c);
-    cudaFreeHost(host_a);
-    cudaFreeHost(host_b);
-    cudaFreeHost(host_c);
+    cudaFreeAsync(dev_a, stream);
+    cudaFreeAsync(dev_b, stream);
+    cudaFreeAsync(dev_c, stream);
+    jamc::cuda::WaitStream(stream);
+    //cudaFreeHost(host_a);
+    //cudaFreeHost(host_b);
+    //cudaFreeHost(host_c);
+    delete[] host_a;
+    delete[] host_b;
+    delete[] host_c;
     cudaStreamDestroy(stream);
 }
 

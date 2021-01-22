@@ -26,7 +26,7 @@ extern "C"
     };
 
     typedef struct JAMScriptUContext JAMScriptUserContext;
-    extern int SwapToContext(JAMScriptUserContext *, JAMScriptUserContext *, void*);
+    extern void SwapToContext(JAMScriptUserContext *, JAMScriptUserContext *, void*);
     extern void CreateContext(JAMScriptUserContext *ucp, void (*func)(void));
 
 #ifdef __cplusplus

@@ -168,6 +168,7 @@ cnmemStatus_t CNMEM_API cnmemRelease();
  * CNMEM_STATUS_INVALID_ARGUMENT, if one of the argument is invalid,
  */
 cnmemStatus_t CNMEM_API cnmemRegisterStream(cudaStream_t stream);
+cnmemStatus_t CNMEM_API cnmemRegisterStreamGivenDevice(cudaStream_t stream, int device);
 cnmemStatus_t CNMEM_API cnlockedRegisterStream(cudaStream_t stream);
 
 /**
@@ -206,6 +207,7 @@ cnmemStatus_t CNMEM_API cnlockedRegisterStream(cudaStream_t stream);
  * CNMEM_STATUS_CUDA_ERROR,       if an error happens in one of the CUDA functions.
  */
 cnmemStatus_t CNMEM_API cnmemMalloc(void **ptr, size_t size, cudaStream_t stream);
+cnmemStatus_t CNMEM_API cnmemMallocOnDevice(void **ptr, std::size_t size, cudaStream_t stream, int device);
 cnmemStatus_t CNMEM_API cnlockedMalloc(void **ptr, size_t size, cudaStream_t stream);
 
 /**

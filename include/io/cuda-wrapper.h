@@ -3,102 +3,61 @@
 //
 #ifndef JAMSCRIPT_CUDA_H
 #define JAMSCRIPT_CUDA_H
+//#ifdef __CUDACC__
 #include "concurrency/future.hpp"
 #include <initializer_list>
 #include <unordered_map>
 #include <type_traits>
+#include <boost/lockfree/stack.hpp>
+#include <boost/lockfree/queue.hpp>
 #include "cuda_runtime.h"
+#include "concurrency/waitgroup.hpp"
+#include <queue>
 
 using StreamType = cudaStream_t;
 using ErrorType = cudaError_t;
+using EventType = cudaEvent_t;
 
 namespace jamc {
 namespace cuda {
-
-    class StreamBundle
-    {
-
-        static void Callback(StreamType stream, ErrorType error, void* lpStreamBundle)
-        {
-            StreamBundle* data = static_cast<StreamBundle*>(lpStreamBundle);
-            {
-                std::unique_lock lk(data->m);
-                data->resMap.emplace(stream, error);
-                if (data->resMap.size() == data->totalStreamCount)
-                {
-                    lk.unlock();
-                    data->cv.notify_one();
-                }
-            }
-        }
-
-        std::unordered_map<StreamType, ErrorType> resMap;
-        SpinMutex m;
-        ConditionVariable cv;
-        std::size_t totalStreamCount;
-
+    
+    class CUDAPooler {
+        struct CUDAPair {
+            StreamType ev;
+            jamc::promise<ErrorType>* pr;
+        };
+        jamc::SpinMutex m;
+        std::deque<std::function<void()>> kernels;
+        boost::lockfree::queue<CUDAPair> pendings;
+        boost::lockfree::stack<EventType> eventReuse;
+        boost::lockfree::stack<jamc::promise<ErrorType>*> promiseReuse;
     public:
-
-        StreamBundle(std::initializer_list<StreamType> st) : totalStreamCount(st.size())
-        {
-            for (auto& stream: st)
-            {
-                auto status = ::cudaStreamAddCallback(stream, StreamBundle::Callback, this, 0);
-                if (cudaSuccess != status)
-                {
-                    std::scoped_lock lk(m);
-                    resMap.emplace(stream, status);
-                }
-            }
+        ~CUDAPooler();
+        static CUDAPooler& GetInstance();
+        ErrorType WaitStream(StreamType s, size_t spinRound);
+        void EnqueueKernel(const std::function<void()>&);
+        void IterateOnce();
+    };
+    
+    template <typename... Args>
+    class CommandArgs {
+        using ArgTupleType = std::tuple<Args...>;
+        std::array<void*, std::tuple_size<ArgTupleType>::value> arrayArgs;
+        ArgTupleType actArgs;
+    public:
+        CommandArgs() = default;
+        CommandArgs(Args... args) : actArgs(std::forward<Args>(args)...) {
+            std::apply([this](auto& ...xs) { arrayArgs = {(&xs)...}; }, actArgs);
         }
-
-        StreamBundle(std::vector<StreamType> st) : totalStreamCount(st.size())
-        {
-            for (auto& stream: st)
-            {
-                auto status = cudaStreamAddCallback(stream, StreamBundle::Callback, this, 0);
-                if (cudaSuccess != status)
-                {
-                    std::scoped_lock lk(m);
-                    resMap.emplace(stream, status);
-                }
-            }
-        }
-
-        std::unordered_map<StreamType, ErrorType> WaitThenGet()
-        {
-            std::unique_lock lk(m);
-            while (resMap.size() < totalStreamCount) cv.wait(lk);
-            return std::move(resMap);
-        }
-
+        void** GetCudaKernelArgs() { return arrayArgs.data(); }
+        ArgTupleType &GetArgTuple() { return actArgs; }
     };
 
-    ErrorType WaitStream(StreamType stream)
-    {
-        auto r = std::make_unique<jamc::promise<ErrorType>>();
-        auto f = r->get_future();
-        auto status = ::cudaStreamAddCallback(stream,
-            [] (StreamType stream,  ErrorType status, void* lpPromise)
-            {
-                auto* r = static_cast<jamc::promise<ErrorType>*>(lpPromise);
-                r->set_value(status);
-            },
-            r.get(), 0);
-        if (cudaSuccess != status)
-        {
-            return status;
-        }
-        return f.get();
-    }
-    
-    std::unordered_map<StreamType, ErrorType> WaitStream(std::vector<StreamType> streams)
-    {
-        auto r = std::make_unique<StreamBundle>(streams);
-        return r->WaitThenGet();
-    }
+    ErrorType WaitStream(StreamType stream);
+    ErrorType WaitStream(StreamType stream, size_t spinRound);
+    ErrorType WaitStreamWithStreamCallback(StreamType stream);
 
 }
 }
-
+//#endif
 #endif //JAMSCRIPT_CUDA_H
