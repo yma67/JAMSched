@@ -3,7 +3,6 @@
 // obtained from https://mohsensy.github.io/programming/2019/09/25/echo-server-and-client-using-sockets-in-c.html
 
 #include <jamscript>
-
 #include <stdio.h> // perror, printf
 #include <stdlib.h> // exit, atoi
 #include <unistd.h> // read, write, close

@@ -1,3 +1,4 @@
+#ifdef JAMSCRIPT_HAS_CUDA
 #include "io/cuda-wrapper.h"
 
 jamc::cuda::CUDAPooler::~CUDAPooler() {
@@ -102,3 +103,4 @@ ErrorType jamc::cuda::WaitStreamWithStreamCallback(StreamType stream)
     }
     return f.get();
 }
+#endif

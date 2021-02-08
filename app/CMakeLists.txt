@@ -3,6 +3,9 @@ add_subdirectory(one-task)
 add_subdirectory(assignment2)
 add_subdirectory(integration)
 add_subdirectory(skynet)
-add_subdirectory(cudaExample)
+
+if(DEFINED CUDA_TOOLKIT_ROOT_DIR)
+    add_subdirectory(cudaExample)
+endif(DEFINED CUDA_TOOLKIT_ROOT_DIR)
 
 add_subdirectory(io)

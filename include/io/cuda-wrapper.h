@@ -3,7 +3,7 @@
 //
 #ifndef JAMSCRIPT_CUDA_H
 #define JAMSCRIPT_CUDA_H
-//#ifdef __CUDACC__
+#ifdef JAMSCRIPT_HAS_CUDA
 #include "concurrency/future.hpp"
 #include <initializer_list>
 #include <unordered_map>
@@ -59,5 +59,5 @@ namespace cuda {
 
 }
 }
-//#endif
+#endif
 #endif //JAMSCRIPT_CUDA_H

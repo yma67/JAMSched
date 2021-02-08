@@ -107,7 +107,7 @@ void jamc::Timer::RunTimerLoop()
                 t->Enable();
             }
         }
-//#ifdef __CUDACC__
+#ifdef JAMSCRIPT_HAS_CUDA
         if (kTimerSampleDeltaGPU > std::chrono::nanoseconds(0))
         {
             for (auto t = (kTimerSampleDelta - kTimerSampleDelta); 
@@ -125,7 +125,7 @@ void jamc::Timer::RunTimerLoop()
             while (std::chrono::high_resolution_clock::now() < beg + kTimerSampleDelta)
                 jamc::cuda::CUDAPooler::GetInstance().IterateOnce();
         }
-//#endif
+#endif
 #else
         std::this_thread::sleep_for(kTimerSampleDelta);
 #endif

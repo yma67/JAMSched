@@ -27,6 +27,11 @@ if(JAMSCRIPT_BLOCK_WAIT_OPT)
     add_compile_definitions(JAMSCRIPT_BLOCK_WAIT)
 endif(JAMSCRIPT_BLOCK_WAIT_OPT)
 
+if(DEFINED CUDA_TOOLKIT_ROOT_DIR)
+    add_compile_definitions(JAMSCRIPT_HAS_CUDA)
+endif(DEFINED CUDA_TOOLKIT_ROOT_DIR)
+
+
 add_subdirectory(src)
 add_subdirectory(app)
 add_subdirectory(test)
